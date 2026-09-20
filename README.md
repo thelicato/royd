@@ -8,6 +8,19 @@ royd is an experimental Android runtime designed for OCI containers. The goal is
 
 royd is an independent AOSP-based project. Prior art and influences are documented in [`docs/acknowledgements.md`](docs/acknowledgements.md). The project carries its own Android integration, product definitions, runtime helpers, patches, and container tooling.
 
+## Android versions
+
+royd currently carries pinned build configurations for Android 14, 15, 16, and 17. Android 15 remains the default baseline while the other versions are configured but still require clean build and boot validation.
+
+```sh
+make android-versions
+make android-sync-16
+make android-config-check-16
+make android-build-x86_64-16
+```
+
+See [`docs/android-versions.md`](docs/android-versions.md) for the support matrix and version-selection rules.
+
 > [!IMPORTANT]
 > royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP baseline and repository-owned Android integration, but the independent container boot and graphics path are not yet broadly validated.
 
@@ -129,6 +142,7 @@ Useful development entry points include:
 
 ```sh
 make check
+make android-version-test
 make android-sync
 make android-contract-test
 make android-config-check

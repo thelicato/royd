@@ -1,10 +1,16 @@
 # Building Android
 
+## Android version selection
+
+Android 15 is the default build baseline. Android 14, 16, and 17 are also pinned and use the same repository-owned product integration. Use `ROYD_ANDROID_VERSION=<version>` or the version-suffixed Make targets. Each version has a separate source tree under `.work`.
+
+See [`android-versions.md`](android-versions.md) for the complete matrix and validation status.
+
 ## Baseline
 
-royd currently targets AOSP `android-15.0.0_r36`. The source baseline is intentionally plain AOSP. No third-party Android manifest, device tree, vendor tree, or patch repository is fetched by the build.
+royd currently carries pinned AOSP configurations for Android 14, 15, 16, and 17. Android 15 is the default baseline. The source baseline is intentionally plain AOSP. No third-party Android manifest, device tree, vendor tree, or patch repository is fetched by the build.
 
-The baseline values live in [`android/baseline.env`](../android/baseline.env). After synchronisation, royd writes `.work/android-manifest.lock.xml` with exact AOSP project revisions for diagnostics and reproducibility work.
+Shared defaults live in [`android/baseline.env`](../android/baseline.env), with release-specific values under [`android/versions/`](../android/versions/). After synchronisation, royd writes `.work/android-manifest-<version>.lock.xml` with exact AOSP project revisions for diagnostics and reproducibility work.
 
 All royd-specific Android integration is stored in this repository:
 
@@ -45,11 +51,11 @@ The script:
 
 1. Initialises the pinned AOSP tag.
 2. Synchronises AOSP and Git LFS content.
-3. Applies any repository-owned patches under `android/patches/android-15.0.0_r36`.
+3. Applies any repository-owned patches under `android/patches/<AOSP tag>` when that release needs local changes.
 4. Copies the repository-owned `device/royd` and `vendor/royd` projects into the source tree.
-5. Writes a resolved manifest to `.work/android-manifest.lock.xml`.
+5. Writes a resolved manifest to `.work/android-manifest-<version>.lock.xml`.
 
-The default source tree is `.work/android-src`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit source synchronisation and compilation.
+The default source tree is `.work/android-src-<version>`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit source synchronisation and compilation.
 
 ## Preflight build contract
 

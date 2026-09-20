@@ -3,7 +3,8 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-image=${1:-${ROYD_IMAGE:-royd:dev}}
+default_image=$("$script_dir/default-image.sh" standard x86_64)
+image=${1:-${ROYD_IMAGE:-$default_image}}
 profile=${ROYD_PROFILE:-default}
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 output=${ROYD_REPORT_OUTPUT:--}
@@ -95,7 +96,17 @@ else
   royd_commit='unknown'
 fi
 
-android_baseline=$(sed -n 's/^AOSP_TAG=//p' "$root/android/baseline.env" | head -n 1)
+# shellcheck disable=SC1091
+. "$root/android/baseline.env"
+android_version=${ROYD_ANDROID_VERSION:-$ROYD_DEFAULT_ANDROID_VERSION}
+version_env="$root/android/versions/$android_version.env"
+if [ -f "$version_env" ]; then
+  # shellcheck disable=SC1090
+  . "$version_env"
+  android_baseline=$AOSP_TAG
+else
+  android_baseline=unknown
+fi
 architecture=$(uname -m)
 kernel=$(uname -srmo)
 os_release='unknown'
@@ -116,6 +127,7 @@ report="$workdir/report.md"
   printf 'This report records one host and the current runtime validation results. It is evidence for this exact environment only and should not be treated as a general compatibility claim.\n\n'
   printf '## Repository and image\n\n'
   printf -- '- royd commit: `%s`\n' "$royd_commit"
+  printf -- '- Android version: `%s`\n' "${ANDROID_VERSION:-unknown}"
   printf -- '- Android baseline: `%s`\n' "${android_baseline:-unknown}"
   printf -- '- image: `%s`\n' "$image"
   printf -- '- runtime profile: `%s`\n' "$profile"

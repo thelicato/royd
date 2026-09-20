@@ -12,11 +12,11 @@ mkdir -p "$tmp/build"
 cat > "$tmp/build/envsetup.sh" <<'MOCK'
 lunch() {
   case "$1" in
-    royd_x86_64-bp1a-userdebug)
+    royd_x86_64-bp1a-userdebug|royd_x86_64-bp4a-userdebug|royd_x86_64-cp2a-userdebug|royd_x86_64-userdebug)
       MOCK_PRODUCT=royd_x86_64
       MOCK_ARCH=x86_64
       ;;
-    royd_arm64-bp1a-userdebug)
+    royd_arm64-bp1a-userdebug|royd_arm64-bp4a-userdebug|royd_arm64-cp2a-userdebug|royd_arm64-userdebug)
       MOCK_PRODUCT=royd_arm64
       MOCK_ARCH=arm64
       ;;
@@ -40,10 +40,10 @@ get_build_var() {
 }
 MOCK
 
-output=$(ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh")
-printf '%s\n' "$output" | grep -Fq 'royd_x86_64-bp1a-userdebug'
-printf '%s\n' "$output" | grep -Fq 'royd_arm64-bp1a-userdebug'
-printf '%s\n' "$output" | grep -Fq 'Android build contract checks passed'
+for version in 14 15 16 17; do
+  output=$(ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh")
+  printf '%s\n' "$output" | grep -Fq 'Android build contract checks passed'
+done
 
 # Prove that a resolved AOSP value which violates the contract is rejected.
 python3 - "$tmp/build/envsetup.sh" <<'PY'
@@ -53,9 +53,9 @@ p = Path(sys.argv[1])
 s = p.read_text().replace('TARGET_COPY_OUT_PRODUCT) printf \'%s\\n\' product ;;', 'TARGET_COPY_OUT_PRODUCT) printf \'%s\\n\' system/product ;;')
 p.write_text(s)
 PY
-if ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh" >/dev/null 2>&1; then
+if ROYD_ANDROID_VERSION=15 ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh" >/dev/null 2>&1; then
   printf '%s\n' 'error: config check accepted a broken product copy-out path' >&2
   exit 1
 fi
 
-printf '%s\n' 'Android resolved build contract test passed'
+printf '%s\n' 'Android resolved build contract test passed for versions 14, 15, 16, and 17'

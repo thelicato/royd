@@ -2,7 +2,8 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-image=${1:-${ROYD_IMAGE:-royd:dev}}
+default_image=$("$script_dir/default-image.sh" standard x86_64)
+image=${1:-${ROYD_IMAGE:-$default_image}}
 profile=${ROYD_PROFILE:-default}
 modes=${ROYD_SECURITY_MODES:-'privileged experimental'}
 output=${ROYD_SECURITY_SWEEP_OUTPUT:--}

@@ -5,6 +5,14 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 # shellcheck disable=SC1091
 . "$repo_root/android/baseline.env"
+android_version=${ROYD_ANDROID_VERSION:-$ROYD_DEFAULT_ANDROID_VERSION}
+version_env="$repo_root/android/versions/$android_version.env"
+[ -f "$version_env" ] || {
+  printf 'error: unsupported Android version: %s; expected one of 14, 15, 16, 17\n' "$android_version" >&2
+  exit 1
+}
+# shellcheck disable=SC1090
+. "$version_env"
 # shellcheck disable=SC1091
 . "$repo_root/runtime/image.env"
 

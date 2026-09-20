@@ -10,7 +10,7 @@ The normal Android source synchronisation path may fetch:
 - the AOSP projects referenced by that manifest
 - Git LFS objects required by those AOSP projects
 
-The resolved AOSP manifest is recorded in `.work/android-manifest.lock.xml`.
+The resolved AOSP manifest is recorded per Android version as `.work/android-manifest-<version>.lock.xml`.
 
 ## Repository-owned integration
 

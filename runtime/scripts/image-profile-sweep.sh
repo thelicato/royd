@@ -21,9 +21,9 @@ command -v docker >/dev/null 2>&1 || {
 
 image_for_profile() {
   case "$1" in
-    standard) printf '%s\n' "${ROYD_STANDARD_IMAGE:-royd:dev}" ;;
-    minimal) printf '%s\n' "${ROYD_MINIMAL_IMAGE:-royd:dev-minimal}" ;;
-    *) printf '%s\n' "royd:dev-$1" ;;
+    standard) default=$("$script_dir/default-image.sh" standard x86_64); printf '%s\n' "${ROYD_STANDARD_IMAGE:-$default}" ;;
+    minimal) default=$("$script_dir/default-image.sh" minimal x86_64); printf '%s\n' "${ROYD_MINIMAL_IMAGE:-$default}" ;;
+    *) "$script_dir/default-image.sh" "$1" x86_64 ;;
   esac
 }
 

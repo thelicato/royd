@@ -34,7 +34,7 @@ esac
 
 product_out="$src/out/target/product/$product"
 host_bin="$src/out/host/linux-x86/bin"
-runtime_dir="$repo_root/.work/runtime"
+runtime_dir="$repo_root/.work/runtime/android-$ANDROID_VERSION"
 output="$runtime_dir/royd-$arch-$profile.tar"
 manifest="$runtime_dir/royd-$arch-$profile.manifest"
 tmp=$(mktemp -d)
@@ -116,6 +116,7 @@ release_dir="$tmp/release"
 mkdir -p "$release_dir"
 cat > "$release_dir/royd-release" <<EOF
 ROYD_IMAGE_FORMAT=1
+ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
@@ -127,6 +128,7 @@ sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./r
 archive_sha256=$(sha256sum "$output" | awk '{print $1}')
 cat > "$manifest" <<EOF
 ROYD_IMAGE_FORMAT=1
+ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile

@@ -2,7 +2,8 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-image=${1:-${ROYD_IMAGE:-royd:dev}}
+default_image=$("$script_dir/default-image.sh" standard x86_64)
+image=${1:-${ROYD_IMAGE:-$default_image}}
 container=${ROYD_SMOKE_CONTAINER:-royd-smoke-$$}
 volume=${container}-data
 timeout=${ROYD_BOOT_TIMEOUT:-180}

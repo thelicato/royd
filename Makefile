@@ -1,8 +1,38 @@
-.PHONY: check runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
+.PHONY: check android-versions android-version-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
 
 check:
 	./scripts/check-repo.sh
 	./scripts/check-runtime.sh
+
+android-versions:
+	@printf '%s\n' '14  android-14.0.0_r14  configured' '15  android-15.0.0_r36  baseline' '16  android-16.0.0_r4   configured' '17  android-17.0.0_r1   configured'
+
+android-version-test:
+	./android/scripts/version-test.sh
+
+android-sync-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/sync.sh
+
+android-config-check-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/config-check.sh
+
+android-build-x86_64-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/build.sh x86_64 standard
+
+android-build-arm64-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/build.sh arm64 standard
+
+android-package-x86_64-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/package.sh x86_64 standard
+
+android-package-arm64-%:
+	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/package.sh arm64 standard
+
+runtime-import-x86_64-%:
+	ROYD_ANDROID_VERSION=$* ./runtime/scripts/import.sh x86_64 standard
+
+runtime-import-arm64-%:
+	ROYD_ANDROID_VERSION=$* ./runtime/scripts/import.sh arm64 standard
 
 runtime-host-check:
 	./runtime/scripts/host-check.sh

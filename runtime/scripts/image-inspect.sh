@@ -5,6 +5,14 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 # shellcheck disable=SC1091
 . "$repo_root/android/baseline.env"
+android_version=${ROYD_ANDROID_VERSION:-$ROYD_DEFAULT_ANDROID_VERSION}
+version_env="$repo_root/android/versions/$android_version.env"
+[ -f "$version_env" ] || {
+  printf 'error: unsupported Android version: %s; expected one of 14, 15, 16, 17\n' "$android_version" >&2
+  exit 1
+}
+# shellcheck disable=SC1090
+. "$version_env"
 # shellcheck disable=SC1091
 . "$repo_root/runtime/image.env"
 
@@ -44,6 +52,7 @@ label() {
 actual_arch=$(docker image inspect --format '{{.Architecture}}' "$image")
 equal architecture "$actual_arch" "$docker_arch"
 equal image-format "$(label org.royd.image-format)" "$ROYD_IMAGE_FORMAT"
+equal android-version "$(label org.royd.android-version)" "$ANDROID_VERSION"
 equal android-ref "$(label org.royd.android-ref)" "$AOSP_TAG"
 equal image-profile "$(label org.royd.image-profile)" "$profile"
 equal royd-arch "$(label org.royd.arch)" "$arch"
@@ -59,6 +68,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 release=$(docker cp "$container_id:/royd-release" - 2>/dev/null | tar -xOf -)
 printf '%s\n' "$release" | grep -Fqx "ROYD_IMAGE_FORMAT=$ROYD_IMAGE_FORMAT"
+printf '%s\n' "$release" | grep -Fqx "ROYD_ANDROID_VERSION=$ANDROID_VERSION"
 printf '%s\n' "$release" | grep -Fqx "ROYD_AOSP_TAG=$AOSP_TAG"
 printf '%s\n' "$release" | grep -Fqx "ROYD_ARCH=$arch"
 printf '%s\n' "$release" | grep -Fqx "ROYD_IMAGE_PROFILE=$profile"

@@ -2,7 +2,8 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-image=${1:-${ROYD_IMAGE:-royd:dev}}
+default_image=$("$script_dir/default-image.sh" standard x86_64)
+image=${1:-${ROYD_IMAGE:-$default_image}}
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 prefix=${ROYD_MULTI_PREFIX:-royd-multi-$$}
 profile=${ROYD_PROFILE:-default}

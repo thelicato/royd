@@ -5,6 +5,14 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 # shellcheck disable=SC1091
 . "$repo_root/android/baseline.env"
+android_version=${ROYD_ANDROID_VERSION:-$ROYD_DEFAULT_ANDROID_VERSION}
+version_env="$repo_root/android/versions/$android_version.env"
+[ -f "$version_env" ] || {
+  printf 'error: unsupported Android version: %s; expected one of 14, 15, 16, 17\n' "$android_version" >&2
+  exit 1
+}
+# shellcheck disable=SC1090
+. "$version_env"
 # shellcheck disable=SC1091
 . "$repo_root/runtime/image.env"
 
@@ -25,8 +33,8 @@ case "$arch" in
     ;;
 esac
 
-archive="$repo_root/.work/runtime/royd-$arch-$profile.tar"
-manifest="$repo_root/.work/runtime/royd-$arch-$profile.manifest"
+archive="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile.tar"
+manifest="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile.manifest"
 command -v sha256sum >/dev/null 2>&1 || {
   printf '%s\n' 'error: sha256sum is required to verify the runtime archive' >&2
   exit 1
@@ -62,6 +70,7 @@ docker import \
   -c 'LABEL org.opencontainers.image.description=Android runtime for OCI containers' \
   -c "LABEL org.opencontainers.image.version=$version" \
   -c "LABEL org.royd.image-format=$ROYD_IMAGE_FORMAT" \
+  -c "LABEL org.royd.android-version=$ANDROID_VERSION" \
   -c "LABEL org.royd.android-ref=$AOSP_TAG" \
   -c "LABEL org.royd.arch=$arch" \
   -c "LABEL org.royd.image-profile=$profile" \

@@ -16,6 +16,7 @@ if [ "$1 $2" = "image inspect" ]; then
     '{{.Architecture}}') printf '%s\n' amd64 ;;
     '{{json .Config.Entrypoint}}') printf '%s\n' '["/init","androidboot.hardware=royd"]' ;;
     *org.royd.image-format*) printf '%s\n' 1 ;;
+    *org.royd.android-version*) printf '%s\n' 15 ;;
     *org.royd.android-ref*) printf '%s\n' android-15.0.0_r36 ;;
     *org.royd.image-profile*) printf '%s\n' standard ;;
     *org.royd.arch*) printf '%s\n' x86_64 ;;
@@ -32,6 +33,7 @@ if [ "$1" = cp ]; then
   mkdir -p "$MOCK_RELEASE_DIR"
   cat > "$MOCK_RELEASE_DIR/royd-release" <<'REL'
 ROYD_IMAGE_FORMAT=1
+ROYD_ANDROID_VERSION=15
 ROYD_AOSP_TAG=android-15.0.0_r36
 ROYD_ARCH=x86_64
 ROYD_IMAGE_PROFILE=standard
@@ -51,7 +53,13 @@ mkdir -p "$tmp/release"
 PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh" x86_64 standard royd:test >/dev/null
 
 [ "$($script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=14 $script_dir/image-tag.sh x86_64 standard)" = 'royd:14.0.0-r14-standard-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-tag.sh arm64 minimal)" = 'royd:16.0.0-r4-minimal-arm64' ]
+[ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-tag.sh x86_64 standard)" = 'royd:17.0.0-r1-standard-amd64' ]
 [ "$($script_dir/image-tag.sh arm64 minimal)" = 'royd:15.0.0-r36-minimal-arm64' ]
 [ "$($script_dir/image-alias.sh x86_64 standard)" = 'royd:dev' ]
+[ "$(ROYD_ANDROID_VERSION=14 $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-14' ]
+[ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-alias.sh arm64 standard)" = 'royd:dev-16-arm64' ]
+[ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-alias.sh x86_64 minimal)" = 'royd:dev-17-minimal' ]
 [ "$($script_dir/image-alias.sh arm64 minimal)" = 'royd:dev-minimal-arm64' ]
 printf '%s\n' 'Runtime image contract test passed'

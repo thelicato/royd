@@ -8,6 +8,15 @@ repo_root=$(CDPATH= cd -- "$android_dir/.." && pwd)
 # shellcheck disable=SC1091
 . "$android_dir/baseline.env"
 
+android_version=${ROYD_ANDROID_VERSION:-$ROYD_DEFAULT_ANDROID_VERSION}
+version_env="$android_dir/versions/$android_version.env"
+[ -f "$version_env" ] || {
+  printf 'error: unsupported Android version: %s; expected one of 14, 15, 16, 17\n' "$android_version" >&2
+  exit 1
+}
+# shellcheck disable=SC1090
+. "$version_env"
+
 fail() {
   printf 'error: %s\n' "$*" >&2
   exit 1
@@ -18,5 +27,5 @@ require_command() {
 }
 
 source_dir() {
-  printf '%s\n' "${ROYD_ANDROID_SRC:-$repo_root/.work/android-src}"
+  printf '%s\n' "${ROYD_ANDROID_SRC:-$repo_root/.work/android-src-$ANDROID_VERSION}"
 }

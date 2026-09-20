@@ -9,7 +9,11 @@ src=${1:-$(source_dir)}
 patch_dir="$android_dir/patches/$AOSP_TAG"
 marker="$src/.repo/royd-local-patches.sha256"
 
-[ -d "$patch_dir" ] || fail "local patch directory not found: $patch_dir"
+if [ ! -d "$patch_dir" ]; then
+  rm -f "$marker"
+  printf 'No local AOSP patches for %s\n' "$AOSP_TAG"
+  exit 0
+fi
 
 patches=$(find "$patch_dir" -maxdepth 1 -type f -name '*.patch' -print | sort)
 if [ -z "$patches" ]; then

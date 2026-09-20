@@ -26,13 +26,13 @@ case "$arch" in
 esac
 
 "$script_dir/install-royd.sh" "$src" "$profile"
-lunch_target="${product}-${ANDROID_RELEASE}-${ANDROID_VARIANT}"
+lunch_target=$("$script_dir/lunch-target.sh" "$arch")
 stamp_dir="$repo_root/.work/android-profile"
-stamp="$stamp_dir/$arch"
+stamp="$stamp_dir/$ANDROID_VERSION-$arch"
 previous_profile=
 [ -f "$stamp" ] && previous_profile=$(cat "$stamp")
 mkdir -p "$stamp_dir"
-printf 'Building %s with Android profile %s and %s jobs\n' "$lunch_target" "$profile" "$jobs"
+printf 'Building Android %s (%s) with profile %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$jobs"
 
 (
   cd "$src"

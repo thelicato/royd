@@ -4,7 +4,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 1. Independent AOSP baseline
 
-- [x] Pin AOSP `android-15.0.0_r36` as the initial source baseline.
+- [x] Pin Android 14, 15, 16, and 17 AOSP releases, with Android 15 as the default baseline.
 - [x] Remove external Android container manifests, device trees, vendor trees, and patch repositories from the build path.
 - [x] Add repository-owned `royd_x86_64` and `royd_arm64` products.
 - [x] Add static and AOSP-resolved build-contract preflight checks.
@@ -114,3 +114,6 @@ Implemented:
 - archive SHA-256 manifests verified before Docker import
 - OCI and royd-specific image labels
 - post-import image contract inspection without Android boot
+
+## Next milestones
+- Validate every pinned Android version with resolved AOSP configuration, clean x86_64 and arm64 builds, OCI packaging, and boot smoke tests.

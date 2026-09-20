@@ -31,7 +31,7 @@ check_product() {
       ;;
   esac
 
-  lunch_target="${product}-${ANDROID_RELEASE}-${ANDROID_VARIANT}"
+  lunch_target=$("$script_dir/lunch-target.sh" "$arch")
   printf 'Checking resolved AOSP configuration for %s\n' "$lunch_target"
 
   (

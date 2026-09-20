@@ -177,6 +177,8 @@ When a design decision changes, update this file if the decision is important en
 
 ## Current decisions
 
+- Pinned Android versions: 14, 15, 16, and 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
+
 The following decisions are currently agreed:
 
 - Project name: `royd`.
@@ -189,7 +191,7 @@ The following decisions are currently agreed:
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
 - Privileged containers remain the development baseline. An experimental restricted mode is maintained for evidence-driven capability reduction and must not be described as a supported minimum until reference-host tests pass.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
-- Initial Android baseline: plain AOSP `android-15.0.0_r36`.
+- Android source policy: plain AOSP only. Android 14, 15, 16, and 17 are pinned, with Android 15 as the default baseline until all versions complete clean build and boot validation.
 - Initial build architecture targets: `x86_64` and `arm64`, using repository-owned `royd_x86_64` and `royd_arm64` products with the AOSP `userdebug` variant.
 - Android dependency policy: the normal build may fetch the pinned AOSP manifest only. All royd-specific device definitions, vendor code, helper binaries, init rules, image profiles, and AOSP patches must live in this repository.
 - Android customisation strategy: copy `android/royd/device/royd` and `android/royd/vendor/royd` into the synchronised AOSP tree, then apply only repository-owned patches from `android/patches`.
@@ -213,3 +215,5 @@ The following decisions are currently agreed:
 - Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
 - Runtime security modes: `privileged` is the current baseline; `experimental` removes `--privileged` and tests explicit capabilities through the same smoke, benchmark, report, Compose, and CLI workflows.
 
+
+Android version validation is an explicit remaining project task until every pinned version passes clean x86_64 and arm64 builds, OCI packaging, and runtime smoke tests.
