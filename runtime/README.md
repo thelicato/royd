@@ -93,7 +93,9 @@ Useful commands are:
 
 ```sh
 make runtime-ps
+make runtime-status
 make runtime-logs
+make runtime-adb-check
 make runtime-down
 ```
 
@@ -107,12 +109,15 @@ royd forwards Android logcat to PID 1's stdout and stderr, so normal container l
 docker logs -f royd
 ```
 
-ADB remains independent:
+ADB remains independent and is configured for TCP port 5555 by the image:
 
 ```sh
-adb connect localhost:5555
-adb logcat
+adb connect 127.0.0.1:5555
+adb -s 127.0.0.1:5555 shell
+adb -s 127.0.0.1:5555 logcat
 ```
+
+The image also carries a Docker health check covering Android boot completion, `adbd`, the ADB TCP property, and Binder device readiness. See [`../docs/adb.md`](../docs/adb.md).
 
 ## Binder
 

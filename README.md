@@ -124,6 +124,8 @@ royd doctor
 royd run
 royd ps
 royd logs
+royd status
+royd adb
 royd shell
 royd stop
 royd rm
@@ -134,7 +136,7 @@ See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the cu
 
 ## Initial roadmap
 
-The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, OCI packaging, runtime arguments, validation tooling, and optional CLI. The normal build fetches only the pinned AOSP source baseline. The next gate is to build and boot this independent baseline on documented reference hosts, then implement and validate the remaining container-specific hardware and graphics surface.
+The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, software graphics baseline, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. The next gate is to build and boot the independent baseline on documented reference hosts, then validate each version, graphics path, Binder isolation, memory target, and security mode with real workloads.
 
 ## Development
 
@@ -156,10 +158,14 @@ cp runtime/.env.example runtime/.env
 make runtime-up
 make runtime-logs
 make runtime-smoke-test
+make runtime-status
+make runtime-adb-check
 make runtime-reference-report
 make memory-sweep
 make cli-test
 make cli-build
 ```
+
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md).
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

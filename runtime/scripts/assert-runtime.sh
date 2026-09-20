@@ -32,6 +32,8 @@ assert_property() {
 assert_property sys.boot_completed 1
 assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
+assert_property init.svc.adbd running
+assert_property service.adb.tcp.port 5555
 assert_property vendor.royd.graphics.mode software
 assert_property ro.vendor.royd.hal_profile "$hal_profile"
 assert_property ro.vendor.royd.display_mode "$display_mode"

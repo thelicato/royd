@@ -188,6 +188,8 @@ The following decisions are currently agreed:
 - Optional CLI: Go. Keep the implementation small, local-first, transparent about Docker operations, and limited to convenience commands and lightweight host checks until runtime validation justifies more automation.
 - Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it. The Binder allocation helper is implemented and built from this repository.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
+- ADB: development images expose `adbd` over TCP port 5555 with authentication disabled for local container workflows. Keep the host publication loopback-only by default and treat remote exposure as unsafe unless explicitly secured.
+- Container health: imported OCI images include a health check that requires Android boot completion, running `adbd`, ADB TCP configuration, and Binder device readiness.
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
 - Privileged containers remain the development baseline. An experimental restricted mode is maintained for evidence-driven capability reduction and must not be described as a supported minimum until reference-host tests pass.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.

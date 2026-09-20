@@ -9,3 +9,5 @@ PRODUCT_VENDOR_PROPERTIES += \
 PRODUCT_VENDOR_PROPERTIES += \
     ro.hardware.gralloc=royd \
     ro.hardware.hwcomposer=default
+
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=0

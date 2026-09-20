@@ -65,6 +65,14 @@ equal title "$(label org.opencontainers.image.title)" royd
 entrypoint=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")
 equal entrypoint "$entrypoint" '["/init","androidboot.hardware=royd"]'
 
+healthcheck=$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$image")
+equal healthcheck "$healthcheck" '["CMD","/vendor/bin/royd-health"]'
+exposed=$(docker image inspect --format '{{json .Config.ExposedPorts}}' "$image")
+printf '%s\n' "$exposed" | grep -Fq '5555/tcp' || {
+  printf '%s\n' 'error: image does not expose ADB port 5555/tcp' >&2
+  exit 1
+}
+
 container_id=$(docker create --entrypoint /system/bin/cat "$image" /royd-release)
 cleanup() {
   docker rm -f "$container_id" >/dev/null 2>&1 || true

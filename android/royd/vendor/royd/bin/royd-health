@@ -1,0 +1,10 @@
+#!/system/bin/sh
+set -eu
+
+[ "$(getprop sys.boot_completed)" = "1" ] || exit 1
+[ "$(getprop init.svc.adbd)" = "running" ] || exit 1
+[ "$(getprop service.adb.tcp.port)" = "5555" ] || exit 1
+[ -c /dev/binder ] || exit 1
+[ -c /dev/hwbinder ] || exit 1
+[ -c /dev/vndbinder ] || exit 1
+exit 0

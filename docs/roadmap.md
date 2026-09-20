@@ -48,7 +48,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Keep Android `/init` as PID 1.
 - [x] Add Binder, cgroup, and graphics startup diagnostics.
 - [x] Add a reproducible reference-host report.
-- [ ] Verify normal `adb logcat` behaviour alongside container log forwarding.
+- [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
+- [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.
 - [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 
 ## 5. Reproducible runtime examples

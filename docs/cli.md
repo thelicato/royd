@@ -39,6 +39,15 @@ Runs a local royd container with conventional defaults:
 
 Lists containers labelled by the CLI as royd instances.
 
+
+### `royd status`
+
+Reports Docker state, Docker health, and the published ADB endpoint for a container.
+
+### `royd adb`
+
+Connects to an ADB-over-TCP serial and forwards the remaining arguments to the host `adb` command. The default serial is `127.0.0.1:5555`.
+
 ### `royd logs`
 
 Follows Docker logs for a given container. This is intended to surface the forwarded Android `logcat` stream.
@@ -73,3 +82,7 @@ The current CLI does not yet:
 - install kernel modules
 - mutate host networking or filesystems
 - replace Docker or Compose usage in documentation
+
+## ADB and status
+
+`royd status [container]` reports Docker state, Docker health, and the published ADB endpoint. `royd adb` connects to `127.0.0.1:5555` by default and forwards subsequent arguments to the host `adb` command. Use `--serial` when the container is published on another port.

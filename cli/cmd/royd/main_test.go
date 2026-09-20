@@ -6,7 +6,8 @@ import (
 )
 
 type fakeRunner struct {
-	calls [][]string
+	calls   [][]string
+	outputs [][]byte
 }
 
 func (r *fakeRunner) Run(args ...string) error {
@@ -18,7 +19,22 @@ func (r *fakeRunner) Run(args ...string) error {
 func (r *fakeRunner) Output(args ...string) ([]byte, error) {
 	copyArgs := append([]string(nil), args...)
 	r.calls = append(r.calls, copyArgs)
-	return nil, nil
+	if len(r.outputs) == 0 {
+		return nil, nil
+	}
+	out := r.outputs[0]
+	r.outputs = r.outputs[1:]
+	return out, nil
+}
+
+type fakeADBRunner struct {
+	calls [][]string
+}
+
+func (r *fakeADBRunner) Run(args ...string) error {
+	copyArgs := append([]string(nil), args...)
+	r.calls = append(r.calls, copyArgs)
+	return nil
 }
 
 func assertSingleCall(t *testing.T, runner *fakeRunner, want []string) {
@@ -151,4 +167,43 @@ func TestRemoveForce(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSingleCall(t, runner, []string{"rm", "-f", "royd-test"})
+}
+
+func TestStatus(t *testing.T) {
+	runner := &fakeRunner{outputs: [][]byte{[]byte("running\n"), []byte("healthy\n"), []byte("127.0.0.1:5555\n")}}
+	if err := execute(runner, []string{"status", "royd-test"}); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{
+		{"inspect", "--format", "{{.State.Status}}", "royd-test"},
+		{"inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", "royd-test"},
+		{"port", "royd-test", "5555/tcp"},
+	}
+	if !reflect.DeepEqual(runner.calls, want) {
+		t.Fatalf("unexpected docker calls:\n got: %#v\nwant: %#v", runner.calls, want)
+	}
+}
+
+func TestADBDefaultsToShell(t *testing.T) {
+	dockerRunner := &fakeRunner{}
+	adbRunner := &fakeADBRunner{}
+	if err := executeWithADB(dockerRunner, adbRunner, []string{"adb"}); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"connect", "127.0.0.1:5555"}, {"-s", "127.0.0.1:5555", "shell"}}
+	if !reflect.DeepEqual(adbRunner.calls, want) {
+		t.Fatalf("unexpected adb calls:\n got: %#v\nwant: %#v", adbRunner.calls, want)
+	}
+}
+
+func TestADBPassesArguments(t *testing.T) {
+	dockerRunner := &fakeRunner{}
+	adbRunner := &fakeADBRunner{}
+	if err := executeWithADB(dockerRunner, adbRunner, []string{"adb", "--serial", "127.0.0.1:5560", "logcat", "-d"}); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"connect", "127.0.0.1:5560"}, {"-s", "127.0.0.1:5560", "logcat", "-d"}}
+	if !reflect.DeepEqual(adbRunner.calls, want) {
+		t.Fatalf("unexpected adb calls:\n got: %#v\nwant: %#v", adbRunner.calls, want)
+	}
 }

@@ -73,6 +73,8 @@ docker import \
   --platform "$platform" \
   -c 'ENTRYPOINT ["/init","androidboot.hardware=royd"]' \
   -c "CMD $default_cmd" \
+  -c 'EXPOSE 5555/tcp' \
+  -c 'HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=6 CMD ["/vendor/bin/royd-health"]' \
   -c 'LABEL org.opencontainers.image.title=royd' \
   -c 'LABEL org.opencontainers.image.description=Android runtime for OCI containers' \
   -c "LABEL org.opencontainers.image.version=$version" \

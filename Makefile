@@ -1,4 +1,4 @@
-.PHONY: check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
+.PHONY: check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-status runtime-adb-check runtime-adb-contract-test runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
 
 check:
 	./scripts/check-repo.sh
@@ -198,3 +198,12 @@ memory-sweep:
 
 image-profile-sweep:
 	./runtime/scripts/image-profile-sweep.sh
+
+runtime-status:
+	./runtime/scripts/status.sh
+
+runtime-adb-check:
+	./runtime/scripts/adb-check.sh
+
+runtime-adb-contract-test:
+	./runtime/scripts/adb-contract-test.sh

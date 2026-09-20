@@ -38,7 +38,7 @@ Linux binderfs is specifically designed to provide independent Binder device set
 
 `init.royd.rc` waits for Android `logd` to report itself running, then starts `royd-logcat`. The helper runs `logcat -b all -v threadtime` and connects its output to PID 1's stdout and stderr. Android `/init` therefore remains PID 1 while normal OCI logging captures Android logs.
 
-This does not consume or disable the Android logging buffers. `adb logcat` remains available independently.
+This does not consume or disable the Android logging buffers. `adb logcat` remains available independently. royd configures `adbd` to listen on TCP port 5555 and the OCI image exposes that port. See [`adb.md`](adb.md).
 
 ## Display profile arguments
 

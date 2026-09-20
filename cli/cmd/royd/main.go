@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/royd-dev/royd/cli/internal/adbutil"
 	"github.com/royd-dev/royd/cli/internal/dockerutil"
 	"github.com/royd-dev/royd/cli/internal/doctor"
 )
@@ -31,12 +33,17 @@ func main() {
 	}
 
 	runner := dockerutil.ExecRunner{}
-	if err := execute(runner, os.Args[1:]); err != nil {
+	adbRunner := adbutil.ExecRunner{}
+	if err := executeWithADB(runner, adbRunner, os.Args[1:]); err != nil {
 		exitWithError(err)
 	}
 }
 
 func execute(runner dockerutil.Runner, args []string) error {
+	return executeWithADB(runner, adbutil.ExecRunner{}, args)
+}
+
+func executeWithADB(runner dockerutil.Runner, adbRunner adbutil.Runner, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("command required")
 	}
@@ -50,6 +57,10 @@ func execute(runner dockerutil.Runner, args []string) error {
 		return runner.Run("ps", "-a", "--filter", "label=org.royd.instance=true")
 	case "logs":
 		return runLogs(runner, args[1:])
+	case "status":
+		return runStatus(runner, args[1:])
+	case "adb":
+		return runADB(adbRunner, args[1:])
 	case "shell":
 		return runShell(runner, args[1:])
 	case "stop":
@@ -137,6 +148,54 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	return runner.Run(dockerArgs...)
 }
 
+func runStatus(runner dockerutil.Runner, args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("usage: royd status [container]")
+	}
+	container := "royd"
+	if len(args) == 1 {
+		container = args[0]
+	}
+	state, err := runner.Output("inspect", "--format", "{{.State.Status}}", container)
+	if err != nil {
+		return err
+	}
+	health, err := runner.Output("inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", container)
+	if err != nil {
+		return err
+	}
+	port, err := runner.Output("port", container, "5555/tcp")
+	if err != nil {
+		port = nil
+	}
+	fmt.Printf("Container: %s\n", container)
+	fmt.Printf("State: %s\n", strings.TrimSpace(string(state)))
+	fmt.Printf("Health: %s\n", strings.TrimSpace(string(health)))
+	adbEndpoint := strings.TrimSpace(string(port))
+	if adbEndpoint == "" {
+		adbEndpoint = "not published"
+	}
+	fmt.Printf("ADB: %s\n", adbEndpoint)
+	return nil
+}
+
+func runADB(runner adbutil.Runner, args []string) error {
+	fs := flag.NewFlagSet("adb", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	serial := fs.String("serial", "127.0.0.1:5555", "ADB TCP serial")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := runner.Run("connect", *serial); err != nil {
+		return err
+	}
+	adbArgs := fs.Args()
+	if len(adbArgs) == 0 {
+		adbArgs = []string{"shell"}
+	}
+	return runner.Run(append([]string{"-s", *serial}, adbArgs...)...)
+}
+
 func runLogs(runner dockerutil.Runner, args []string) error {
 	fs := flag.NewFlagSet("logs", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -196,6 +255,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  run      Start a royd container through Docker\n")
 	fmt.Fprintf(os.Stderr, "  ps       List royd-labelled containers\n")
 	fmt.Fprintf(os.Stderr, "  logs     Follow container logs\n")
+	fmt.Fprintf(os.Stderr, "  status   Show container state, health, and ADB endpoint\n")
+	fmt.Fprintf(os.Stderr, "  adb      Run adb against a royd TCP endpoint\n")
 	fmt.Fprintf(os.Stderr, "  shell    Open an Android shell in a container\n")
 	fmt.Fprintf(os.Stderr, "  stop     Stop a container\n")
 	fmt.Fprintf(os.Stderr, "  rm       Remove a container\n")
@@ -206,6 +267,9 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  royd run --name royd-test --image royd:dev --memory 768m\n")
 	fmt.Fprintf(os.Stderr, "  royd run --security experimental --name royd-test\n")
 	fmt.Fprintf(os.Stderr, "  royd logs royd\n")
+	fmt.Fprintf(os.Stderr, "  royd status royd\n")
+	fmt.Fprintf(os.Stderr, "  royd adb shell getprop sys.boot_completed\n")
+	fmt.Fprintf(os.Stderr, "  royd adb logcat\n")
 	fmt.Fprintf(os.Stderr, "  royd shell royd\n")
 	fmt.Fprintf(os.Stderr, "  royd stop royd\n")
 	fmt.Fprintf(os.Stderr, "  royd rm royd\n")

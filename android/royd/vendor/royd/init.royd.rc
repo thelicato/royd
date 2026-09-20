@@ -1,4 +1,5 @@
 on early-init
+    setprop service.adb.tcp.port 5555
     exec -- /vendor/bin/royd-binder-setup
     exec -- /vendor/bin/royd-hardware-setup
     exec -- /vendor/bin/royd-graphics-setup
@@ -21,3 +22,7 @@ on property:init.svc.logd=running
 
 on property:sys.boot_completed=1
     start royd-display-setup
+
+on post-fs-data
+    setprop service.adb.tcp.port 5555
+    start adbd

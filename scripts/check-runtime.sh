@@ -85,6 +85,18 @@ grep -Fq '/vendor/bin/royd-binder-alloc' android/royd/vendor/royd/bin/royd-binde
 grep -Fq 'exec -- /vendor/bin/royd-binder-setup' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'on property:init.svc.logd=running' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'on property:sys.boot_completed=1' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'setprop service.adb.tcp.port 5555' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'start adbd' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'royd-health' android/royd/vendor/royd/royd.mk
+grep -Fq 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.adb.secure=0' android/compat/legacy/vendor.mk
+grep -Fq 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.adb.secure=0' android/compat/transitional/vendor.mk
+grep -Fq 'PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=0' android/compat/modern/vendor.mk
+grep -Fq 'HEALTHCHECK --interval=10s' runtime/scripts/import.sh
+grep -Fq 'EXPOSE 5555/tcp' runtime/scripts/import.sh
+grep -Fq 'init.svc.adbd running' runtime/scripts/assert-runtime.sh
+grep -Fq 'runtime-adb-check' Makefile
+grep -Fq 'runtime-adb-contract-test' Makefile
+grep -Fq 'runtime-status' Makefile
 grep -Fq '/proc/1/fd/1' android/royd/vendor/royd/bin/royd-logcat
 grep -Fq 'ro.boot.royd_width' android/royd/vendor/royd/bin/royd-display-setup
 grep -Fq 'ro.config.low_ram=true' android/compat/modern/vendor.mk

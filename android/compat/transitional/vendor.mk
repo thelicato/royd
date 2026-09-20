@@ -7,3 +7,5 @@ PRODUCT_VENDOR_PROPERTIES += \
 PRODUCT_VENDOR_PROPERTIES += \
     ro.hardware.gralloc=royd \
     ro.hardware.hwcomposer=default
+
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.adb.secure=0

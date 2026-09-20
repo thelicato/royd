@@ -15,6 +15,8 @@ if [ "$1 $2" = "image inspect" ]; then
   case "$format" in
     '{{.Architecture}}') printf '%s\n' amd64 ;;
     '{{json .Config.Entrypoint}}') printf '%s\n' '["/init","androidboot.hardware=royd"]' ;;
+    '{{json .Config.Healthcheck.Test}}') printf '%s\n' '["CMD","/vendor/bin/royd-health"]' ;;
+    '{{json .Config.ExposedPorts}}') printf '%s\n' '{"5555/tcp":{}}' ;;
     *org.royd.image-format*) printf '%s\n' 1 ;;
     *org.royd.android-version*) printf '%s\n' 15 ;;
     *org.royd.android-ref*) printf '%s\n' android-15.0.0_r36 ;;
