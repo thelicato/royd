@@ -49,6 +49,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Keep Android `/init` as PID 1 through an `exec` hand-off from the royd OCI entrypoint.
 - [x] Add Binder, cgroup, and graphics startup diagnostics.
 - [x] Add a reproducible reference-host report.
+- [x] Add checksummed reference-host qualification bundles with policy-staleness and tamper verification.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
 - [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
 - [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.

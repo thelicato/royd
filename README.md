@@ -165,6 +165,7 @@ make runtime-smoke-test
 make runtime-status
 make runtime-adb-check
 make runtime-reference-report
+make runtime-reference-qualify
 make runtime-qualification
 make runtime-qualification-matrix
 make runtime-qualification-report
@@ -173,6 +174,6 @@ make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.
