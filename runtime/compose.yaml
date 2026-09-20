@@ -7,6 +7,11 @@ services:
       - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT:-5555}:5555"
     volumes:
       - royd-data:/data
+    command:
+      - androidboot.redroid_width=${ROYD_WIDTH:-540}
+      - androidboot.redroid_height=${ROYD_HEIGHT:-960}
+      - androidboot.redroid_dpi=${ROYD_DPI:-240}
+      - androidboot.redroid_fps=${ROYD_FPS:-30}
 
 volumes:
   royd-data:

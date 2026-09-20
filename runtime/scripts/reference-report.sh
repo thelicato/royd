@@ -4,6 +4,7 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 image=${1:-${ROYD_IMAGE:-royd:dev}}
+profile=${ROYD_PROFILE:-default}
 output=${ROYD_REPORT_OUTPUT:--}
 workdir=$(mktemp -d)
 
@@ -59,8 +60,8 @@ format_command_result() {
 
 capture docker_version docker version
 capture docker_info docker info
-capture smoke "$script_dir/smoke-test.sh" "$image"
-capture multi "$script_dir/multi-instance-test.sh" "$image"
+capture smoke env ROYD_PROFILE="$profile" "$script_dir/smoke-test.sh" "$image"
+capture multi env ROYD_PROFILE="$profile" "$script_dir/multi-instance-test.sh" "$image"
 
 kernel_config_path=''
 if kernel_config_path=$(first_existing_kernel_config); then
@@ -115,7 +116,8 @@ report="$workdir/report.md"
   printf '## Repository and image\n\n'
   printf -- '- royd commit: `%s`\n' "$royd_commit"
   printf -- '- Android baseline: `%s`\n' "${android_baseline:-unknown}"
-  printf -- '- image: `%s`\n\n' "$image"
+  printf -- '- image: `%s`\n' "$image"
+  printf -- '- runtime profile: `%s`\n\n' "$profile"
   printf '## Host\n\n'
   printf -- '- distribution: %s\n' "$os_release"
   printf -- '- kernel: `%s`\n' "$kernel"

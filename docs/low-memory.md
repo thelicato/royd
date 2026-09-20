@@ -1,6 +1,6 @@
 # Low-memory profile
 
-royd treats low memory as a measured product property, not as a fixed RAM claim. The initial profile enables Android's supported low-RAM behaviour and reduces default display cost while keeping broader feature removal for later benchmark-driven work.
+royd treats low memory as a measured product property, not as a fixed RAM claim. The initial Android configuration enables supported low-RAM behaviour and keeps more aggressive optimisation tied to repeatable measurements.
 
 ## Android properties
 
@@ -12,54 +12,32 @@ ro.lmk.use_psi=true
 ro.lmk.use_minfree_levels=false
 ```
 
-`ro.config.low_ram` tells Android framework components and `lmkd` to use low-memory behaviour. PSI remains the preferred `lmkd` pressure signal, and the legacy minfree-level strategy remains disabled.
+`ro.config.low_ram` enables Android low-memory behaviour. PSI remains the preferred `lmkd` pressure signal, and the legacy minfree-level strategy remains disabled.
 
-These are deliberately conservative settings. royd does not currently override detailed `lmkd` thresholds because those values need to be tested against container memory limits and representative workloads.
+royd does not currently override detailed `lmkd` thresholds because those values need to be tested against container memory limits and representative workloads.
 
-## Display defaults
+## Display profiles
 
-The imported development image uses this default display profile:
+The default profile is 540 x 960 at 240 dpi and 30 fps. The repository also includes compact and tablet profiles so display cost can be compared without rebuilding Android.
 
-```text
-540 x 960
-240 dpi
-30 fps
-```
+See [`profiles.md`](profiles.md) for the exact values and usage.
 
-The smaller framebuffer reduces graphics memory relative to ReDroid's larger default display while remaining practical for application testing. These values are starting defaults, not a claimed optimum.
+## Measurement tools
 
-The essential runtime arguments remain part of the image entrypoint. Display arguments are stored as the image command, so they can be replaced with normal Docker arguments. For example:
-
-```sh
-docker run -d --privileged \
-  --name royd \
-  -v royd-data:/data \
-  -p 127.0.0.1:5555:5555 \
-  royd:dev \
-  androidboot.redroid_width=720 \
-  androidboot.redroid_height=1280 \
-  androidboot.redroid_dpi=320 \
-  androidboot.redroid_fps=30
-```
-
-## Memory reports
-
-After the container is booted, collect a repeatable snapshot with:
+For an already running container:
 
 ```sh
 make memory-report
 ```
 
-or for a differently named container:
+For disposable candidate memory limits:
 
 ```sh
-./runtime/scripts/memory-report.sh my-container
+make memory-sweep
 ```
 
-The report records the OCI memory limit and current usage, verifies the Android low-memory properties, prints Android's aggregate memory summary, and lists the largest resident processes.
-
-When comparing changes, use the same Android build, container memory limit, display settings, rendering mode, boot settling time, and workload. Idle figures alone are not sufficient to establish a reliable minimum RAM requirement.
+The sweep defaults to several candidate limits between 512 MB and 1 GB. They are deliberately labelled as candidates rather than supported configurations. See [`benchmarking.md`](benchmarking.md) for the measurement contract.
 
 ## Next optimisation work
 
-Package and service removal should be introduced as an explicit image profile only after the baseline has been booted and measured. Detailed `lmkd` tuning, process limits, rendering changes, and hard memory limits should follow the same measurement-first rule.
+Package and service removal should be introduced as an explicit image profile only after the baseline has been booted and measured. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule.

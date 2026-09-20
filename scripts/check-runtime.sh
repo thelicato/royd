@@ -46,3 +46,11 @@ grep -Fq 'runtime-reference-report' Makefile
 grep -Fq 'Single-instance smoke test' runtime/scripts/reference-report.sh
 grep -Fq 'Two-instance smoke test' runtime/scripts/reference-report.sh
 grep -Fq 'CONFIG_ANDROID_BINDERFS' runtime/scripts/reference-report.sh
+grep -Fq 'memory-sweep' Makefile
+grep -Fq 'ROYD_WIDTH' runtime/compose.yaml
+grep -Fq 'ROYD_HEIGHT' runtime/compose.yaml
+grep -Fq 'ROYD_DPI' runtime/compose.yaml
+grep -Fq 'ROYD_FPS' runtime/compose.yaml
+grep -Fq 'ROYD_WIDTH=540' runtime/profiles/default.env
+grep -Fq 'androidboot.redroid_width' runtime/scripts/profile.sh
+grep -Fq 'ROYD_MEMORY_LIMITS' runtime/scripts/memory-sweep.sh

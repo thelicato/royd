@@ -44,6 +44,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Enable Android low-RAM behaviour with PSI-based `lmkd`.
 - [x] Add reduced default display settings for the initial low-memory profile.
 - [x] Add a repeatable memory-report command for running containers.
+- [x] Add named display profiles for comparative runtime measurements.
+- [x] Add a disposable memory-limit sweep with Markdown reporting.
 - [ ] Record repeatable idle and workload memory benchmarks on a reference host.
 - [ ] Tune `lmkd` and background process behaviour against container memory limits.
 - [ ] Remove unnecessary Android packages and services at build time for a defined minimal profile.
@@ -63,5 +65,5 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add convenience commands for run, list, shell, logs, stop, and remove workflows.
 - [x] Keep command output transparent about the OCI operations being performed.
 - [x] Keep every core runtime workflow usable without the CLI.
-- [ ] Add stronger host diagnostics only when backed by runtime validation evidence.
+- [x] Add stronger Linux, Docker daemon, Binder, cgroup v2, and PSI diagnostics.
 - [ ] Add ADB convenience commands after the runtime contract is validated on reference hosts.

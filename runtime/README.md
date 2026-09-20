@@ -130,7 +130,7 @@ The runtime has not yet been validated across a host compatibility matrix. Privi
 
 ## Low-memory defaults
 
-The development image currently defaults to a 540 x 960 display at 240 dpi and 30 fps. Android is built with `ro.config.low_ram=true`, PSI-based `lmkd`, and legacy minfree levels disabled. See [`../docs/low-memory.md`](../docs/low-memory.md) for the rationale and measurement rules.
+The development image currently defaults to a 540 x 960 display at 240 dpi and 30 fps. Android is built with `ro.config.low_ram=true`, PSI-based `lmkd`, and legacy minfree levels disabled. Named display profiles are available under `runtime/profiles/`. See [`../docs/profiles.md`](../docs/profiles.md) and [`../docs/low-memory.md`](../docs/low-memory.md).
 
 Collect a snapshot from the default `royd` container with:
 
@@ -138,4 +138,4 @@ Collect a snapshot from the default `royd` container with:
 make memory-report
 ```
 
-The repository does not currently prescribe a container memory limit. A reliable minimum will be published only after repeatable boot and workload testing.
+The repository does not currently prescribe a container memory limit. Run `make memory-sweep` to test disposable candidate limits and produce a comparable report. See [`../docs/benchmarking.md`](../docs/benchmarking.md). A reliable minimum will be published only after repeatable boot and workload testing.

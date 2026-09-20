@@ -16,6 +16,11 @@ type runConfig struct {
 	name   string
 	volume string
 	port   string
+	memory string
+	width  int
+	height int
+	dpi    int
+	fps    int
 }
 
 func main() {
@@ -37,8 +42,7 @@ func execute(runner dockerutil.Runner, args []string) error {
 
 	switch args[0] {
 	case "doctor":
-		runDoctor()
-		return nil
+		return runDoctor()
 	case "run":
 		return runContainer(runner, args[1:])
 	case "ps":
@@ -63,7 +67,7 @@ func execute(runner dockerutil.Runner, args []string) error {
 	}
 }
 
-func runDoctor() {
+func runDoctor() error {
 	report := doctor.Generate()
 	fmt.Printf("royd doctor\n")
 	fmt.Printf("OS: %s\n", report.OS)
@@ -72,6 +76,10 @@ func runDoctor() {
 		fmt.Printf("- %s: %s - %s\n", check.Name, check.Status, check.Details)
 	}
 	fmt.Printf("Summary: %s\n", report.Summary)
+	if report.HasErrors() {
+		return fmt.Errorf("host requirements are not satisfied")
+	}
+	return nil
 }
 
 func runContainer(runner dockerutil.Runner, args []string) error {
@@ -82,6 +90,11 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	fs.StringVar(&cfg.name, "name", "royd", "Container name")
 	fs.StringVar(&cfg.volume, "volume", "royd-data", "Docker volume to mount at /data")
 	fs.StringVar(&cfg.port, "port", "127.0.0.1:5555:5555", "Port mapping for ADB")
+	fs.StringVar(&cfg.memory, "memory", "", "Optional Docker memory limit, for example 768m")
+	fs.IntVar(&cfg.width, "width", 540, "Android display width")
+	fs.IntVar(&cfg.height, "height", 960, "Android display height")
+	fs.IntVar(&cfg.dpi, "dpi", 240, "Android display density")
+	fs.IntVar(&cfg.fps, "fps", 30, "Android display frame rate")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -89,16 +102,29 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 		return fmt.Errorf("unexpected run arguments: %v", fs.Args())
 	}
 
-	return runner.Run(
+	if cfg.width <= 0 || cfg.height <= 0 || cfg.dpi <= 0 || cfg.fps <= 0 {
+		return fmt.Errorf("display values must be positive integers")
+	}
+	dockerArgs := []string{
 		"run",
 		"-d",
 		"--privileged",
 		"--name", cfg.name,
 		"--label", "org.royd.instance=true",
-		"-v", cfg.volume+":/data",
+		"-v", cfg.volume + ":/data",
 		"-p", cfg.port,
+	}
+	if cfg.memory != "" {
+		dockerArgs = append(dockerArgs, "--memory", cfg.memory, "--memory-swap", cfg.memory)
+	}
+	dockerArgs = append(dockerArgs,
 		cfg.image,
+		fmt.Sprintf("androidboot.redroid_width=%d", cfg.width),
+		fmt.Sprintf("androidboot.redroid_height=%d", cfg.height),
+		fmt.Sprintf("androidboot.redroid_dpi=%d", cfg.dpi),
+		fmt.Sprintf("androidboot.redroid_fps=%d", cfg.fps),
 	)
+	return runner.Run(dockerArgs...)
 }
 
 func runLogs(runner dockerutil.Runner, args []string) error {
@@ -167,7 +193,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  help     Show this help\n\n")
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "  royd doctor\n")
-	fmt.Fprintf(os.Stderr, "  royd run --name royd-test --image royd:dev\n")
+	fmt.Fprintf(os.Stderr, "  royd run --name royd-test --image royd:dev --memory 768m\n")
 	fmt.Fprintf(os.Stderr, "  royd logs royd\n")
 	fmt.Fprintf(os.Stderr, "  royd shell royd\n")
 	fmt.Fprintf(os.Stderr, "  royd stop royd\n")

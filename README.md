@@ -95,9 +95,9 @@ Startup diagnostics should appear in the same container logs and report relevant
 
 ## Low-memory direction
 
-Low memory usage is a core engineering goal, but memory targets are benchmark-driven rather than assumed. The initial profile now enables Android's supported low-RAM mode, keeps PSI-based `lmkd`, and uses a smaller 540 x 960 display by default. A repository memory-report command captures container usage, Android memory totals, and the largest resident processes.
+Low memory usage is a core engineering goal, but memory targets are benchmark-driven rather than assumed. The Android build enables supported low-RAM behaviour and PSI-based `lmkd`. Runtime display profiles make framebuffer cost easy to compare without rebuilding Android.
 
-More aggressive work, including package removal, detailed `lmkd` tuning, process limits, rendering changes, and hard memory limits, will be added only with reproducible measurements. See [`docs/low-memory.md`](docs/low-memory.md) for the current profile and measurement rules.
+`make memory-report` captures a running instance, while `make memory-sweep` tests disposable candidate memory limits and produces a comparable report. Candidate limits are not treated as supported minimums. See [`docs/low-memory.md`](docs/low-memory.md), [`docs/profiles.md`](docs/profiles.md), and [`docs/benchmarking.md`](docs/benchmarking.md).
 
 ## Optional CLI
 
@@ -135,6 +135,7 @@ make runtime-up
 make runtime-logs
 make runtime-smoke-test
 make runtime-reference-report
+make memory-sweep
 make cli-test
 make cli-build
 ```

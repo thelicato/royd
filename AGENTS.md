@@ -194,6 +194,8 @@ The following decisions are currently agreed:
 - Android customisation strategy: install a small `vendor/royd` product layer after applying upstream ReDroid patches.
 - Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
+- Runtime display profiles: `default` (540 x 960, 240 dpi, 30 fps), `compact` (360 x 640, 160 dpi, 30 fps), and `tablet` (720 x 1280, 320 dpi, 30 fps). Profiles do not imply supported memory minimums.
+- Memory benchmarking: use disposable container sweeps with fresh `/data`, equal memory and swap limits, normal boot assertions, and Markdown reports before making RAM claims.
 - Memory claims must be based on the repository measurement workflow and a documented workload.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.

@@ -6,8 +6,8 @@ It is a convenience layer only. The Docker and Compose workflows remain the prim
 
 The current scaffold provides:
 
-- `royd doctor` for lightweight host checks.
-- `royd run` for a conventional `docker run` invocation.
+- `royd doctor` for Linux, Docker, Binder, cgroup, PSI, and optional GPU checks.
+- `royd run` for a conventional `docker run` invocation with optional memory and display tuning.
 - `royd ps` for listing containers created through the CLI.
 - `royd logs` for following container logs.
 - `royd shell` for opening `/system/bin/sh` inside a running instance.

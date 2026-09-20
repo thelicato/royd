@@ -42,12 +42,16 @@ func TestRunContainerDefaults(t *testing.T) {
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
+		"androidboot.redroid_width=540",
+		"androidboot.redroid_height=960",
+		"androidboot.redroid_dpi=240",
+		"androidboot.redroid_fps=30",
 	})
 }
 
 func TestRunContainerOverrides(t *testing.T) {
 	runner := &fakeRunner{}
-	args := []string{"run", "--name", "test", "--image", "example/royd:test", "--volume", "test-data", "--port", "127.0.0.1:5560:5555"}
+	args := []string{"run", "--name", "test", "--image", "example/royd:test", "--volume", "test-data", "--port", "127.0.0.1:5560:5555", "--memory", "768m", "--width", "360", "--height", "640", "--dpi", "160", "--fps", "24"}
 	if err := execute(runner, args); err != nil {
 		t.Fatal(err)
 	}
@@ -56,8 +60,23 @@ func TestRunContainerOverrides(t *testing.T) {
 		"--label", "org.royd.instance=true",
 		"-v", "test-data:/data",
 		"-p", "127.0.0.1:5560:5555",
+		"--memory", "768m", "--memory-swap", "768m",
 		"example/royd:test",
+		"androidboot.redroid_width=360",
+		"androidboot.redroid_height=640",
+		"androidboot.redroid_dpi=160",
+		"androidboot.redroid_fps=24",
 	})
+}
+
+func TestRunContainerRejectsInvalidDisplay(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--width", "0"}); err == nil {
+		t.Fatal("expected invalid display error")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no docker calls, got %d", len(runner.calls))
+	}
 }
 
 func TestPSIncludesStoppedContainers(t *testing.T) {

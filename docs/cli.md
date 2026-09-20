@@ -16,8 +16,10 @@ royd keeps the OCI image as the primary product and treats the CLI as optional c
 Reports lightweight host checks relevant to the current runtime path:
 
 - operating system and architecture
-- whether Docker is available
+- whether the host is Linux
+- whether Docker is installed and the daemon is reachable
 - whether `/proc/filesystems` advertises `binder`
+- whether cgroup v2 and memory PSI are available
 - whether `/dev/dri` exists for possible host GPU access
 
 ### `royd run`
@@ -29,6 +31,8 @@ Runs a local royd container with conventional defaults:
 - privileged container
 - `/data` volume mounted from `royd-data`
 - ADB port published on `127.0.0.1:5555`
+- optional Docker memory and swap limits
+- overridable display width, height, density, and frame rate
 
 ### `royd ps`
 

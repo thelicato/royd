@@ -10,8 +10,15 @@ func TestSummariseAllOK(t *testing.T) {
 }
 
 func TestSummariseWarnings(t *testing.T) {
-	checks := []Check{{Name: "docker", Status: StatusOK}, {Name: "binderfs", Status: StatusWarning}}
+	checks := []Check{{Name: "docker", Status: StatusOK}, {Name: "gpu", Status: StatusWarning}}
 	if got := summarise(checks); got != "warnings detected" {
+		t.Fatalf("unexpected summary: %s", got)
+	}
+}
+
+func TestSummariseErrors(t *testing.T) {
+	checks := []Check{{Name: "docker", Status: StatusWarning}, {Name: "binderfs", Status: StatusError}}
+	if got := summarise(checks); got != "errors detected" {
 		t.Fatalf("unexpected summary: %s", got)
 	}
 }
