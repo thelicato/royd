@@ -8,7 +8,7 @@ royd uses explicit validation stages so that a configured Android release is not
 
 `baseline` identifies Android 15 as the current development reference. It does not imply broader runtime support than another release.
 
-Build reports may describe an architecture tuple as `build-validated` or `package-validated`. These are evidence states generated from local build records, not values written into the pinned version metadata.
+Build reports may describe an architecture tuple as `build-validated` or `package-validated`. Runtime qualification may describe it as `runtime-qualified`. These are evidence states generated from local validation records, not values written into the pinned version metadata.
 
 A release may be described as supported only after the relevant architecture and published profiles have passed all required gates:
 
@@ -27,4 +27,4 @@ Support claims must state the Android version, architecture, image profile, HAL 
 
 ## Evidence ownership
 
-Generated reports under `.work` are local evidence and are not source-of-truth code. A release should only be promoted in repository documentation after the underlying reports have been reviewed and the relevant test environment has been documented.
+Generated build and runtime qualification reports under `.work` are local evidence and are not source-of-truth code. A release should only be promoted in repository documentation after the underlying reports have been reviewed and the relevant test environment has been documented.

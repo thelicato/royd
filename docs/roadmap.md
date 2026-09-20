@@ -28,7 +28,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Expose private binderfs devices at the conventional Android device paths.
 - [x] Emit actionable Binder compatibility diagnostics to container output.
 - [ ] Validate binderfs-only hosts with no pre-created Binder devices.
-- [ ] Verify multiple simultaneous containers use isolated Binder contexts.
+- [x] Add a two-container Binder device-identity isolation test.
+- [ ] Run the Binder isolation test successfully on documented reference hosts.
 
 ## 3. Container-native Android hardware surface
 
@@ -49,6 +50,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add Binder, cgroup, and graphics startup diagnostics.
 - [x] Add a reproducible reference-host report.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
+- [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
 - [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.
 - [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 
@@ -59,6 +61,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add Compose lifecycle Make targets.
 - [x] Add persistent `/data` and ADB configuration.
 - [x] Add multiple-instance Compose and smoke-test workflows.
+- [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
 
@@ -136,3 +139,12 @@ Implemented:
 - [x] Add resumable clean-build orchestration and persistent per-tuple build results.
 - [x] Integrate clean-build and package evidence into the compatibility matrix.
 - [ ] Run the clean-build matrix on dedicated build hosts for Android 8.0 through 17.
+
+## Runtime qualification automation
+
+- [x] Add persisted per-tuple runtime qualification results.
+- [x] Add a resumable multi-version and multi-architecture runtime qualification matrix.
+- [x] Add Docker health, runtime, graphics, logging, ADB, security, and Binder-isolation stages.
+- [x] Integrate runtime evidence into the Android compatibility matrix.
+- [ ] Run qualification on successfully built and imported Android 8.0 through 17 images.
+- [ ] Review reference-host, memory, and runtime evidence before promoting any tuple to supported.

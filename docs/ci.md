@@ -10,7 +10,7 @@ Run the same checks used by the hosted workflow with:
 make ci
 ```
 
-This covers repository rules, runtime contracts, the Android version matrix, builder families, image and HAL profiles, mocked AOSP configuration resolution, legacy memory compatibility, graphics and HAL contracts, OCI image metadata, security, ADB, and Go CLI tests.
+This covers repository rules, runtime contracts, the Android version matrix, builder families, image and HAL profiles, mocked AOSP configuration resolution, legacy memory compatibility, graphics and HAL contracts, OCI image metadata, security, ADB, runtime qualification contracts and matrix-runner behaviour, and Go CLI tests.
 
 It does not download or compile AOSP.
 
@@ -28,7 +28,7 @@ Write it to a file with:
 ROYD_MATRIX_OUTPUT=android-matrix.md make android-matrix-report
 ```
 
-For each Android version and architecture, the report records whether the expected source tree is present and whether the resolved AOSP configuration contract passes.
+For each Android version and architecture, the report records source-tree presence, resolved AOSP configuration, clean-build evidence, package evidence, and matching persisted runtime qualification evidence when available.
 
 Missing source trees are informational by default. On a dedicated AOSP validation host, require every source tree and resolved configuration to pass with:
 
@@ -36,7 +36,7 @@ Missing source trees are informational by default. On a dedicated AOSP validatio
 ROYD_MATRIX_STRICT=1 make android-matrix-report
 ```
 
-Strict mode is intended for machines that have already synchronised every version under `.work/android-src-<version>`.
+Strict mode is intended for machines that have already synchronised every version under `.work/android-src-<version>`. `ROYD_MATRIX_REQUIRE_BUILD=1` additionally requires clean-build evidence, while `ROYD_MATRIX_REQUIRE_RUNTIME=1` requires a passing runtime qualification result for the selected security mode.
 
 ## Full validation
 

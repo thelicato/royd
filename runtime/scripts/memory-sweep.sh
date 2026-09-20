@@ -4,7 +4,7 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 default_image=$("$script_dir/default-image.sh" standard x86_64)
 image=${1:-${ROYD_IMAGE:-$default_image}}
-profile=${ROYD_PROFILE:-default}
+profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 limits=${ROYD_MEMORY_LIMITS:-'512m 640m 768m 896m 1024m'}
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 settle=${ROYD_MEMORY_SETTLE:-10}

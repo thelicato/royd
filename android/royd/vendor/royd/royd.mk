@@ -1,5 +1,6 @@
 PRODUCT_PACKAGES += \
     royd-binder-alloc \
+    royd-binder-info \
     royd-memfd-probe
 
 PRODUCT_COPY_FILES += \

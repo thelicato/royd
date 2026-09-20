@@ -25,6 +25,8 @@ run ./android/scripts/build-matrix-test.sh
 run ./runtime/scripts/image-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/adb-contract-test.sh
+run ./runtime/scripts/qualification-contract-test.sh
+run ./runtime/scripts/qualification-matrix-test.sh
 run sh -c 'cd cli && go test ./...'
 
 printf '\n%s\n' 'royd lightweight CI passed'

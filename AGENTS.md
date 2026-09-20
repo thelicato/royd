@@ -180,6 +180,7 @@ When a design decision changes, update this file if the decision is important en
 - Pinned Android versions: 8.0 through 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
 - CI model: `make ci` is the canonical lightweight repository suite. `make android-matrix-report` distinguishes configured Android metadata from resolved checks against locally synced AOSP trees. Missing trees are informational unless strict matrix mode is requested.
 - Clean-build validation: use `make android-build-matrix` on dedicated build hosts. Results are generated under `.work/build-results`, are resumable by default, and must remain separate from runtime support claims.
+- Runtime qualification: use `make runtime-qualification` on imported images. Persisted evidence lives under `.work/runtime-results` and covers host, image, boot, health, runtime, security, graphics, log forwarding, ADB, and Binder isolation. A passing runtime qualification is evidence, not by itself a support claim.
 
 The following decisions are currently agreed:
 

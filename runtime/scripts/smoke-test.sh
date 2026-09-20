@@ -7,7 +7,7 @@ image=${1:-${ROYD_IMAGE:-$default_image}}
 container=${ROYD_SMOKE_CONTAINER:-royd-smoke-$$}
 volume=${container}-data
 timeout=${ROYD_BOOT_TIMEOUT:-180}
-profile=${ROYD_PROFILE:-default}
+profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 
 command -v docker >/dev/null 2>&1 || {
   printf '%s\n' 'error: docker is required for runtime validation' >&2

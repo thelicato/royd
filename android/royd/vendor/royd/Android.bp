@@ -6,6 +6,13 @@ cc_binary {
 }
 
 cc_binary {
+    name: "royd-binder-info",
+    srcs: ["binder_info/royd-binder-info.c"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    vendor: true,
+}
+
+cc_binary {
     name: "royd-memfd-probe",
     srcs: ["memfd_probe/royd-memfd-probe.c"],
     cflags: ["-Wall", "-Wextra", "-Werror"],

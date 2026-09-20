@@ -136,7 +136,7 @@ See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the cu
 
 ## Initial roadmap
 
-The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, software graphics baseline, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. The next gate is to build and boot the independent baseline on documented reference hosts, then validate each version, graphics path, Binder isolation, memory target, and security mode with real workloads.
+The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, software graphics baseline, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. A runtime qualification gate now persists boot, health, graphics, ADB, logging, security, and Binder-isolation evidence for imported images. The next gate is to run clean builds and qualification on documented reference hosts, then validate memory targets and security modes with real workloads.
 
 ## Development
 
@@ -165,11 +165,14 @@ make runtime-smoke-test
 make runtime-status
 make runtime-adb-check
 make runtime-reference-report
+make runtime-qualification
+make runtime-qualification-matrix
+make runtime-qualification-report
 make memory-sweep
 make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

@@ -29,7 +29,7 @@ Run:
 make runtime-multi-test
 ```
 
-This starts two containers at the same time with separate `/data` volumes, waits for both to boot, and applies the same runtime assertions to each instance. It confirms that both containers can create and use their own binderfs mounts concurrently. It does not by itself prove that Binder IPC cannot cross between the two Binder contexts, so cross-context isolation remains a separate validation item.
+This starts two containers at the same time with separate `/data` volumes, waits for both to boot, and applies the same runtime assertions to each instance. It confirms that both containers can create and use their own binderfs mounts concurrently. Use `make runtime-binder-isolation-test` for the stronger device-identity test that verifies each private binderfs instance received a distinct kernel Binder device set.
 
 For manual testing with ADB, the repository also provides:
 
@@ -90,3 +90,13 @@ ROYD_REPORT_OUTPUT=reference-host.md make runtime-reference-report
 ```
 
 The report is generated even when a smoke test fails, and the command returns non-zero when either smoke test fails. See [`reference-hosts.md`](reference-hosts.md) for the evidence contract.
+## Runtime qualification
+
+After an OCI image passes the basic smoke tests, run the persisted qualification gate:
+
+```sh
+make runtime-qualification
+make runtime-qualification-report
+```
+
+Qualification records boot, Docker health, runtime assertions, security mode, SurfaceFlinger, container-log forwarding, ADB, and Binder isolation in `.work/runtime-results`. See [`runtime-qualification.md`](runtime-qualification.md).

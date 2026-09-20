@@ -149,6 +149,16 @@ Run the two-instance test with:
 make runtime-multi-test
 ```
 
+Run the complete persisted runtime qualification gate with:
+
+```sh
+make runtime-qualification
+make runtime-qualification-matrix
+make runtime-qualification-report
+```
+
+The qualification gate also runs the stronger Binder identity isolation test, Docker health, SurfaceFlinger, container-log, security-mode, and host-side ADB checks. See [`../docs/runtime-qualification.md`](../docs/runtime-qualification.md).
+
 Generate a reference-host report with:
 
 ```sh

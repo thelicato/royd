@@ -87,6 +87,9 @@ grep -Fq 'android-contract-test' Makefile
 ! grep -R -Fq 'board/generic_x86_64/device.mk' android/royd/device/royd
 ! grep -R -Fq 'board/generic_arm64/device.mk' android/royd/device/royd
 grep -Fq 'royd-binder-alloc' android/royd/vendor/royd/Android.bp
+grep -Fq 'royd-binder-info' android/royd/vendor/royd/Android.bp
+grep -Fq 'binder_info/royd-binder-info.c' android/royd/vendor/royd/Android.bp
+grep -Fq 'royd-binder-info' android/royd/vendor/royd/royd.mk
 grep -Fq 'BINDER_CTL_ADD' android/royd/vendor/royd/binder_alloc/royd-binder-alloc.c
 grep -Fq '/vendor/bin/royd-binder-alloc' android/royd/vendor/royd/bin/royd-binder-setup
 grep -Fq 'exec -- /vendor/bin/royd-binder-setup' android/royd/vendor/royd/init.royd.rc
@@ -147,6 +150,18 @@ grep -Fq 'runtime-security-sweep' Makefile
 grep -Fq 'ROYD_SECURITY_MODES' runtime/scripts/security-sweep.sh
 grep -Fq 'ROYD_SECURITY_MODE' runtime/.env.example
 grep -Fq 'runtime-multi-test' Makefile
+grep -Fq 'runtime-binder-isolation-test' Makefile
+grep -Fq 'runtime-qualification' Makefile
+grep -Fq 'runtime-qualification-report' Makefile
+grep -Fq 'runtime-qualification-contract-test' Makefile
+grep -Fq 'runtime-qualification-matrix' Makefile
+grep -Fq 'runtime-qualification-matrix-test' Makefile
+grep -Fq 'ROYD_QUALIFY_RESUME' runtime/scripts/qualification-matrix.sh
+grep -Fq 'Runtime qualification matrix test passed' runtime/scripts/qualification-matrix-test.sh
+grep -Fq 'BINDER_ISOLATION_STATUS' runtime/scripts/qualification.sh
+grep -Fq 'ROYD_MATRIX_REQUIRE_RUNTIME' android/scripts/matrix-report.sh
+grep -Fq 'runtime-qualified' android/scripts/matrix-report.sh
+grep -Fq 'ROYD_WIDTH=64' runtime/profiles/headless.env
 grep -Fq 'android-b:' runtime/compose.multi.yaml
 grep -Fq 'logo.svg' README.md
 grep -Fq 'runtime-up' Makefile

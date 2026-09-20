@@ -5,7 +5,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 default_image=$("$script_dir/default-image.sh" standard x86_64)
 image=${1:-${ROYD_IMAGE:-$default_image}}
-profile=${ROYD_PROFILE:-default}
+profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 output=${ROYD_REPORT_OUTPUT:--}
 workdir=$(mktemp -d)
