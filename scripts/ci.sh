@@ -30,6 +30,7 @@ run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
 run ./runtime/scripts/boot-diagnostics-contract-test.sh
 run ./runtime/scripts/container-evidence-test.sh
+run ./runtime/scripts/rootless-probe-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/security-capability-sweep-test.sh

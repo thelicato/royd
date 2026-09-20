@@ -20,7 +20,7 @@ Run the host-side preflight with:
 make runtime-host-check
 ```
 
-A missing hard requirement returns a non-zero exit status. cgroup v2 and memory PSI are reported as warnings because Android may still start without them, although low-memory behaviour can be worse.
+A missing hard requirement returns a non-zero exit status. cgroup v2 and memory PSI are reported as warnings because Android may still start without them, although low-memory behaviour can be worse. Rootless feasibility has an additional user-namespace binderfs probe documented in [`rootless.md`](rootless.md).
 
 ## Binder
 

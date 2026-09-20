@@ -12,7 +12,7 @@ royd targets OCI-compatible container execution, but engine portability and repo
 | Docker Compose v2 | Configured primary interface | The checked-in Compose files and Make wrappers target `docker compose`. Real-host Android qualification is still outstanding. |
 | Podman, rootful | Compatibility candidate | Podman exposes comparable run, capability, device, port, health-check, log, exec, volume, and inspect concepts, but royd does not yet have Podman-specific import or qualification tooling. |
 | `podman compose` | Compatibility candidate | Podman's command delegates to an external Compose provider. royd has not validated its overlays against the provider combinations Podman can select. |
-| Docker or Podman, rootless | Research only | User namespaces change privilege and device semantics. Rootless operation is a separate roadmap item and is not implied by rootful compatibility. |
+| Docker or Podman, rootless | Evaluated candidate | Kernel binderfs supports user-namespace mounts, but Android boot and engine-specific rootless behaviour remain unqualified. See [`rootless.md`](rootless.md). |
 | Other high-level container engines | Unconfigured | No repository launcher, import path, evidence collector, or qualification gate exists for them. |
 | Low-level OCI runtimes such as `runc` or `crun` | Engine implementation detail | royd does not currently expose a direct OCI bundle workflow or claim support for invoking a low-level runtime by hand. |
 
@@ -30,7 +30,7 @@ Do not call a manually imported Podman image contract-equivalent merely because 
 
 The rootful Docker and Podman CLIs both provide the broad mechanisms royd needs, including privileged execution, explicit capabilities, device passthrough, named volumes, published ports, health checks, logs, exec, and inspect operations. Their security and inspection models are not byte-for-byte interfaces.
 
-Docker privileged mode grants all capabilities, broad device access, and relaxes its normal seccomp and LSM confinement. Podman privileged mode similarly disables several isolation controls, but Podman explicitly states that a container running in a user namespace cannot gain more privileges than the user that launched it. This is one reason rootless behaviour must remain a separate investigation.
+Docker privileged mode grants all capabilities, broad device access, and relaxes its normal seccomp and LSM confinement. Podman privileged mode similarly disables several isolation controls, but Podman explicitly states that a container running in a user namespace cannot gain more privileges than the user that launched it. Rootless behaviour is evaluated separately in [`rootless.md`](rootless.md) because namespace-scoped privilege changes the meaning of otherwise similar runtime flags.
 
 The experimental royd security profile is also not engine-neutral evidence. `runtime/scripts/security-evidence.sh` reads Docker-specific inspect fields such as `HostConfig.Privileged`, `HostConfig.CapAdd`, `HostConfig.CapDrop`, `HostConfig.SecurityOpt`, and `AppArmorProfile`. Podman may expose corresponding concepts through a different inspect schema or host security model. A Podman port must collect equivalent kernel-visible PID 1 evidence without pretending Docker JSON is a portable contract.
 
@@ -69,7 +69,7 @@ Podman rootful qualification does not require a new Android architecture, but it
 - define Compose provider recording if `podman compose` is included in the supported workflow;
 - run the same reference-host and runtime qualification gates used for Docker and compare any Binder, LSM, seccomp, cgroup, volume, network, and device differences.
 
-Until those steps are complete, Podman is a documented compatibility candidate, not a supported royd runtime. Rootless Podman remains a separate research question.
+Until those steps are complete, Podman is a documented compatibility candidate, not a supported royd runtime. Rootless operation has a separate feasibility assessment in [`rootless.md`](rootless.md), but still requires real-image qualification.
 
 ## Upstream references
 

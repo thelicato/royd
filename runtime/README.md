@@ -176,6 +176,16 @@ ROYD_MEMORY_SWEEP_OUTPUT=memory-sweep.md make memory-sweep
 
 The current runtime remains experimental. In particular, the independent AOSP product and graphics path must be proven on real reference hosts before the repository claims a supported boot configuration.
 
+## Rootless feasibility
+
+Rootless operation is evaluated separately from the rootful Docker baseline. A host-side probe can test the key Linux account and binderfs prerequisites without a built Android image:
+
+```sh
+make runtime-rootless-probe
+```
+
+A pass means only that the host is a candidate for rootless qualification. Android boot, security semantics, resource limits, multi-instance isolation, and engine evidence still require validation with a real image. See [`../docs/rootless.md`](../docs/rootless.md).
+
 ## Image contract
 
 Validate the image-contract tooling without a real image:

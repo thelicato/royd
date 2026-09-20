@@ -105,7 +105,7 @@ Direct Android debugging must remain available independently through ADB:
 adb -s localhost:5555 logcat
 ```
 
-Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android.
+Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android. For rootless feasibility without an Android image, run `make runtime-rootless-probe` and see [`docs/rootless.md`](docs/rootless.md).
 
 The default graphics baseline is software-rendered with AOSP SwiftShader, so `/dev/dri` is not required. royd also has an experimental Android 10+ host GPU path using AOSP Mesa and minigbm with an explicit `/dev/dri` contract. Separate `graphical` and headless-oriented HAL profiles retain the minimum graphics stack required for Android framework boot. See [`docs/hardware-contract.md`](docs/hardware-contract.md), [`docs/graphics.md`](docs/graphics.md), [`docs/host-gpu.md`](docs/host-gpu.md), and [`docs/hal-profiles.md`](docs/hal-profiles.md).
 
@@ -156,6 +156,7 @@ make android-config-check
 make android-build-x86_64
 make android-package-x86_64
 make runtime-import-x86_64
+make runtime-rootless-probe
 make android-build-headless-x86_64
 make runtime-import-headless-x86_64
 cp runtime/.env.example runtime/.env
@@ -174,6 +175,6 @@ make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Runtime engine portability and the current Docker versus Podman boundary are documented in [`docs/runtime-engines.md`](docs/runtime-engines.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Runtime engine portability and the current Docker versus Podman boundary are documented in [`docs/runtime-engines.md`](docs/runtime-engines.md), with rootless feasibility covered separately in [`docs/rootless.md`](docs/rootless.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

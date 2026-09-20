@@ -89,7 +89,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [ ] Record any required seccomp, LSM, device, cgroup, or system-path exceptions.
 - [ ] Promote the smallest validated OCI configuration to the default.
 - [x] Document runtime differences across Docker, Podman, and other supported engines.
-- [ ] Evaluate rootless operation separately.
+- [x] Evaluate rootless operation separately.
 
 ## 8. Optional Go CLI
 

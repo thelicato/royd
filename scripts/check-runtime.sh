@@ -245,3 +245,9 @@ grep -Fq 'PROFILE_POLICY_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'SECURITY_PROFILE_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'CONTAINER_EVIDENCE_STATUS' runtime/scripts/qualification.sh
 grep -Fq 'runtime-evidence/container.log' runtime/scripts/reference-bundle-verify.sh
+grep -Fq 'runtime-rootless-probe' Makefile
+grep -Fq 'rootless-probe-test.sh' scripts/ci.sh
+grep -Fq 'unshare --user --map-root-user --mount --ipc' runtime/scripts/rootless-probe.sh
+grep -Fq 'binder-control' runtime/scripts/rootless-probe.sh
+grep -Fq 'Rootless royd is an **unqualified compatibility candidate**' docs/rootless.md
+grep -Fq -- '- [x] Evaluate rootless operation separately.' docs/roadmap.md

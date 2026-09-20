@@ -120,3 +120,7 @@ Privilege reduction should proceed from evidence:
 7. Promote a reduced profile only after the documented qualification matrix passes.
 
 Do not work around missing privileges by installing host modules, changing host security policy silently, or introducing a mandatory host helper.
+
+## Rootless security boundary
+
+Rootless engine execution is not a third royd security mode. It adds a user namespace around the existing runtime model, so capability names accepted by an engine do not imply the same authority as rootful capability grants. The Linux binderfs design permits user-namespace mounts, which makes a rootless private-Binder path plausible, but real Android boot evidence is still required. Keep rootless qualification and capability reduction evidence separate. See [`rootless.md`](rootless.md).
