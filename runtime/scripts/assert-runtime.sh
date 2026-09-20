@@ -50,6 +50,17 @@ assert_property ro.hardware.gralloc "$gralloc_hal"
 assert_property ro.hardware.egl "$egl_hal"
 assert_property ro.hardware.hwcomposer default
 assert_property vendor.royd.host.memfd available
+assert_property vendor.royd.display.ready 1
+
+for display_property in width height dpi fps; do
+  value=$(docker exec "$container" getprop "vendor.royd.display.$display_property" 2>/dev/null | tr -d '\r')
+  case "$value" in
+    ''|*[!0-9]*|0)
+      printf 'error: vendor.royd.display.%s is not a positive integer in %s: %s\n' "$display_property" "$container" "${value:-<empty>}" >&2
+      exit 1
+      ;;
+  esac
+done
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
   printf 'error: conventional Binder device paths are not ready in %s\n' "$container" >&2
@@ -72,6 +83,11 @@ case "$graphics_backend" in
 esac
 docker logs "$container" 2>&1 | grep -Fq "$readiness" || {
   printf 'error: graphics readiness diagnostic is missing from logs for %s\n' "$container" >&2
+  exit 1
+}
+
+docker logs "$container" 2>&1 | grep -Fq '[royd] display: early configuration' || {
+  printf 'error: early display diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 

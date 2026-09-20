@@ -69,13 +69,13 @@ actual_sha=$(sha256sum "$archive" | awk '{print $1}')
 version=${AOSP_TAG#android-}
 version=$(printf '%s' "$version" | tr '_' '-')
 case "$hal_profile" in
-  graphical) default_cmd='["androidboot.royd_width=540","androidboot.royd_height=960","androidboot.royd_dpi=240","androidboot.royd_fps=30"]' ;;
-  headless) default_cmd='["androidboot.royd_width=64","androidboot.royd_height=64","androidboot.royd_dpi=72","androidboot.royd_fps=5"]' ;;
+  graphical) default_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
+  headless) default_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5"]' ;;
 esac
 printf 'Importing %s as %s\n' "$archive" "$image"
 docker import \
   --platform "$platform" \
-  -c 'ENTRYPOINT ["/init","androidboot.hardware=royd"]' \
+  -c 'ENTRYPOINT ["/royd-entrypoint"]' \
   -c "CMD $default_cmd" \
   -c 'EXPOSE 5555/tcp' \
   -c 'HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=6 CMD ["/vendor/bin/royd-health"]' \

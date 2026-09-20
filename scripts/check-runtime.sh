@@ -100,7 +100,6 @@ grep -Fq 'BINDER_CTL_ADD' android/royd/vendor/royd/binder_alloc/royd-binder-allo
 grep -Fq '/vendor/bin/royd-binder-alloc' android/royd/vendor/royd/bin/royd-binder-setup
 grep -Fq 'exec -- /vendor/bin/royd-binder-setup' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'on property:init.svc.logd=running' android/royd/vendor/royd/init.royd.rc
-grep -Fq 'on property:sys.boot_completed=1' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'setprop service.adb.tcp.port 5555' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'start adbd' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'royd-health' android/royd/vendor/royd/royd.mk
@@ -114,24 +113,32 @@ grep -Fq 'runtime-adb-check' Makefile
 grep -Fq 'runtime-adb-contract-test' Makefile
 grep -Fq 'runtime-status' Makefile
 grep -Fq '/proc/1/fd/1' android/royd/vendor/royd/bin/royd-logcat
-grep -Fq 'ro.boot.royd_width' android/royd/vendor/royd/bin/royd-display-setup
+grep -Fq 'exec -- /vendor/bin/royd-display-bootstrap' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'name: "royd-display-bootstrap"' android/royd/vendor/royd/Android.bp
+grep -Fq 'vendor.royd.display.width' android/royd/vendor/royd/gralloc/gralloc_royd.cpp
+! test -e android/royd/vendor/royd/bin/royd-display-setup
 grep -Fq 'ro.config.low_ram=true' android/compat/modern/vendor.mk
 grep -Fq 'ro.config.low_ram=true' android/compat/legacy/vendor.mk
 grep -Fq 'ro.lmk.use_psi=true' android/compat/modern/vendor.mk
 grep -Fq 'ro.lmk.use_minfree_levels=false' android/compat/modern/vendor.mk
-grep -Fq 'androidboot.hardware=royd' runtime/scripts/import.sh
-grep -Fq 'androidboot.royd_width=540' runtime/scripts/import.sh
-grep -Fq 'androidboot.royd_height=960' runtime/scripts/import.sh
+grep -Fq 'ENTRYPOINT ["/royd-entrypoint"]' runtime/scripts/import.sh
+grep -Fq 'royd.width=540' runtime/scripts/import.sh
+grep -Fq 'royd.height=960' runtime/scripts/import.sh
+grep -Fq 'exec /init' runtime/rootfs/royd-entrypoint
+! grep -R -Fq 'androidboot.royd_' runtime cli android/royd/vendor/royd docs README.md AGENTS.md
+! grep -Fq 'androidboot.hardware=royd' runtime/scripts/import.sh
 grep -Fq 'org.opencontainers.image.title=royd' runtime/scripts/import.sh
 grep -Fq 'org.royd.image-format' runtime/scripts/import.sh
 grep -Fq 'ARCHIVE_SHA256' android/scripts/package.sh
-grep -Fq 'ROYD_IMAGE_FORMAT=1' runtime/image.env
+grep -Fq 'ROYD_IMAGE_FORMAT=2' runtime/image.env
 grep -Fq 'royd:15.0.0-r36-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:14.0.0-r14-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:16.0.0-r4-minimal-graphical-arm64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:17.0.0-r1-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq '/royd-release' runtime/scripts/image-inspect.sh
 grep -Fq 'runtime-image-contract-test' Makefile
+grep -Fq 'runtime-entrypoint-contract-test' Makefile
+grep -Fq 'android-display-contract-test' Makefile
 grep -Fq 'android-hal-profile-test' Makefile
 grep -Fq 'android-hal-contract-test' Makefile
 grep -Fq 'ro.vendor.royd.hal_profile=headless' android/hal-profiles/headless.mk
@@ -140,8 +147,8 @@ grep -Fq 'vendor/royd/hal_profile.mk' android/royd/vendor/royd/royd.mk
 grep -Fq 'ROYD_HAL_PROFILE' android/scripts/package.sh
 grep -Fq 'org.royd.hal-profile' runtime/scripts/import.sh
 grep -Fq 'runtime-smoke-test-headless' Makefile
-grep -Fq 'androidboot.royd_width' runtime/scripts/profile.sh
-grep -Fq 'androidboot.royd_width' runtime/compose.yaml
+grep -Fq 'royd.width=' runtime/scripts/profile.sh
+grep -Fq 'royd.width=' runtime/compose.yaml
 grep -Fq 'docker stats --no-stream' runtime/scripts/memory-report.sh
 grep -Fq 'sys.boot_completed' runtime/scripts/wait-for-boot.sh
 grep -Fq '[ -c /dev/binder ]' runtime/scripts/assert-runtime.sh

@@ -1,4 +1,4 @@
-.PHONY: ci android-build-matrix android-build-matrix-test android-build-results-report android-matrix-report android-matrix-report-test check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-status runtime-adb-check runtime-adb-contract-test runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep runtime-qualification runtime-qualification-report runtime-qualification-contract-test runtime-binder-isolation-test runtime-qualification-matrix runtime-qualification-matrix-test android-graphics-backend-test android-build-host-gpu-x86_64 android-package-host-gpu-x86_64 runtime-import-host-gpu-x86_64 android-build-host-gpu-arm64 android-package-host-gpu-arm64 runtime-import-host-gpu-arm64 android-build-host-gpu-intel-x86_64 android-package-host-gpu-intel-x86_64 runtime-import-host-gpu-intel-x86_64 runtime-smoke-test-host-gpu runtime-smoke-test-host-gpu-intel runtime-gpu-contract-test
+.PHONY: ci android-build-matrix android-build-matrix-test android-build-results-report android-matrix-report android-matrix-report-test check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-status runtime-adb-check runtime-adb-contract-test runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep runtime-qualification runtime-qualification-report runtime-qualification-contract-test runtime-binder-isolation-test runtime-qualification-matrix runtime-qualification-matrix-test android-graphics-backend-test android-build-host-gpu-x86_64 android-package-host-gpu-x86_64 runtime-import-host-gpu-x86_64 android-build-host-gpu-arm64 android-package-host-gpu-arm64 runtime-import-host-gpu-arm64 android-build-host-gpu-intel-x86_64 android-package-host-gpu-intel-x86_64 runtime-import-host-gpu-intel-x86_64 runtime-smoke-test-host-gpu runtime-smoke-test-host-gpu-intel runtime-gpu-contract-test android-display-contract-test runtime-entrypoint-contract-test
 
 ci:
 	./scripts/ci.sh
@@ -157,6 +157,9 @@ runtime-multi-test-experimental:
 runtime-image-contract-test:
 	./runtime/scripts/image-contract-test.sh
 
+runtime-entrypoint-contract-test:
+	./runtime/scripts/entrypoint-contract-test.sh
+
 runtime-image-inspect-x86_64:
 	./runtime/scripts/image-inspect.sh x86_64 standard
 
@@ -175,6 +178,9 @@ android-profile-check:
 
 android-contract-test:
 	./android/scripts/contract-test.sh
+
+android-display-contract-test:
+	./android/scripts/display-contract-test.sh
 
 android-config-check-test:
 	./android/scripts/config-check-test.sh

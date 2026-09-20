@@ -1,6 +1,7 @@
 on early-init
     setprop service.adb.tcp.port 5555
     exec -- /vendor/bin/royd-binder-setup
+    exec -- /vendor/bin/royd-display-bootstrap
     exec -- /vendor/bin/royd-hardware-setup
     exec -- /vendor/bin/royd-graphics-setup
 
@@ -10,18 +11,8 @@ service royd-logcat /vendor/bin/royd-logcat
     group root log
     disabled
 
-service royd-display-setup /vendor/bin/royd-display-setup
-    class late_start
-    user root
-    group root shell
-    disabled
-    oneshot
-
 on property:init.svc.logd=running
     start royd-logcat
-
-on property:sys.boot_completed=1
-    start royd-display-setup
 
 on post-fs-data
     setprop service.adb.tcp.port 5555

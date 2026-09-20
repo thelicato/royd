@@ -193,7 +193,7 @@ The following decisions are currently agreed:
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - ADB: development images expose `adbd` over TCP port 5555 with authentication disabled for local container workflows. Keep the host publication loopback-only by default and treat remote exposure as unsafe unless explicitly secured.
 - Container health: imported OCI images include a health check that requires Android boot completion, running `adbd`, ADB TCP configuration, and Binder device readiness.
-- Android init should remain PID 1 unless implementation evidence shows a better approach.
+- Android init should remain PID 1. The OCI entrypoint may perform minimal argument validation and file preparation only if it immediately replaces itself with `/init` using `exec`.
 - Privileged containers remain the development baseline. An experimental restricted mode is maintained for evidence-driven capability reduction and must not be described as a supported minimum until reference-host tests pass.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
 - Android source policy: plain AOSP only. Android 8.0 through 17 are pinned, with Android 15 as the default baseline until all versions complete clean build and boot validation.
@@ -225,6 +225,7 @@ The following decisions are currently agreed:
 - Reference-host evidence: use the repository report workflow to record kernel, Docker, Binder, cgroup, and smoke-test results before making host compatibility claims.
 - Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
 - Runtime security modes: `privileged` is the current baseline; `experimental` removes `--privileged` and tests explicit capabilities through the same smoke, benchmark, report, Compose, and CLI workflows.
+- Runtime argument transport: OCI command arguments use the `royd.width`, `royd.height`, `royd.dpi`, and `royd.fps` namespace. `/royd-entrypoint` validates them, writes `/royd-runtime.conf`, and `exec`s `/init`; do not pass arbitrary `androidboot.*` values as `/init` argv.
 
 
 Android version validation is an explicit remaining project task until every pinned version passes clean x86_64 and arm64 builds, OCI packaging, and runtime smoke tests.

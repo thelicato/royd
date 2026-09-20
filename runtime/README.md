@@ -54,11 +54,13 @@ docker run -d \
   --name royd \
   --privileged \
   royd:dev \
-  androidboot.royd_width=360 \
-  androidboot.royd_height=640 \
-  androidboot.royd_dpi=160 \
-  androidboot.royd_fps=30
+  royd.width=360 \
+  royd.height=640 \
+  royd.dpi=160 \
+  royd.fps=30
 ```
+
+The image entrypoint validates these arguments and then `exec`s Android `/init`. The entrypoint is not a supervisor and does not remain as a separate process. Android init therefore becomes PID 1.
 
 ## Security modes
 

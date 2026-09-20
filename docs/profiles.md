@@ -11,7 +11,7 @@ royd keeps display tuning separate from Android image identity. A runtime profil
 | `headless` | 64 x 64 | 72 | 5 | Default for the headless HAL profile |
 | `tablet` | 720 x 1280 | 320 | 30 | Larger application test surface |
 
-Profiles do not imply a supported RAM minimum. They only change display-related Android boot arguments. When `ROYD_PROFILE` is unset, graphical images use `default` and headless images use `headless`.
+Profiles do not imply a supported RAM minimum. They only change royd runtime display arguments consumed before Android init starts. When `ROYD_PROFILE` is unset, graphical images use `default` and headless images use `headless`.
 
 Use a profile with the smoke tests:
 

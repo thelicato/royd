@@ -4,6 +4,8 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$script_dir/common.sh"
+# shellcheck disable=SC1091
+. "$repo_root/runtime/image.env"
 
 require_command cpio
 require_command file
@@ -119,10 +121,17 @@ for partition in ${ANDROID_OPTIONAL_PARTITIONS:-}; do
   append_image "$partition" "$partition" no
 done
 
+entry_dir="$tmp/entrypoint"
+mkdir -p "$entry_dir"
+cp "$repo_root/runtime/rootfs/royd-entrypoint" "$entry_dir/royd-entrypoint"
+chmod 0755 "$entry_dir/royd-entrypoint"
+touch -t 197001010000 "$entry_dir/royd-entrypoint"
+sudo tar --numeric-owner --owner=0 --group=0 -C "$entry_dir" -rf "$output" ./royd-entrypoint
+
 release_dir="$tmp/release"
 mkdir -p "$release_dir"
 cat > "$release_dir/royd-release" <<EOF
-ROYD_IMAGE_FORMAT=1
+ROYD_IMAGE_FORMAT=$ROYD_IMAGE_FORMAT
 ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
@@ -132,13 +141,15 @@ ROYD_GRAPHICS_BACKEND=$graphics_backend
 ANDROID_PRODUCT=$product
 ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
+ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
+ROYD_RUNTIME_CONFIG=/royd-runtime.conf
 EOF
 touch -t 197001010000 "$release_dir/royd-release"
 sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./royd-release
 
 archive_sha256=$(sha256sum "$output" | awk '{print $1}')
 cat > "$manifest" <<EOF
-ROYD_IMAGE_FORMAT=1
+ROYD_IMAGE_FORMAT=$ROYD_IMAGE_FORMAT
 ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
@@ -148,6 +159,8 @@ ROYD_GRAPHICS_BACKEND=$graphics_backend
 ANDROID_PRODUCT=$product
 ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
+ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
+ROYD_RUNTIME_CONFIG=/royd-runtime.conf
 ARCHIVE_SHA256=$archive_sha256
 EOF
 printf 'Runtime manifest is ready: %s\n' "$manifest"

@@ -41,12 +41,12 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Implement optional Android 10+ host GPU rendering through explicit `/dev/dri` access with AOSP Mesa/minigbm backends.
 - [x] Define initial graphical and headless-oriented HAL profiles with explicit image identity.
 - [ ] Validate the exact runtime HAL/service set and selected graphics backend for both profiles across representative Android generations and real hosts.
-- [ ] Make runtime display parameters take effect without relying on emulator-specific services.
+- [x] Make runtime display parameters take effect before graphics startup through the royd-owned OCI entrypoint and early-init bootstrap.
 
 ## 4. Container-native logging and diagnostics
 
 - [x] Add `logcat` forwarding to container stdout and stderr.
-- [x] Keep Android `/init` as PID 1.
+- [x] Keep Android `/init` as PID 1 through an `exec` hand-off from the royd OCI entrypoint.
 - [x] Add Binder, cgroup, and graphics startup diagnostics.
 - [x] Add a reproducible reference-host report.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.

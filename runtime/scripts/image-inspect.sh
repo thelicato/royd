@@ -66,7 +66,14 @@ equal royd-arch "$(label org.royd.arch)" "$arch"
 equal title "$(label org.opencontainers.image.title)" royd
 
 entrypoint=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")
-equal entrypoint "$entrypoint" '["/init","androidboot.hardware=royd"]'
+equal entrypoint "$entrypoint" '["/royd-entrypoint"]'
+
+cmd=$(docker image inspect --format '{{json .Config.Cmd}}' "$image")
+case "$hal_profile" in
+  graphical) expected_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
+  headless) expected_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5"]' ;;
+esac
+equal command "$cmd" "$expected_cmd"
 
 healthcheck=$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$image")
 equal healthcheck "$healthcheck" '["CMD","/vendor/bin/royd-health"]'
@@ -89,5 +96,7 @@ printf '%s\n' "$release" | grep -Fqx "ROYD_ARCH=$arch"
 printf '%s\n' "$release" | grep -Fqx "ROYD_IMAGE_PROFILE=$profile"
 printf '%s\n' "$release" | grep -Fqx "ROYD_HAL_PROFILE=$hal_profile"
 printf '%s\n' "$release" | grep -Fqx "ROYD_GRAPHICS_BACKEND=$graphics_backend"
+printf '%s\n' "$release" | grep -Fqx 'ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint'
+printf '%s\n' "$release" | grep -Fqx 'ROYD_RUNTIME_CONFIG=/royd-runtime.conf'
 
 printf 'Image contract passed: %s\n' "$image"

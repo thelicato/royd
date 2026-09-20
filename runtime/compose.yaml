@@ -8,10 +8,10 @@ services:
     volumes:
       - royd-data:/data
     command:
-      - androidboot.royd_width=${ROYD_WIDTH:-540}
-      - androidboot.royd_height=${ROYD_HEIGHT:-960}
-      - androidboot.royd_dpi=${ROYD_DPI:-240}
-      - androidboot.royd_fps=${ROYD_FPS:-30}
+      - royd.width=${ROYD_WIDTH:-540}
+      - royd.height=${ROYD_HEIGHT:-960}
+      - royd.dpi=${ROYD_DPI:-240}
+      - royd.fps=${ROYD_FPS:-30}
 
 volumes:
   royd-data:

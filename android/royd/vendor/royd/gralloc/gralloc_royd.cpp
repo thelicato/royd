@@ -187,10 +187,10 @@ int royd_gralloc_open(const hw_module_t* module, const char* name, hw_device_t**
         if (device == nullptr) {
             return -ENOMEM;
         }
-        const int width = property_int("ro.boot.royd_width", 540);
-        const int height = property_int("ro.boot.royd_height", 960);
-        const int dpi = property_int("ro.boot.royd_dpi", 240);
-        const int fps = property_int("ro.boot.royd_fps", 30);
+        const int width = property_int("vendor.royd.display.width", 540);
+        const int height = property_int("vendor.royd.display.height", 960);
+        const int dpi = property_int("vendor.royd.display.dpi", 240);
+        const int fps = property_int("vendor.royd.display.fps", 30);
         device->common.tag = HARDWARE_DEVICE_TAG;
         device->common.version = 0;
         device->common.module = const_cast<hw_module_t*>(module);

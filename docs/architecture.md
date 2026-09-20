@@ -53,10 +53,11 @@ A royd boot is expected to follow this sequence:
 
 ```text
 container start
-  -> early compatibility checks
-  -> binderfs setup
-  -> Binder device allocation
-  -> Android early-init and init
+  -> royd entrypoint validates runtime arguments
+  -> exec /init, preserving PID 1
+  -> Android early-init
+  -> binderfs setup and Binder device allocation
+  -> early display and hardware configuration
   -> logcat forwarding to container stdout/stderr
   -> Android boot completion
 ```

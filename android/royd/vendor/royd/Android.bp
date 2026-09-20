@@ -19,6 +19,15 @@ cc_binary {
     vendor: true,
 }
 
+
+cc_binary {
+    name: "royd-display-bootstrap",
+    srcs: ["display/royd-display-bootstrap.c"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    vendor: true,
+    shared_libs: ["libcutils"],
+}
+
 cc_library_shared {
     name: "gralloc.royd",
     srcs: ["gralloc/gralloc_royd.cpp"],

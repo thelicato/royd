@@ -40,20 +40,20 @@ Linux binderfs is specifically designed to provide independent Binder device set
 
 This does not consume or disable the Android logging buffers. `adb logcat` remains available independently. royd configures `adbd` to listen on TCP port 5555 and the OCI image exposes that port. See [`adb.md`](adb.md).
 
-## Display profile arguments
+## Runtime display configuration
 
-Runtime profiles use royd-owned boot arguments:
+Runtime profiles use royd-owned OCI arguments:
 
 ```text
-androidboot.royd_width
-androidboot.royd_height
-androidboot.royd_dpi
-androidboot.royd_fps
+royd.width
+royd.height
+royd.dpi
+royd.fps
 ```
 
-Android exposes these as `ro.boot.royd_*` properties. After `sys.boot_completed=1`, `royd-display-setup` applies size and density through `wm` and requests the selected refresh rate through Android settings.
+The OCI entrypoint validates those values, writes `/royd-runtime.conf`, and then uses `exec /init`. Android init therefore becomes PID 1 without receiving unsupported container arguments. During Android `early-init`, `royd-display-bootstrap` publishes the validated values as `vendor.royd.display.*` properties before the graphics setup runs. The royd allocator consumes those properties when the virtual framebuffer is opened.
 
-This is an initial userspace implementation. A future container-specific graphics stack may consume these values earlier in boot.
+This removes the previous post-boot `wm` and settings mutation path. Display size, density metadata, and frame-rate metadata are now established before SurfaceFlinger starts.
 
 ## Root filesystem packaging
 
@@ -70,13 +70,9 @@ odm.img          -> /odm, when present
 
 Sparse Android images are converted with AOSP's `simg2img` before mounting.
 
-The imported image starts Android with:
+The imported image uses `/royd-entrypoint` as the OCI entrypoint. It consumes only royd runtime arguments, writes the validated runtime configuration, then replaces itself with `/init` using `exec`. This keeps Android init as PID 1 while avoiding reliance on kernel-style `androidboot.*` command-line transport inside a container.
 
-```text
-/init androidboot.hardware=royd
-```
-
-Display defaults are stored separately as the OCI image command so normal Docker arguments can replace them.
+Display defaults are stored as the OCI image command so normal Docker arguments can replace them.
 
 ## Current limitation
 

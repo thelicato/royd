@@ -58,10 +58,10 @@ func TestRunContainerDefaults(t *testing.T) {
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
-		"androidboot.royd_width=540",
-		"androidboot.royd_height=960",
-		"androidboot.royd_dpi=240",
-		"androidboot.royd_fps=30",
+		"royd.width=540",
+		"royd.height=960",
+		"royd.dpi=240",
+		"royd.fps=30",
 	})
 }
 
@@ -78,10 +78,10 @@ func TestRunContainerOverrides(t *testing.T) {
 		"-p", "127.0.0.1:5560:5555",
 		"--memory", "768m", "--memory-swap", "768m",
 		"example/royd:test",
-		"androidboot.royd_width=360",
-		"androidboot.royd_height=640",
-		"androidboot.royd_dpi=160",
-		"androidboot.royd_fps=24",
+		"royd.width=360",
+		"royd.height=640",
+		"royd.dpi=160",
+		"royd.fps=24",
 	})
 }
 
@@ -102,10 +102,10 @@ func TestRunContainerExperimentalSecurity(t *testing.T) {
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
-		"androidboot.royd_width=540",
-		"androidboot.royd_height=960",
-		"androidboot.royd_dpi=240",
-		"androidboot.royd_fps=30",
+		"royd.width=540",
+		"royd.height=960",
+		"royd.dpi=240",
+		"royd.fps=30",
 	})
 }
 
@@ -121,10 +121,10 @@ func TestRunContainerHostGPU(t *testing.T) {
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev-host-gpu-generic",
-		"androidboot.royd_width=540",
-		"androidboot.royd_height=960",
-		"androidboot.royd_dpi=240",
-		"androidboot.royd_fps=30",
+		"royd.width=540",
+		"royd.height=960",
+		"royd.dpi=240",
+		"royd.fps=30",
 	})
 }
 
