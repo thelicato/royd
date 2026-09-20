@@ -23,6 +23,8 @@ grep -Fq 'TARGET_NO_KERNEL := true' "$tmp/device/royd/royd_arm64/BoardConfig.mk"
 [ -f "$tmp/vendor/royd/Android.bp" ]
 grep -Fq 'ro.vendor.royd.image_profile=standard' "$tmp/vendor/royd/profile.mk"
 grep -Fq 'royd-binder-alloc' "$tmp/vendor/royd/Android.bp"
+grep -Fq 'royd-memfd-probe' "$tmp/vendor/royd/Android.bp"
+grep -Fq 'ro.vendor.royd.memory_compat=native-memfd' "$tmp/vendor/royd/version.mk"
 
 "$script_dir/install-royd.sh" "$tmp" minimal
 grep -Fq 'ro.vendor.royd.image_profile=minimal' "$tmp/vendor/royd/profile.mk"

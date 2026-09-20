@@ -1,4 +1,4 @@
-.PHONY: check android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
+.PHONY: check android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
 
 check:
 	./scripts/check-repo.sh
@@ -6,6 +6,7 @@ check:
 
 android-versions:
 	@printf '%s\n' \
+	  '8.0 android-8.0.0_r36  legacy-configured' \
 	  '8.1 android-8.1.0_r81  legacy-configured' \
 	  '9   android-9.0.0_r61  legacy-configured' \
 	  '10  android-10.0.0_r47 legacy-configured' \
@@ -22,6 +23,9 @@ android-version-test:
 
 android-builder-family-test:
 	./android/scripts/builder-family-test.sh
+
+android-memory-compat-test:
+	./android/scripts/memory-compat-test.sh
 
 android-sync-%:
 	ROYD_ANDROID_VERSION=$* ./android/scripts/builder.sh android/scripts/sync.sh

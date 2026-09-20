@@ -32,3 +32,6 @@ cp "$profile_src" "$profile_dst"
 cp "$compat_src/product.mk" "$device_dst/container_version.mk"
 cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
+printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.memory_compat=%s\n' "$ANDROID_MEMORY_COMPAT" >> "$vendor_dst/version.mk"
+
+"$script_dir/install-memory-compat.sh" "$src"

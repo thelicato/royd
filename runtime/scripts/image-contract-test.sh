@@ -52,6 +52,7 @@ chmod +x "$tmp/docker"
 mkdir -p "$tmp/release"
 PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh" x86_64 standard royd:test >/dev/null
 
+[ "$(ROYD_ANDROID_VERSION=8.0 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.0.0-r36-standard-amd64' ]
 [ "$(ROYD_ANDROID_VERSION=8.1 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.1.0-r81-standard-amd64' ]
 [ "$(ROYD_ANDROID_VERSION=9 $script_dir/image-tag.sh x86_64 standard)" = 'royd:9.0.0-r61-standard-amd64' ]
 [ "$(ROYD_ANDROID_VERSION=10 $script_dir/image-tag.sh x86_64 standard)" = 'royd:10.0.0-r47-standard-amd64' ]
@@ -61,6 +62,7 @@ PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh"
 [ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-tag.sh arm64 minimal)" = 'royd:16.0.0-r4-minimal-arm64' ]
 [ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-tag.sh x86_64 standard)" = 'royd:17.0.0-r1-standard-amd64' ]
 [ "$($script_dir/image-tag.sh arm64 minimal)" = 'royd:15.0.0-r36-minimal-arm64' ]
+[ "$(ROYD_ANDROID_VERSION=8.0 $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-8.0' ]
 [ "$(ROYD_ANDROID_VERSION=8.1 $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-8.1' ]
 [ "$(ROYD_ANDROID_VERSION=10 $script_dir/image-alias.sh arm64 standard)" = 'royd:dev-10-arm64' ]
 [ "$(ROYD_ANDROID_VERSION=13 $script_dir/image-alias.sh x86_64 minimal)" = 'royd:dev-13-minimal' ]

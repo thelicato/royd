@@ -7,7 +7,8 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT INT TERM
-mkdir -p "$tmp/build"
+mkdir -p "$tmp/build" "$tmp/system/core/libcutils"
+printf '%s\n' 'mock ashmem backend' > "$tmp/system/core/libcutils/ashmem-dev.c"
 
 cat > "$tmp/build/envsetup.sh" <<'MOCK'
 lunch() {
@@ -40,7 +41,7 @@ get_build_var() {
 }
 MOCK
 
-for version in 8.1 9 10 11 12 13 14 15 16 17; do
+for version in 8.0 8.1 9 10 11 12 13 14 15 16 17; do
   output=$(ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh")
   printf '%s\n' "$output" | grep -Fq 'Android build contract checks passed'
 done
@@ -58,4 +59,4 @@ if ROYD_ANDROID_VERSION=15 ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh"
   exit 1
 fi
 
-printf '%s\n' 'Android resolved build contract test passed for versions 8.1 through 17'
+printf '%s\n' 'Android resolved build contract test passed for versions 8.0 through 17'

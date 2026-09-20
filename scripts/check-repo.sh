@@ -29,4 +29,8 @@ if ! grep -qi "$prior_art_name" docs/acknowledgements.md; then
   printf '%s\n' 'error: prior-art acknowledgement is missing' >&2
   status=1
 fi
+if grep -RFn '/dev/ashmem' android/compat android/royd android/scripts 2>/dev/null; then
+  printf '%s\n' 'error: royd legacy memory compatibility must not require /dev/ashmem' >&2
+  status=1
+fi
 exit "$status"

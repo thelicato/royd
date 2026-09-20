@@ -27,6 +27,7 @@ assert_property sys.boot_completed 1
 assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
 assert_property vendor.royd.graphics.mode software
+assert_property vendor.royd.host.memfd available
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
   printf 'error: conventional Binder device paths are not ready in %s\n' "$container" >&2

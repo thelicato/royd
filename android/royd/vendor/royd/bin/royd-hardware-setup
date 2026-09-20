@@ -17,6 +17,14 @@ set_status() {
 
 log "hardware: probing container host contract"
 
+if /vendor/bin/royd-memfd-probe; then
+  set_status memfd available
+  log "hardware: memfd with sealing available"
+else
+  set_status memfd unavailable
+  warn "memfd with sealing is unavailable; Android shared-memory compatibility cannot work"
+fi
+
 if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
   set_status cgroup v2
   log "hardware: cgroup v2 detected"

@@ -2,13 +2,13 @@
 
 ## Android version selection
 
-Android 15 is the default build baseline. Pinned configurations span Android 8.1 through 17. Use `ROYD_ANDROID_VERSION=<version>` or the version-suffixed Make targets. Each version has a separate source tree under `.work`, and Android 8.1 through 10 select the legacy builder automatically.
+Android 15 is the default build baseline. Pinned configurations span Android 8.0 through 17. Use `ROYD_ANDROID_VERSION=<version>` or the version-suffixed Make targets. Each version has a separate source tree under `.work`, and Android 8.0 through 10 select the legacy builder automatically.
 
 See [`android-versions.md`](android-versions.md) for the complete matrix and validation status.
 
 ## Baseline
 
-royd carries pinned AOSP configurations for Android 8.1 through 17. Android 15 is the default baseline. The source baseline is intentionally plain AOSP. No third-party Android manifest, device tree, vendor tree, or patch repository is fetched by the build.
+royd carries pinned AOSP configurations for Android 8.0 through 17. Android 15 is the default baseline. The source baseline is intentionally plain AOSP. No third-party Android manifest, device tree, vendor tree, or patch repository is fetched by the build.
 
 Shared defaults live in [`android/baseline.env`](../android/baseline.env), with release-specific values under [`android/versions/`](../android/versions/). After synchronisation, royd writes `.work/android-manifest-<version>.lock.xml` with exact AOSP project revisions for diagnostics and reproducibility work.
 
@@ -30,7 +30,7 @@ All source and build output is kept below `.work/`, which is ignored by Git.
 
 ## Builder container
 
-The repository provides two development builder containers so AOSP toolchain dependencies do not have to be installed directly on the host. Android 8.1 through 10 use the Ubuntu 18.04/OpenJDK 8 legacy builder. Android 11 onward uses the modern Ubuntu 22.04 builder.
+The repository provides two development builder containers so AOSP toolchain dependencies do not have to be installed directly on the host. Android 8.0 through 10 use the Ubuntu 18.04/OpenJDK 8 legacy builder. Android 11 onward uses the modern Ubuntu 22.04 builder.
 
 Open a builder shell with:
 
@@ -54,7 +54,8 @@ The script:
 2. Synchronises AOSP and Git LFS content.
 3. Applies any repository-owned patches under `android/patches/<AOSP tag>` when that release needs local changes.
 4. Copies the repository-owned `device/royd` and `vendor/royd` projects into the source tree.
-5. Writes a resolved manifest to `.work/android-manifest-<version>.lock.xml`.
+5. Installs the repository-owned memfd-backed `libcutils` compatibility backend for Android 8.0 through 10.
+6. Writes a resolved manifest to `.work/android-manifest-<version>.lock.xml`.
 
 The default source tree is `.work/android-src-<version>`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit source synchronisation and compilation.
 
@@ -66,6 +67,7 @@ Run the repository-only contract test at any time:
 
 ```sh
 make android-contract-test
+make android-memory-compat-test
 make android-config-check-test
 ```
 
@@ -77,7 +79,7 @@ make android-config-check
 
 The AOSP-backed preflight installs the royd product definitions, selects both lunch targets, and checks the resolved product, device, architecture, no-kernel/no-bootloader settings, filesystem types, and partition copy-out paths against [`android/build-contract.env`](../android/build-contract.env). It performs product configuration but does not compile Android.
 
-The packaging contract is version-aware. Android 8.1 and 9 require `system` and `vendor`; Android 10 adds `product`; Android 11 onward requires `system`, `vendor`, `system_ext`, and `product`. The packager reads the required set from the selected version metadata.
+The packaging contract is version-aware. Android 8.0, 8.1, and 9 require `system` and `vendor`; Android 10 adds `product`; Android 11 onward requires `system`, `vendor`, `system_ext`, and `product`. The packager reads the required set from the selected version metadata.
 
 ## Building
 

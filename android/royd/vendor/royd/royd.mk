@@ -1,5 +1,6 @@
 PRODUCT_PACKAGES += \
     royd-binder-alloc \
+    royd-memfd-probe \
     libEGL_swiftshader \
     libGLESv1_CM_swiftshader \
     libGLESv2_swiftshader

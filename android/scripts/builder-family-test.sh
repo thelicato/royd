@@ -23,6 +23,7 @@ run_case() {
   }
 }
 
+run_case 8.0 Dockerfile.legacy
 run_case 8.1 Dockerfile.legacy
 run_case 10 Dockerfile.legacy
 run_case 11 Dockerfile

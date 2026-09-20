@@ -4,3 +4,10 @@ cc_binary {
     cflags: ["-Wall", "-Wextra", "-Werror"],
     vendor: true,
 }
+
+cc_binary {
+    name: "royd-memfd-probe",
+    srcs: ["memfd_probe/royd-memfd-probe.c"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    vendor: true,
+}
