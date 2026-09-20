@@ -58,3 +58,15 @@ Early royd diagnostics are also written directly to PID 1 output. Binder setup f
 The current MVP expects a Linux host whose running kernel provides Binder IPC and binderfs. royd does not build or install kernel modules at runtime. `--privileged` is temporarily required so Android can mount binderfs and perform the other kernel interactions inherited from the ReDroid baseline.
 
 The runtime has not yet been validated across a host compatibility matrix. Privilege reduction and broader runtime testing remain later milestones.
+
+## Low-memory defaults
+
+The development image currently defaults to a 540 x 960 display at 240 dpi and 30 fps. Android is built with `ro.config.low_ram=true`, PSI-based `lmkd`, and legacy minfree levels disabled. See [`../docs/low-memory.md`](../docs/low-memory.md) for the rationale and measurement rules.
+
+Collect a snapshot from the default `royd` container with:
+
+```sh
+make memory-report
+```
+
+The repository does not currently prescribe a container memory limit. A reliable minimum will be published only after repeatable boot and workload testing.

@@ -33,6 +33,7 @@ printf 'Importing %s as %s\n' "$archive" "$image"
 docker import \
   --platform "$platform" \
   -c 'ENTRYPOINT ["/init","androidboot.hardware=redroid","androidboot.use_memfd=true"]' \
+  -c 'CMD ["androidboot.redroid_width=540","androidboot.redroid_height=960","androidboot.redroid_dpi=240","androidboot.redroid_fps=30"]' \
   "$archive" \
   "$image" >/dev/null
 printf 'Runtime image is ready: %s\n' "$image"

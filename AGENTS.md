@@ -193,4 +193,6 @@ The following decisions are currently agreed:
 - Initial build architecture targets: `x86_64` and `arm64`, using ReDroid `userdebug` products.
 - Android customisation strategy: install a small `vendor/royd` product layer after applying upstream ReDroid patches.
 - Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
+- Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
+- Memory claims must be based on the repository measurement workflow and a documented workload.
 

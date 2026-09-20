@@ -37,12 +37,14 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 5. Low-memory Android profile
 
-- Establish repeatable idle and workload memory benchmarks.
-- Enable and validate Android low-RAM behaviour where appropriate.
-- Tune `lmkd` and background process behaviour against container memory limits.
-- Remove unnecessary Android packages and services at build time for a defined minimal profile.
-- Measure the effect of display resolution, refresh rate, and rendering mode.
-- Publish memory figures only with the exact test profile and workload.
+- [x] Enable Android low-RAM behaviour with PSI-based `lmkd`.
+- [x] Add reduced default display settings for the initial low-memory profile.
+- [x] Add a repeatable memory-report command for running containers.
+- [ ] Record repeatable idle and workload memory benchmarks on a reference host.
+- [ ] Tune `lmkd` and background process behaviour against container memory limits.
+- [ ] Remove unnecessary Android packages and services at build time for a defined minimal profile.
+- [ ] Measure the effect of display resolution, refresh rate, and rendering mode.
+- [ ] Publish memory figures only with the exact test profile and workload.
 
 ## 6. Privilege reduction
 

@@ -44,4 +44,6 @@ The archive is imported with an entrypoint equivalent to:
 /init androidboot.hardware=redroid androidboot.use_memfd=true
 ```
 
+Display defaults are stored separately as the OCI image command, currently 540 x 960 at 240 dpi and 30 fps. Keeping essential boot arguments in the entrypoint and tunable display arguments in the command lets normal Docker arguments replace the display profile without dropping the required ReDroid hardware and `memfd` settings.
+
 This follows the same basic image assembly model used by upstream ReDroid while keeping royd's build and runtime steps reproducible from this repository.

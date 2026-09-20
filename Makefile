@@ -1,4 +1,4 @@
-.PHONY: check android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64
+.PHONY: check android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64 memory-report
 
 check:
 	./scripts/check-repo.sh
@@ -27,3 +27,6 @@ runtime-import-x86_64:
 
 runtime-import-arm64:
 	./runtime/scripts/import.sh arm64
+
+memory-report:
+	./runtime/scripts/memory-report.sh

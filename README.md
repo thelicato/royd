@@ -90,17 +90,9 @@ Startup diagnostics should appear in the same container logs and report relevant
 
 ## Low-memory direction
 
-Low memory usage is a core engineering goal, but memory targets will be benchmark-driven rather than assumed. Areas to investigate include:
+Low memory usage is a core engineering goal, but memory targets are benchmark-driven rather than assumed. The initial profile now enables Android's supported low-RAM mode, keeps PSI-based `lmkd`, and uses a smaller 540 x 960 display by default. A repository memory-report command captures container usage, Android memory totals, and the largest resident processes.
 
-- `ro.config.low_ram=true` and related Android framework behaviour.
-- PSI-aware `lmkd` configuration.
-- Cached and background process limits.
-- Reduced display resolution and refresh rate profiles.
-- Optional host GPU acceleration and efficient software rendering.
-- Build-time removal or optionalisation of Android components that are unnecessary for defined image profiles.
-- Efficient shared immutable layers and per-instance `/data` storage.
-
-Functionality should be removed only as part of clearly defined image profiles with reproducible tests.
+More aggressive work, including package removal, detailed `lmkd` tuning, process limits, rendering changes, and hard memory limits, will be added only with reproducible measurements. See [`docs/low-memory.md`](docs/low-memory.md) for the current profile and measurement rules.
 
 ## Optional CLI
 
