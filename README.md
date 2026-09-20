@@ -118,7 +118,7 @@ See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the cu
 
 ## Initial roadmap
 
-The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, import a local OCI image, run repeatable single-instance and two-instance runtime smoke tests, and provide an optional CLI scaffold for host validation and Docker workflows. The next milestone is to execute the runtime tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and continue measured low-memory work.
+The current implementation can build and package the pinned Android baseline, produce standard and minimal Android image profiles, inject royd binderfs and logging integration, import local OCI images, run repeatable single-instance and two-instance runtime smoke tests, compare memory limits and image profiles, and provide an optional CLI for host validation and Docker workflows. The next milestone is to execute these tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and use the collected evidence to guide further slimming.
 
 ## Development
 

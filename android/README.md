@@ -9,3 +9,10 @@ The implementation stays close to upstream ReDroid while adding a small royd ven
 Do not add runtime debloating scripts as a substitute for product-level Android configuration. Features intentionally omitted from an image profile should normally be removed or disabled through Android build configuration where practical.
 
 The royd-specific Android files live under [`royd/vendor/royd`](royd/vendor/royd). Runtime packaging and execution are documented in [`../runtime/README.md`](../runtime/README.md).
+
+
+## Image profiles
+
+royd currently provides `standard` and `minimal` Android image profiles under [`profiles`](profiles). The standard profile preserves the upstream package set. The minimal profile removes a small, explicit set of optional packages for comparative measurement.
+
+Use the normal build targets for standard images and the `*-minimal-*` targets for the minimal image. See [`../docs/image-profiles.md`](../docs/image-profiles.md) for details.

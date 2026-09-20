@@ -54,3 +54,13 @@ grep -Fq 'ROYD_FPS' runtime/compose.yaml
 grep -Fq 'ROYD_WIDTH=540' runtime/profiles/default.env
 grep -Fq 'androidboot.redroid_width' runtime/scripts/profile.sh
 grep -Fq 'ROYD_MEMORY_LIMITS' runtime/scripts/memory-sweep.sh
+
+grep -Fq 'vendor/royd/profile.mk' android/royd/vendor/royd/royd.mk
+grep -Fq 'BasicDreams' android/profiles/minimal.mk
+grep -Fq 'PrintSpooler' android/profiles/minimal.mk
+grep -Fq 'ro.vendor.royd.image_profile=minimal' android/profiles/minimal.mk
+grep -Fq 'installclean' android/scripts/build.sh
+grep -Fq 'android-build-minimal-x86_64' Makefile
+grep -Fq 'runtime-import-minimal-x86_64' Makefile
+grep -Fq 'image-profile-sweep' Makefile
+grep -Fq 'ro.vendor.royd.image_profile' runtime/scripts/memory-sweep.sh

@@ -48,6 +48,8 @@ run_candidate() {
   status='failed'
   usage='unavailable'
   android_ram='unavailable'
+  image_profile='unknown'
+  package_count='unavailable'
   started=$(date +%s)
 
   set +e
@@ -72,6 +74,10 @@ run_candidate() {
         usage=$(docker stats --no-stream --format '{{.MemUsage}}' "$container" 2>/dev/null || printf '%s' unavailable)
         android_ram=$(docker exec "$container" dumpsys meminfo 2>/dev/null | sed -n 's/^[[:space:]]*Total RAM:[[:space:]]*//p' | head -n 1)
         [ -n "$android_ram" ] || android_ram='unavailable'
+        image_profile=$(docker exec "$container" getprop ro.vendor.royd.image_profile 2>/dev/null || true)
+        [ -n "$image_profile" ] || image_profile='unknown'
+        package_count=$(docker exec "$container" sh -c 'pm list packages 2>/dev/null | wc -l' 2>/dev/null | tr -d '[:space:]' || true)
+        [ -n "$package_count" ] || package_count='unavailable'
       fi
     fi
   fi
@@ -79,7 +85,7 @@ run_candidate() {
 
   ended=$(date +%s)
   elapsed=$((ended - started))
-  printf '%s\t%s\t%s\t%s\t%s\n' "$limit" "$status" "$elapsed" "$usage" "$android_ram" >>"$workdir/results.tsv"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$limit" "$status" "$elapsed" "$usage" "$android_ram" "$image_profile" "$package_count" >>"$workdir/results.tsv"
 
   docker logs --tail 100 "$container" >"$workdir/$safe_limit-container.log" 2>&1 || true
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -112,14 +118,14 @@ report="$workdir/report.md"
   printf -- '- profile: `%s`\n' "$profile"
   printf -- '- boot timeout: `%s seconds`\n' "$timeout"
   printf -- '- settle time: `%s seconds`\n\n' "$settle"
-  printf '| Limit | Result | Seconds | Container usage | Android total RAM |\n'
-  printf '| --- | --- | ---: | --- | --- |\n'
-  while IFS="$(printf '\t')" read -r limit status elapsed usage android_ram; do
-    printf '| `%s` | %s | %s | %s | %s |\n' "$limit" "$status" "$elapsed" "$usage" "$android_ram"
+  printf '| Limit | Result | Seconds | Container usage | Android total RAM | Image profile | Packages |\n'
+  printf '| --- | --- | ---: | --- | --- | --- | ---: |\n'
+  while IFS="$(printf '\t')" read -r limit status elapsed usage android_ram image_profile package_count; do
+    printf '| `%s` | %s | %s | %s | %s | `%s` | %s |\n' "$limit" "$status" "$elapsed" "$usage" "$android_ram" "$image_profile" "$package_count"
   done <"$workdir/results.tsv"
   printf '\n## Failure diagnostics\n\n'
   found_failure=false
-  while IFS="$(printf '\t')" read -r limit status elapsed usage android_ram; do
+  while IFS="$(printf '\t')" read -r limit status elapsed usage android_ram image_profile package_count; do
     [ "$status" = failed ] || continue
     found_failure=true
     safe_limit=$(printf '%s' "$limit" | tr -c 'A-Za-z0-9_.-' '_')

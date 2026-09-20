@@ -38,6 +38,10 @@ make memory-sweep
 
 The sweep defaults to several candidate limits between 512 MB and 1 GB. They are deliberately labelled as candidates rather than supported configurations. See [`benchmarking.md`](benchmarking.md) for the measurement contract.
 
+## Android image profiles
+
+Build-time slimming is now isolated behind explicit `standard` and `minimal` Android image profiles. The first minimal profile removes only a small set of optional packages so its memory and image-size effects can be measured without conflating them with more aggressive framework changes. See [`image-profiles.md`](image-profiles.md).
+
 ## Next optimisation work
 
-Package and service removal should be introduced as an explicit image profile only after the baseline has been booted and measured. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule.
+The minimal profile should be validated on reference hosts before additional services or packages are removed. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule.

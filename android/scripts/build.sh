@@ -7,6 +7,8 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 src=$(source_dir)
 arch=${1:-x86_64}
+profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
+profile=$($script_dir/profile.sh "$profile")
 jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
@@ -23,8 +25,14 @@ case "$arch" in
     ;;
 esac
 
+"$script_dir/install-royd.sh" "$src" "$profile"
 lunch_target="${product}-${ANDROID_RELEASE}-${ANDROID_VARIANT}"
-printf 'Building %s with %s jobs\n' "$lunch_target" "$jobs"
+stamp_dir="$repo_root/.work/android-profile"
+stamp="$stamp_dir/$arch"
+previous_profile=
+[ -f "$stamp" ] && previous_profile=$(cat "$stamp")
+mkdir -p "$stamp_dir"
+printf 'Building %s with Android profile %s and %s jobs\n' "$lunch_target" "$profile" "$jobs"
 
 (
   cd "$src"
@@ -32,5 +40,10 @@ printf 'Building %s with %s jobs\n' "$lunch_target" "$jobs"
   # shellcheck disable=SC1091
   . build/envsetup.sh
   lunch "$lunch_target"
+  if [ -n "$previous_profile" ] && [ "$previous_profile" != "$profile" ]; then
+    printf 'Android profile changed from %s to %s; running installclean\n' "$previous_profile" "$profile"
+    m installclean
+  fi
   m -j"$jobs"
 )
+printf '%s\n' "$profile" > "$stamp"

@@ -45,3 +45,15 @@ Each candidate receives a fresh `/data` volume. Docker memory and swap are const
 A passing row means that one boot workload completed under that exact configuration. It does not prove stability under application workloads. A failing row may be caused by the memory limit, Android boot failure, runtime assertions, or another host issue.
 
 Before publishing a minimum RAM figure, repeat the test across multiple boots and add a representative application workload. Record the reference-host report alongside the memory sweep.
+
+
+## Android image profile comparison
+
+After building and importing both standard and minimal images, compare them under the same display profile and candidate memory limits:
+
+```sh
+ROYD_IMAGE_PROFILE_SWEEP_OUTPUT=image-profile-sweep.md \
+make image-profile-sweep
+```
+
+The comparison records Docker image size and embeds the memory sweep for each Android image profile. Passing containers also report the profile property and installed package count. This makes build-time package removal measurable without changing the runtime display or memory-test methodology.

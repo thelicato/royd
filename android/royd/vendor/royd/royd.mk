@@ -9,3 +9,6 @@ PRODUCT_VENDOR_PROPERTIES += \
     ro.config.low_ram=true \
     ro.lmk.use_psi=true \
     ro.lmk.use_minfree_levels=false
+
+# Selected by android/scripts/install-royd.sh before each build.
+$(call inherit-product, vendor/royd/profile.mk)

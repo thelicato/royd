@@ -12,6 +12,8 @@ require_command umount
 
 src=$(source_dir)
 arch=${1:-x86_64}
+profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
+profile=$($script_dir/profile.sh "$profile")
 case "$arch" in
   x86_64)
     product=$ANDROID_PRODUCT_X86_64
@@ -28,7 +30,7 @@ product_out="$src/out/target/product/$product"
 system_img="$product_out/system.img"
 vendor_img="$product_out/vendor.img"
 runtime_dir="$repo_root/.work/runtime"
-output="$runtime_dir/royd-$arch.tar"
+output="$runtime_dir/royd-$arch-$profile.tar"
 tmp=$(mktemp -d)
 system_mount="$tmp/system"
 vendor_mount="$tmp/vendor"
@@ -44,7 +46,7 @@ trap cleanup EXIT INT TERM
 [ -f "$vendor_img" ] || fail "vendor image not found at $vendor_img; build Android first"
 mkdir -p "$runtime_dir" "$system_mount" "$vendor_mount"
 
-printf 'Mounting Android images for %s\n' "$arch"
+printf 'Mounting Android images for %s profile %s\n' "$arch" "$profile"
 mount -o loop,ro "$system_img" "$system_mount"
 mount -o loop,ro "$vendor_img" "$vendor_mount"
 

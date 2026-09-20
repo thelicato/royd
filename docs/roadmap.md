@@ -48,7 +48,9 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a disposable memory-limit sweep with Markdown reporting.
 - [ ] Record repeatable idle and workload memory benchmarks on a reference host.
 - [ ] Tune `lmkd` and background process behaviour against container memory limits.
-- [ ] Remove unnecessary Android packages and services at build time for a defined minimal profile.
+- [x] Add a defined minimal Android image profile with conservative build-time package removal.
+- [x] Add repeatable standard-versus-minimal image profile comparison reporting.
+- [ ] Validate the minimal image profile on a documented reference host and measure its effect.
 - [ ] Measure the effect of display resolution, refresh rate, and rendering mode.
 - [ ] Publish memory figures only with the exact test profile and workload.
 
