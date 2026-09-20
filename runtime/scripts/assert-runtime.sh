@@ -3,6 +3,13 @@ set -eu
 
 container=${1:-royd}
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+case "$graphics_backend" in
+  software) graphics_mode=software; graphics_allocator=gralloc0-memfd; gralloc_hal=royd; egl_hal=swiftshader ;;
+  host-gpu-generic) graphics_mode=host-gpu; graphics_allocator=minigbm; gralloc_hal=minigbm; egl_hal=mesa ;;
+  host-gpu-intel) graphics_mode=host-gpu; graphics_allocator=minigbm-intel; gralloc_hal=minigbm_intel; egl_hal=mesa ;;
+  *) printf 'error: unsupported graphics backend: %s\n' "$graphics_backend" >&2; exit 1 ;;
+esac
 case "$hal_profile" in
   graphical) display_mode=interactive ;;
   headless) display_mode=headless ;;
@@ -34,11 +41,13 @@ assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
 assert_property init.svc.adbd running
 assert_property service.adb.tcp.port 5555
-assert_property vendor.royd.graphics.mode software
+assert_property vendor.royd.graphics.mode "$graphics_mode"
+assert_property ro.vendor.royd.graphics_backend "$graphics_backend"
 assert_property ro.vendor.royd.hal_profile "$hal_profile"
 assert_property ro.vendor.royd.display_mode "$display_mode"
-assert_property vendor.royd.graphics.allocator gralloc0-memfd
-assert_property ro.hardware.gralloc royd
+assert_property vendor.royd.graphics.allocator "$graphics_allocator"
+assert_property ro.hardware.gralloc "$gralloc_hal"
+assert_property ro.hardware.egl "$egl_hal"
 assert_property ro.hardware.hwcomposer default
 assert_property vendor.royd.host.memfd available
 
@@ -52,13 +61,17 @@ docker exec "$container" sh -c "grep -q ' /dev/binderfs binder ' /proc/mounts" |
   exit 1
 }
 
-docker logs "$container" 2>&1 | grep -Fq '[royd] graphics: allocator gralloc0-memfd ready' || {
+docker logs "$container" 2>&1 | grep -Fq "[royd] graphics: allocator $graphics_allocator ready" || {
   printf 'error: royd graphics allocator readiness diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 
-docker logs "$container" 2>&1 | grep -Fq '[royd] graphics: software renderer selected' || {
-  printf 'error: software graphics readiness diagnostic is missing from logs for %s\n' "$container" >&2
+case "$graphics_backend" in
+  software) readiness='[royd] graphics: software renderer selected' ;;
+  host-gpu-*) readiness="[royd] graphics: host GPU renderer selected ($graphics_backend)" ;;
+esac
+docker logs "$container" 2>&1 | grep -Fq "$readiness" || {
+  printf 'error: graphics readiness diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 

@@ -31,18 +31,23 @@ done
 grep -Fq 'name: "gralloc.royd"' "$android_dir/royd/vendor/royd/Android.bp"
 grep -Fq 'SYS_memfd_create' "$android_dir/royd/vendor/royd/gralloc/gralloc_royd.cpp"
 grep -Fq 'GRALLOC_HARDWARE_FB0' "$android_dir/royd/vendor/royd/gralloc/gralloc_royd.cpp"
-grep -Fq 'ro.hardware.gralloc=royd' "$android_dir/compat/modern/vendor.mk"
-grep -Fq 'ro.hardware.hwcomposer=default' "$android_dir/compat/modern/vendor.mk"
+grep -Fq 'ro.hardware.gralloc=royd' "$android_dir/graphics/software.mk"
+grep -Fq 'ro.hardware.hwcomposer=default' "$android_dir/graphics/software.mk"
+grep -Fq 'ro.hardware.egl=mesa' "$android_dir/graphics/host-gpu-generic.mk"
 grep -Fq 'ANDROID_GRAPHICS_COMPOSER' "$android_dir/scripts/install-royd.sh"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT INT TERM
-mkdir -p "$work/build"
+mkdir -p "$work/build" "$work/external/minigbm" "$work/external/mesa3d"
 ROYD_ANDROID_VERSION=15 "$script_dir/install-royd.sh" "$work" standard >/dev/null
 grep -Fq 'PRODUCT_PACKAGES += android.hardware.graphics.composer@2.4-service' "$work/vendor/royd/version.mk"
 grep -Fq 'ro.vendor.royd.graphics_composer=2.4' "$work/vendor/royd/version.mk"
-grep -Fq 'ro.vendor.royd.graphics_allocator=gralloc0-memfd' "$work/vendor/royd/version.mk"
+grep -Fq 'ro.vendor.royd.graphics_backend=software' "$work/vendor/royd/graphics_backend.mk"
+grep -Fq 'gralloc.royd' "$work/vendor/royd/graphics_backend.mk"
 test -f "$work/vendor/royd/gralloc/gralloc_royd.cpp"
 test -x "$work/vendor/royd/bin/royd-graphics-setup"
+ROYD_ANDROID_VERSION=15 ROYD_GRAPHICS_BACKEND=host-gpu-generic ROYD_GRAPHICS_ARCH=x86_64 "$script_dir/install-royd.sh" "$work" standard >/dev/null
+grep -Fq 'ro.vendor.royd.graphics_backend=host-gpu-generic' "$work/vendor/royd/graphics_backend.mk"
+grep -Fq 'gralloc.minigbm' "$work/vendor/royd/graphics_backend.mk"
 
 printf '%s\n' 'Android graphics contract test passed'

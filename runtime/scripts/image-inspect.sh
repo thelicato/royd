@@ -22,6 +22,8 @@ profile=${2:-standard}
 profile=$($repo_root/android/scripts/profile.sh "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
 image=${3:-$($script_dir/image-tag.sh "$arch" "$profile")}
 
 case "$arch" in
@@ -59,6 +61,7 @@ equal android-version "$(label org.royd.android-version)" "$ANDROID_VERSION"
 equal android-ref "$(label org.royd.android-ref)" "$AOSP_TAG"
 equal image-profile "$(label org.royd.image-profile)" "$profile"
 equal hal-profile "$(label org.royd.hal-profile)" "$hal_profile"
+equal graphics-backend "$(label org.royd.graphics-backend)" "$graphics_backend"
 equal royd-arch "$(label org.royd.arch)" "$arch"
 equal title "$(label org.opencontainers.image.title)" royd
 
@@ -85,5 +88,6 @@ printf '%s\n' "$release" | grep -Fqx "ROYD_AOSP_TAG=$AOSP_TAG"
 printf '%s\n' "$release" | grep -Fqx "ROYD_ARCH=$arch"
 printf '%s\n' "$release" | grep -Fqx "ROYD_IMAGE_PROFILE=$profile"
 printf '%s\n' "$release" | grep -Fqx "ROYD_HAL_PROFILE=$hal_profile"
+printf '%s\n' "$release" | grep -Fqx "ROYD_GRAPHICS_BACKEND=$graphics_backend"
 
 printf 'Image contract passed: %s\n' "$image"

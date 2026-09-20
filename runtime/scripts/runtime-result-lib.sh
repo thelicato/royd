@@ -7,7 +7,10 @@ runtime_result_key() {
   _royd_rr_image_profile=$3
   _royd_rr_hal_profile=$4
   _royd_rr_security_mode=$5
-  printf '%s/%s-%s-%s-%s.env\n' "$_royd_rr_version" "$_royd_rr_arch" "$_royd_rr_image_profile" "$_royd_rr_hal_profile" "$_royd_rr_security_mode"
+  _royd_rr_graphics_backend=${6:-software}
+  _royd_rr_graphics_suffix=
+  [ "$_royd_rr_graphics_backend" = software ] || _royd_rr_graphics_suffix="-$_royd_rr_graphics_backend"
+  printf '%s/%s-%s-%s-%s%s.env\n' "$_royd_rr_version" "$_royd_rr_arch" "$_royd_rr_image_profile" "$_royd_rr_hal_profile" "$_royd_rr_security_mode" "$_royd_rr_graphics_suffix"
 }
 
 runtime_result_get() {
@@ -23,8 +26,6 @@ runtime_result_write() {
   mkdir -p "$(dirname -- "$_royd_rr_file")"
   _royd_rr_tmp="$_royd_rr_file.tmp.$$"
   : > "$_royd_rr_tmp"
-  for _royd_rr_item in "$@"; do
-    printf '%s\n' "$_royd_rr_item" >> "$_royd_rr_tmp"
-  done
+  for _royd_rr_item in "$@"; do printf '%s\n' "$_royd_rr_item" >> "$_royd_rr_tmp"; done
   mv "$_royd_rr_tmp" "$_royd_rr_file"
 }

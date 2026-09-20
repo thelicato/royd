@@ -49,7 +49,7 @@ vendor.royd.graphics.mode=software
 
 See [`graphics.md`](graphics.md) for the cross-version composer mapping and allocator contract.
 
-Host GPU acceleration is deliberately not exposed as a supported mode yet. A future host mode must define the buffer allocator, graphics composer, render-node exposure, permissions, and fallback behaviour as one tested contract instead of merely passing `/dev/dri` into the container.
+Experimental host-GPU backends are implemented for Android 10 and newer. They combine AOSP Mesa, minigbm, the existing composer bridge, explicit `/dev/dri` passthrough, render-node diagnostics, backend-specific image identity, and software-rendered fallback images. They remain experimental until qualified on real DRM drivers and hosts.
 
 ## Runtime diagnostics
 

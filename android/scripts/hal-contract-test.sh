@@ -16,9 +16,10 @@ for hal_profile in graphical headless; do
   make_tree "$tree"
   ROYD_ANDROID_SRC="$tree" ROYD_HAL_PROFILE="$hal_profile" "$script_dir/install-royd.sh" "$tree" standard >/dev/null
   grep -Fq "ro.vendor.royd.hal_profile=$hal_profile" "$tree/vendor/royd/hal_profile.mk"
-  grep -Fq 'gralloc.royd' "$tree/vendor/royd/hal_profile.mk"
-  grep -Fq 'hwcomposer.default' "$tree/vendor/royd/hal_profile.mk"
+  grep -Fq 'gralloc.royd' "$tree/vendor/royd/graphics_backend.mk"
+  grep -Fq 'hwcomposer.default' "$tree/vendor/royd/graphics_backend.mk"
   grep -Fq 'vendor/royd/hal_profile.mk' "$tree/vendor/royd/royd.mk"
+  grep -Fq 'vendor/royd/graphics_backend.mk' "$tree/vendor/royd/royd.mk"
 done
 
 grep -Fq 'Camera2' "$tmp/headless/vendor/royd/hal_profile.mk"

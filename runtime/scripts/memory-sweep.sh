@@ -29,6 +29,8 @@ docker image inspect "$image" >/dev/null 2>&1 || {
 profile_args=$("$script_dir/profile.sh" "$profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_args=$("$script_dir/security-args.sh" "$security_mode")
+runtime_arch=${ROYD_ARCH:-${ROYD_QUALIFY_ARCH:-x86_64}}
+gpu_args=$(ROYD_GRAPHICS_ARCH="$runtime_arch" "$script_dir/gpu-args.sh" "${ROYD_GRAPHICS_BACKEND:-software}" "$runtime_arch")
 
 case "$settle" in
   ''|*[!0-9]*)
@@ -58,7 +60,8 @@ run_candidate() {
   set +e
   # Word splitting is intentional because profile.sh and security-args.sh emit trusted arguments.
   # shellcheck disable=SC2086
-  docker run -d $security_args \
+  docker run -d $security_args $gpu_args \
+
     --name "$container" \
     --memory "$limit" \
     --memory-swap "$limit" \

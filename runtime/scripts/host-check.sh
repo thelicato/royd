@@ -4,6 +4,7 @@ set -eu
 errors=0
 warnings=0
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 
 ok() {
   printf 'ok      %s\n' "$*"
@@ -60,11 +61,31 @@ else
   warn "memory PSI unavailable"
 fi
 
-if [ -e /dev/dri/renderD128 ]; then
-  ok "DRM render node available at /dev/dri/renderD128"
-else
-  ok "no DRM render node required for the software graphics baseline"
-fi
+render_node=
+for node in /dev/dri/renderD*; do
+  if [ -e "$node" ]; then
+    render_node=$node
+    break
+  fi
+done
+
+case "$graphics_backend" in
+  software)
+    if [ -n "$render_node" ]; then
+      ok "DRM render node $render_node available but not required by software graphics"
+    else
+      ok "no DRM render node required for software graphics"
+    fi
+    ;;
+  host-gpu-*)
+    if [ -n "$render_node" ]; then
+      ok "DRM render node $render_node available for $graphics_backend"
+    else
+      fail "$graphics_backend requires at least one /dev/dri/renderD* node"
+    fi
+    ;;
+  *) fail "unknown graphics backend: $graphics_backend" ;;
+esac
 
 printf '\nSummary: %s error(s), %s warning(s)\n' "$errors" "$warnings"
 [ "$errors" -eq 0 ]

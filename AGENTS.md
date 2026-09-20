@@ -151,7 +151,7 @@ These rules apply to every session and every contribution:
 - Prefer upstream Linux and Android mechanisms over distro-specific workarounds.
 - Avoid adding legacy compatibility code unless there is a demonstrated need and the maintenance cost is justified.
 - Keep changes scoped to one meaningful task at a time. Prefer a cohesive small milestone over micro-tasks that change only one trivial file, while keeping each task reviewable and independently revertible.
-- Stop after completing each atomic task. Summarise what changed, list the remaining roadmap tasks as a numbered list, and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
+- Stop after completing each atomic task. Summarise what changed, state which roadmap work was closed in the round, list the remaining roadmap tasks as a numbered list, distinguish repository implementation work from validation that requires real AOSP builds or external hosts, and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
 - Use Conventional Commits for commit suggestions, for example `docs: add project architecture guidelines`, `feat: add binderfs bootstrap`, or `test: add host capability checks`.
 - Do not commit generated artefacts, build outputs, caches, credentials, secrets, or machine-specific files unless they are intentionally part of the project.
 - Treat the work as a repository, not as isolated files. Preserve the full repository structure across tasks.
@@ -170,7 +170,7 @@ At the start of a new session:
 4. Complete only that task.
 5. Run relevant checks or tests.
 6. Package the complete repository as a ZIP and generate a patch containing only the current task's changes.
-7. Summarise the result, list the remaining roadmap tasks as a numbered list, and suggest a Conventional Commit message.
+7. Summarise the result, state which roadmap work was closed, list the remaining roadmap tasks as a numbered list with implementation and external-validation work clearly distinguished, and suggest a Conventional Commit message.
 8. Stop and wait for the user before starting another task.
 
 When a design decision changes, update this file if the decision is important enough that a future session should know it.
@@ -206,7 +206,7 @@ The following decisions are currently agreed:
 - Legacy memory policy: Android 8.0 through 10 install a repository-owned `libcutils` ashmem API backend backed by sealed memfds. Never require the removed host `ashmem_linux` module. Keep these releases in configured status until direct-ioctl compatibility and real workloads are validated.
 - Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
-- Software graphics baseline: SwiftShader plus repository-owned `gralloc.royd`, `hwcomposer.default`, and the AOSP composer service selected per Android generation. Host GPU mode is not yet supported.
+- Software graphics baseline: SwiftShader plus repository-owned `gralloc.royd`, `hwcomposer.default`, and the AOSP composer service selected per Android generation. Experimental Android 10+ host GPU backends use AOSP Mesa plus minigbm and require explicit `/dev/dri` access.
 - Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.
 - Android image profile tags: standard imports as `royd:dev`; minimal imports as `royd:dev-minimal` by default.
 - Runtime display profiles: `default` (540 x 960, 240 dpi, 30 fps), `compact` (360 x 640, 160 dpi, 30 fps), and `tablet` (720 x 1280, 320 dpi, 30 fps). Profiles do not imply supported memory minimums.
@@ -218,8 +218,8 @@ The following decisions are currently agreed:
 - Packaged images: include immutable `/royd-release` metadata and verify the sidecar archive digest before import.
 - Android build contract: keep no-kernel/no-bootloader mode, required ext4 partition images, and container copy-out paths explicit in `android/build-contract.env`; validate them statically and against resolved AOSP build variables before full compilation.
 - Product composition: do not inherit AOSP emulator product definitions or `emulator_vendor.mk`; compose royd products from explicit AOSP userspace building blocks and repository-owned x86_64 and arm64 board configuration.
-- Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; the first graphics baseline is AOSP SwiftShader and does not require `/dev/dri`.
-- Graphics direction: do not claim host GPU acceleration until royd owns and validates the full allocator, composer, device exposure, permissions, and fallback path.
+- Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; software graphics use AOSP SwiftShader without `/dev/dri`; experimental host GPU graphics require `/dev/dri`.
+- Graphics direction: Android 10+ has experimental AOSP Mesa/minigbm host-GPU backends with explicit `/dev/dri` passthrough and backend-specific image identity. Keep software rendering as the portable default and do not call host GPU supported until real-driver qualification passes.
 - HAL profiles: `graphical` is the default interactive software-rendered profile; `headless` is server-oriented but still retains the minimum allocator/composer/SurfaceFlinger path required for normal Android boot.
 - AOSP build primitives remain upstream dependencies, but royd owns its product and board definitions and must not inherit emulator product bundles.
 - Reference-host evidence: use the repository report workflow to record kernel, Docker, Binder, cgroup, and smoke-test results before making host compatibility claims.

@@ -14,6 +14,7 @@ image_profile=$("$repo_root/android/scripts/profile.sh" "$image_profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 
 render() {
   printf '%s\n\n' '# royd runtime qualification results'
@@ -21,11 +22,12 @@ render() {
   printf 'Image profile: `%s`\n\n' "$image_profile"
   printf 'HAL profile: `%s`\n\n' "$hal_profile"
   printf 'Security mode: `%s`\n\n' "$security_mode"
+  printf 'Graphics backend: `%s`\n\n' "$graphics_backend"
   printf '%s\n' '| Android | Arch | Host | Image | Boot | Health | Runtime | Security | Graphics | Logs | ADB | Binder isolation | Result |'
   printf '%s\n' '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
   for version in $("$repo_root/android/scripts/version-list.sh"); do
     for arch in x86_64 arm64; do
-      file="$results_dir/$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode")"
+      file="$results_dir/$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")"
       if [ -f "$file" ]; then
         host=$(runtime_result_get "$file" HOST_STATUS || printf unknown)
         image=$(runtime_result_get "$file" IMAGE_STATUS || printf unknown)

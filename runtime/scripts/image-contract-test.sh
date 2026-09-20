@@ -22,6 +22,7 @@ if [ "$1 $2" = "image inspect" ]; then
     *org.royd.android-ref*) printf '%s\n' android-15.0.0_r36 ;;
     *org.royd.image-profile*) printf '%s\n' standard ;;
     *org.royd.hal-profile*) printf '%s\n' graphical ;;
+    *org.royd.graphics-backend*) printf '%s\n' software ;;
     *org.royd.arch*) printf '%s\n' x86_64 ;;
     *org.opencontainers.image.title*) printf '%s\n' royd ;;
     *) printf 'unexpected inspect format: %s\n' "$format" >&2; exit 1 ;;
@@ -41,6 +42,7 @@ ROYD_AOSP_TAG=android-15.0.0_r36
 ROYD_ARCH=x86_64
 ROYD_IMAGE_PROFILE=standard
 ROYD_HAL_PROFILE=graphical
+ROYD_GRAPHICS_BACKEND=software
 ANDROID_PRODUCT=royd_x86_64
 REL
   tar -C "$MOCK_RELEASE_DIR" -cf - royd-release
@@ -78,4 +80,9 @@ PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh"
 
 [ "$(ROYD_HAL_PROFILE=headless $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-headless-amd64' ]
 [ "$(ROYD_HAL_PROFILE=headless $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-headless' ]
+
+[ "$(ROYD_GRAPHICS_BACKEND=host-gpu-generic $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-graphical-host-gpu-generic-amd64' ]
+[ "$(ROYD_GRAPHICS_BACKEND=host-gpu-generic $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-generic' ]
+[ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-graphical-host-gpu-intel-amd64' ]
+[ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-intel' ]
 printf '%s\n' 'Runtime image contract test passed'

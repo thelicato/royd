@@ -17,6 +17,7 @@ work_root=${ROYD_MATRIX_SOURCE_ROOT:-$repo_root/.work}
 results_dir=${ROYD_BUILD_RESULTS_DIR:-$work_root/build-results}
 runtime_results_dir=${ROYD_RUNTIME_RESULTS_DIR:-$work_root/runtime-results}
 runtime_security_mode=${ROYD_MATRIX_SECURITY_MODE:-privileged}
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$("$script_dir/profile.sh" "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
@@ -43,6 +44,7 @@ append 'This report separates repository configuration, resolved AOSP validation
 append ''
 append "Image profile: \`$profile\`"
 append "HAL profile: \`$hal_profile\`"
+append "Graphics backend: \`$graphics_backend\`"
 append ''
 append '| Android | AOSP tag | Family | Builder | Arch | Source | Config | Build | Package | Runtime | Status |'
 append '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
@@ -64,11 +66,11 @@ for version in $("$script_dir/version-list.sh"); do
     package_state=not-run
     runtime_state=not-run
     row_status=$ANDROID_SUPPORT_STATUS
-    result_file="$results_dir/$(result_key "$version" "$arch" "$profile" "$hal_profile")"
-    runtime_file="$runtime_results_dir/$(runtime_result_key "$version" "$arch" "$profile" "$hal_profile" "$runtime_security_mode")"
+    result_file="$results_dir/$(result_key "$version" "$arch" "$profile" "$hal_profile" "$graphics_backend")"
+    runtime_file="$runtime_results_dir/$(runtime_result_key "$version" "$arch" "$profile" "$hal_profile" "$runtime_security_mode" "$graphics_backend")"
 
     if [ "$source_state" = present ]; then
-      if ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$src" "$script_dir/config-check.sh" "$arch" >/dev/null 2>&1; then
+      if ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$src" ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_GRAPHICS_ARCH="$arch" "$script_dir/config-check.sh" "$arch" >/dev/null 2>&1; then
         resolved=pass
       else
         resolved=fail

@@ -1,4 +1,4 @@
-.PHONY: ci android-build-matrix android-build-matrix-test android-build-results-report android-matrix-report android-matrix-report-test check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-status runtime-adb-check runtime-adb-contract-test runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep runtime-qualification runtime-qualification-report runtime-qualification-contract-test runtime-binder-isolation-test runtime-qualification-matrix runtime-qualification-matrix-test
+.PHONY: ci android-build-matrix android-build-matrix-test android-build-results-report android-matrix-report android-matrix-report-test check android-hal-profile-test android-hal-contract-test android-build-headless-x86_64 android-build-headless-arm64 android-package-headless-x86_64 android-package-headless-arm64 runtime-import-headless-x86_64 runtime-import-headless-arm64 runtime-smoke-test-headless android-graphics-contract-test runtime-graphics-report android-memory-compat-test android-versions android-version-test android-builder-family-test runtime-host-check runtime-security-contract-test runtime-security-sweep runtime-smoke-test-experimental runtime-multi-test-experimental runtime-image-contract-test runtime-image-inspect-x86_64 runtime-image-inspect-arm64 cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-status runtime-adb-check runtime-adb-contract-test runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep runtime-qualification runtime-qualification-report runtime-qualification-contract-test runtime-binder-isolation-test runtime-qualification-matrix runtime-qualification-matrix-test android-graphics-backend-test android-build-host-gpu-x86_64 android-package-host-gpu-x86_64 runtime-import-host-gpu-x86_64 android-build-host-gpu-arm64 android-package-host-gpu-arm64 runtime-import-host-gpu-arm64 android-build-host-gpu-intel-x86_64 android-package-host-gpu-intel-x86_64 runtime-import-host-gpu-intel-x86_64 runtime-smoke-test-host-gpu runtime-smoke-test-host-gpu-intel runtime-gpu-contract-test
 
 ci:
 	./scripts/ci.sh
@@ -47,6 +47,45 @@ android-memory-compat-test:
 
 android-graphics-contract-test:
 	./android/scripts/graphics-contract-test.sh
+
+android-graphics-backend-test:
+	./android/scripts/graphics-backend-test.sh
+
+runtime-gpu-contract-test:
+	./runtime/scripts/gpu-contract-test.sh
+
+android-build-host-gpu-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./android/scripts/builder.sh android/scripts/build.sh x86_64 standard
+
+android-package-host-gpu-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./android/scripts/builder.sh android/scripts/package.sh x86_64 standard
+
+runtime-import-host-gpu-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./runtime/scripts/import.sh x86_64 standard
+
+android-build-host-gpu-arm64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./android/scripts/builder.sh android/scripts/build.sh arm64 standard
+
+android-package-host-gpu-arm64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./android/scripts/builder.sh android/scripts/package.sh arm64 standard
+
+runtime-import-host-gpu-arm64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ./runtime/scripts/import.sh arm64 standard
+
+android-build-host-gpu-intel-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-intel ./android/scripts/builder.sh android/scripts/build.sh x86_64 standard
+
+android-package-host-gpu-intel-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-intel ./android/scripts/builder.sh android/scripts/package.sh x86_64 standard
+
+runtime-import-host-gpu-intel-x86_64:
+	ROYD_GRAPHICS_BACKEND=host-gpu-intel ./runtime/scripts/import.sh x86_64 standard
+
+runtime-smoke-test-host-gpu:
+	ROYD_GRAPHICS_BACKEND=host-gpu-generic ROYD_IMAGE=$$(ROYD_GRAPHICS_BACKEND=host-gpu-generic ./runtime/scripts/default-image.sh standard x86_64) ./runtime/scripts/smoke-test.sh
+
+runtime-smoke-test-host-gpu-intel:
+	ROYD_GRAPHICS_BACKEND=host-gpu-intel ROYD_IMAGE=$$(ROYD_GRAPHICS_BACKEND=host-gpu-intel ./runtime/scripts/default-image.sh standard x86_64) ./runtime/scripts/smoke-test.sh
 
 android-hal-profile-test:
 	./android/scripts/hal-profile-test.sh

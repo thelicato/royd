@@ -23,6 +23,10 @@ requested_image=${3:-}
 profile=$($repo_root/android/scripts/profile.sh "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
+graphics_suffix=
+[ "$graphics_backend" = software ] || graphics_suffix="-$graphics_backend"
 canonical=$($script_dir/image-tag.sh "$arch" "$profile")
 alias=$($script_dir/image-alias.sh "$arch" "$profile")
 image=${requested_image:-$canonical}
@@ -36,8 +40,8 @@ case "$arch" in
     ;;
 esac
 
-archive="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile.tar"
-manifest="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile.manifest"
+archive="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile$graphics_suffix.tar"
+manifest="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile$graphics_suffix.manifest"
 command -v sha256sum >/dev/null 2>&1 || {
   printf '%s\n' 'error: sha256sum is required to verify the runtime archive' >&2
   exit 1
@@ -84,6 +88,7 @@ docker import \
   -c "LABEL org.royd.arch=$arch" \
   -c "LABEL org.royd.image-profile=$profile" \
   -c "LABEL org.royd.hal-profile=$hal_profile" \
+  -c "LABEL org.royd.graphics-backend=$graphics_backend" \
   "$archive" \
   "$image" >/dev/null
 

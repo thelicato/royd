@@ -11,6 +11,8 @@ profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($script_dir/profile.sh "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/graphics-backend.sh" "$graphics_backend" "$arch")
 jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
@@ -32,15 +34,15 @@ case "$arch" in
     ;;
 esac
 
-"$script_dir/install-royd.sh" "$src" "$profile"
+ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_GRAPHICS_ARCH="$arch" "$script_dir/install-royd.sh" "$src" "$profile"
 lunch_target=$("$script_dir/lunch-target.sh" "$arch")
 stamp_dir="$repo_root/.work/android-profile"
 stamp="$stamp_dir/$ANDROID_VERSION-$arch"
 previous_profile=
 [ -f "$stamp" ] && previous_profile=$(cat "$stamp")
 mkdir -p "$stamp_dir"
-current_profile="$profile:$hal_profile"
-printf 'Building Android %s (%s) with image profile %s, HAL profile %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$hal_profile" "$jobs"
+current_profile="$profile:$hal_profile:$graphics_backend"
+printf 'Building Android %s (%s) with image profile %s, HAL profile %s, graphics backend %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$hal_profile" "$graphics_backend" "$jobs"
 
 (
   cd "$src"

@@ -2,38 +2,28 @@
 
 stdout=/proc/1/fd/1
 stderr=/proc/1/fd/2
+log() { printf '[royd] %s\n' "$*" > "$stdout"; }
+warn() { printf '[royd] warning: %s\n' "$*" > "$stderr"; }
 
-log() {
-  printf '[royd] %s\n' "$*" > "$stdout"
-}
-
-warn() {
-  printf '[royd] warning: %s\n' "$*" > "$stderr"
-}
-
-allocator=$(getprop ro.vendor.royd.graphics_allocator)
+backend=$(getprop ro.vendor.royd.graphics_backend)
 composer=$(getprop ro.vendor.royd.graphics_composer)
+gralloc=$(getprop ro.hardware.gralloc)
+case "$backend" in
+  software) allocator=gralloc0-memfd ;;
+  host-gpu-generic) allocator=minigbm ;;
+  host-gpu-intel) allocator=minigbm-intel ;;
+  *) allocator=unknown ;;
+esac
 
 found_allocator=false
-for path in /vendor/lib64/hw/gralloc.royd.so /vendor/lib/hw/gralloc.royd.so; do
-  if [ -f "$path" ]; then
-    found_allocator=true
-    break
-  fi
+for path in /vendor/lib64/hw/gralloc."$gralloc".so /vendor/lib/hw/gralloc."$gralloc".so; do
+  if [ -f "$path" ]; then found_allocator=true; break; fi
 done
-
 if [ "$found_allocator" = true ]; then
   setprop vendor.royd.graphics.allocator "$allocator"
   log "graphics: allocator $allocator ready"
 else
   setprop vendor.royd.graphics.allocator unavailable
-  warn "graphics: gralloc.royd module is missing"
+  warn "graphics: gralloc.$gralloc module is missing"
 fi
-
-if [ -n "$composer" ]; then
-  setprop vendor.royd.graphics.composer "$composer"
-  log "graphics: composer HIDL $composer configured"
-else
-  setprop vendor.royd.graphics.composer unavailable
-  warn "graphics: composer bridge version is missing"
-fi
+if [ -n "$composer" ]; then setprop vendor.royd.graphics.composer "$composer"; log "graphics: composer HIDL $composer configured"; else setprop vendor.royd.graphics.composer unavailable; warn "graphics: composer bridge version is missing"; fi

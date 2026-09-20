@@ -24,6 +24,7 @@ type runConfig struct {
 	dpi      int
 	fps      int
 	security string
+	graphics string
 }
 
 func main() {
@@ -98,7 +99,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	cfg := runConfig{}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	fs.StringVar(&cfg.image, "image", "royd:dev", "Docker image to run")
+	fs.StringVar(&cfg.image, "image", "", "Docker image to run; defaults to the selected graphics backend alias")
 	fs.StringVar(&cfg.name, "name", "royd", "Container name")
 	fs.StringVar(&cfg.volume, "volume", "royd-data", "Docker volume to mount at /data")
 	fs.StringVar(&cfg.port, "port", "127.0.0.1:5555:5555", "Port mapping for ADB")
@@ -108,6 +109,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	fs.IntVar(&cfg.dpi, "dpi", 240, "Android display density")
 	fs.IntVar(&cfg.fps, "fps", 30, "Android display frame rate")
 	fs.StringVar(&cfg.security, "security", "privileged", "Runtime security mode: privileged or experimental")
+	fs.StringVar(&cfg.graphics, "graphics", "software", "Graphics backend: software, host-gpu-generic, or host-gpu-intel")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -117,6 +119,16 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 
 	if cfg.width <= 0 || cfg.height <= 0 || cfg.dpi <= 0 || cfg.fps <= 0 {
 		return fmt.Errorf("display values must be positive integers")
+	}
+	if cfg.image == "" {
+		switch cfg.graphics {
+		case "software":
+			cfg.image = "royd:dev"
+		case "host-gpu-generic", "host-gpu-intel":
+			cfg.image = "royd:dev-" + cfg.graphics
+		default:
+			return fmt.Errorf("unknown graphics backend: %s", cfg.graphics)
+		}
 	}
 	dockerArgs := []string{"run", "-d"}
 	switch cfg.security {
@@ -128,6 +140,13 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 		}
 	default:
 		return fmt.Errorf("unknown security mode: %s", cfg.security)
+	}
+	switch cfg.graphics {
+	case "software":
+	case "host-gpu-generic", "host-gpu-intel":
+		dockerArgs = append(dockerArgs, "--device=/dev/dri:/dev/dri")
+	default:
+		return fmt.Errorf("unknown graphics backend: %s", cfg.graphics)
 	}
 	dockerArgs = append(dockerArgs,
 		"--name", cfg.name,

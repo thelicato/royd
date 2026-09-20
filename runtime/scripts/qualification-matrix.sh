@@ -13,6 +13,7 @@ image_profile=$("$repo_root/android/scripts/profile.sh" "$image_profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+graphics_backend_request=${ROYD_GRAPHICS_BACKEND:-software}
 resume=${ROYD_QUALIFY_RESUME:-1}
 continue_on_error=${ROYD_QUALIFY_CONTINUE_ON_ERROR:-1}
 require_adb=${ROYD_QUALIFY_REQUIRE_ADB:-1}
@@ -46,11 +47,13 @@ printf '  arches: %s\n' "$arches"
 printf '  image profile: %s\n' "$image_profile"
 printf '  HAL profile: %s\n' "$hal_profile"
 printf '  security mode: %s\n' "$security_mode"
+printf '  graphics backend: %s\n' "$graphics_backend_request"
 printf '  resume: %s\n' "$resume"
 
 for version in $versions; do
   for arch in $arches; do
-    key=$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode")
+    graphics_backend=$(ROYD_ANDROID_VERSION="$version" ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend_request" "$arch")
+    key=$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")
     result_file="$results_dir/$key"
     log_file=${result_file%.env}.log
     if [ "$resume" = 1 ] && [ "$(runtime_result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ]; then
@@ -63,6 +66,7 @@ for version in $versions; do
       ROYD_ANDROID_PROFILE="$image_profile" \
       ROYD_HAL_PROFILE="$hal_profile" \
       ROYD_SECURITY_MODE="$security_mode" \
+      ROYD_GRAPHICS_BACKEND="$graphics_backend" \
       ROYD_QUALIFY_REQUIRE_ADB="$require_adb" \
       ROYD_RUNTIME_RESULTS_DIR="$results_dir" \
       ROYD_RUNTIME_RESULT_FILE="$result_file" \
@@ -82,6 +86,7 @@ ROYD_RUNTIME_REPORT_OUTPUT="$report" \
 ROYD_ANDROID_PROFILE="$image_profile" \
 ROYD_HAL_PROFILE="$hal_profile" \
 ROYD_SECURITY_MODE="$security_mode" \
+ROYD_GRAPHICS_BACKEND="$graphics_backend_request" \
 "$script_dir/qualification-report.sh" >/dev/null
 printf '\nRuntime qualification report: %s\n' "$report"
 exit "$status"

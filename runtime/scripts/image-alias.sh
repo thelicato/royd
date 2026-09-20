@@ -23,6 +23,11 @@ profile=$($repo_root/android/scripts/profile.sh "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
+graphics_suffix=
+[ "$graphics_backend" = software ] || graphics_suffix="-$graphics_backend"
+
 if [ "$ANDROID_VERSION" = "$ROYD_DEFAULT_ANDROID_VERSION" ]; then
   version_suffix=
 else
@@ -32,10 +37,10 @@ fi
 hal_suffix=
 [ "$hal_profile" = graphical ] || hal_suffix="-$hal_profile"
 case "$arch:$profile" in
-  x86_64:standard) suffix="dev$version_suffix$hal_suffix" ;;
-  x86_64:*) suffix="dev$version_suffix-$profile$hal_suffix" ;;
-  arm64:standard) suffix="dev$version_suffix$hal_suffix-arm64" ;;
-  arm64:*) suffix="dev$version_suffix-$profile$hal_suffix-arm64" ;;
+  x86_64:standard) suffix="dev$version_suffix$hal_suffix$graphics_suffix" ;;
+  x86_64:*) suffix="dev$version_suffix-$profile$hal_suffix$graphics_suffix" ;;
+  arm64:standard) suffix="dev$version_suffix$hal_suffix$graphics_suffix-arm64" ;;
+  arm64:*) suffix="dev$version_suffix-$profile$hal_suffix$graphics_suffix-arm64" ;;
   *)
     printf 'error: unsupported architecture: %s; expected x86_64 or arm64\n' "$arch" >&2
     exit 1

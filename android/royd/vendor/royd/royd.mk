@@ -17,3 +17,5 @@ $(call inherit-product, vendor/royd/version.mk)
 $(call inherit-product, vendor/royd/profile.mk)
 
 $(call inherit-product, vendor/royd/hal_profile.mk)
+
+$(call inherit-product, vendor/royd/graphics_backend.mk)

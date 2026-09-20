@@ -18,6 +18,8 @@ volume_b=${container_b}-data
 
 profile_args=$("$script_dir/profile.sh" "$profile")
 security_args=$("$script_dir/security-args.sh" "$security_mode")
+runtime_arch=${ROYD_ARCH:-${ROYD_QUALIFY_ARCH:-x86_64}}
+gpu_args=$(ROYD_GRAPHICS_ARCH="$runtime_arch" "$script_dir/gpu-args.sh" "${ROYD_GRAPHICS_BACKEND:-software}" "$runtime_arch")
 
 cleanup() {
   docker rm -f "$container_a" "$container_b" >/dev/null 2>&1 || true
@@ -35,9 +37,9 @@ docker volume create "$volume_b" >/dev/null
 printf 'Starting Binder isolation test with %s using HAL profile %s\n' "$image" "$hal_profile"
 # Word splitting is intentional because these helpers emit trusted Docker and Android arguments.
 # shellcheck disable=SC2086
-docker run -d $security_args --name "$container_a" -v "$volume_a:/data" "$image" $profile_args >/dev/null
+docker run -d $security_args $gpu_args --name "$container_a" -v "$volume_a:/data" "$image" $profile_args >/dev/null
 # shellcheck disable=SC2086
-docker run -d $security_args --name "$container_b" -v "$volume_b:/data" "$image" $profile_args >/dev/null
+docker run -d $security_args $gpu_args --name "$container_b" -v "$volume_b:/data" "$image" $profile_args >/dev/null
 
 "$script_dir/wait-for-boot.sh" "$container_a" "$timeout"
 "$script_dir/wait-for-boot.sh" "$container_b" "$timeout"

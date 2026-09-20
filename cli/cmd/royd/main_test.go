@@ -109,6 +109,35 @@ func TestRunContainerExperimentalSecurity(t *testing.T) {
 	})
 }
 
+func TestRunContainerHostGPU(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--graphics", "host-gpu-generic"}); err != nil {
+		t.Fatal(err)
+	}
+	assertSingleCall(t, runner, []string{
+		"run", "-d", "--privileged", "--device=/dev/dri:/dev/dri",
+		"--name", "royd",
+		"--label", "org.royd.instance=true",
+		"-v", "royd-data:/data",
+		"-p", "127.0.0.1:5555:5555",
+		"royd:dev-host-gpu-generic",
+		"androidboot.royd_width=540",
+		"androidboot.royd_height=960",
+		"androidboot.royd_dpi=240",
+		"androidboot.royd_fps=30",
+	})
+}
+
+func TestRunContainerRejectsUnknownGraphicsBackend(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--graphics", "unknown"}); err == nil {
+		t.Fatal("expected invalid graphics backend error")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no docker calls, got %d", len(runner.calls))
+	}
+}
+
 func TestRunContainerRejectsUnknownSecurityMode(t *testing.T) {
 	runner := &fakeRunner{}
 	if err := execute(runner, []string{"run", "--security", "unknown"}); err == nil {

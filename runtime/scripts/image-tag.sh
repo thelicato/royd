@@ -23,6 +23,11 @@ profile=$($repo_root/android/scripts/profile.sh "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
+graphics_suffix=
+[ "$graphics_backend" = software ] || graphics_suffix="-$graphics_backend"
+
 case "$arch" in
   x86_64) platform_arch=amd64 ;;
   arm64) platform_arch=arm64 ;;
@@ -34,4 +39,4 @@ esac
 
 version=${AOSP_TAG#android-}
 version=$(printf '%s' "$version" | tr '_' '-')
-printf '%s:%s-%s-%s-%s\n' "$ROYD_IMAGE_REPOSITORY" "$version" "$profile" "$hal_profile" "$platform_arch"
+printf '%s:%s-%s-%s%s-%s\n' "$ROYD_IMAGE_REPOSITORY" "$version" "$profile" "$hal_profile" "$graphics_suffix" "$platform_arch"

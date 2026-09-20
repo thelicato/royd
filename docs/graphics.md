@@ -59,4 +59,6 @@ The `headless` HAL profile does not remove SurfaceFlinger or the allocator/compo
 
 ## Host GPU mode
 
-Host GPU rendering is not implemented yet. It must be introduced as a separate, explicit runtime contract covering `/dev/dri`, buffer allocation, mapper behaviour, composer behaviour, permissions, fallbacks, and validation. Passing a DRM render node into the container by itself is not considered a graphics implementation.
+An experimental host GPU path is now implemented for Android 10 and newer. It uses AOSP Mesa for EGL/GLES, minigbm for DRM-backed allocation, and an explicit `/dev/dri` runtime device contract. Software rendering remains the default.
+
+The available backends are `host-gpu-generic` and the x86_64-only `host-gpu-intel`. Image identity, packaging, runtime validation, Compose, qualification results, and the optional CLI all keep the selected backend explicit. See [`host-gpu.md`](host-gpu.md). Real host qualification is still required before any GPU/driver combination is called supported.

@@ -9,7 +9,6 @@ src=$(source_dir)
 profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$($script_dir/profile.sh "$profile")
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
-"$script_dir/install-royd.sh" "$src" "$profile"
 
 check_product() {
   arch=$1
@@ -27,6 +26,7 @@ check_product() {
       ;;
   esac
 
+  ROYD_GRAPHICS_ARCH="$arch" "$script_dir/install-royd.sh" "$src" "$profile"
   lunch_target=$("$script_dir/lunch-target.sh" "$arch")
   printf 'Checking resolved AOSP configuration for %s\n' "$lunch_target"
 

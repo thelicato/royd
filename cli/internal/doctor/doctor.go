@@ -101,7 +101,7 @@ func checkDRI() Check {
 	if err != nil {
 		return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri not present; not required for the software graphics baseline"}
 	}
-	return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri present; host GPU mode is not enabled yet"}
+	return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri present; experimental host GPU mode can be qualified explicitly"}
 }
 
 func (report Report) HasErrors() bool {

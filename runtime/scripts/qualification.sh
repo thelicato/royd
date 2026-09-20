@@ -22,6 +22,8 @@ image_profile=$("$repo_root/android/scripts/profile.sh" "$image_profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
 runtime_profile=${ROYD_PROFILE:-$(ROYD_HAL_PROFILE="$hal_profile" "$script_dir/default-runtime-profile.sh")}
 image=${ROYD_IMAGE:-$(ROYD_HAL_PROFILE="$hal_profile" "$script_dir/default-image.sh" "$image_profile" "$arch")}
 require_adb=${ROYD_QUALIFY_REQUIRE_ADB:-1}
@@ -29,7 +31,7 @@ timeout=${ROYD_BOOT_TIMEOUT:-180}
 health_timeout=${ROYD_HEALTH_TIMEOUT:-240}
 work_root=${ROYD_WORK_DIR:-$repo_root/.work}
 results_dir=${ROYD_RUNTIME_RESULTS_DIR:-$work_root/runtime-results}
-result_file=${ROYD_RUNTIME_RESULT_FILE:-$results_dir/$(runtime_result_key "$android_version" "$arch" "$image_profile" "$hal_profile" "$security_mode")}
+result_file=${ROYD_RUNTIME_RESULT_FILE:-$results_dir/$(runtime_result_key "$android_version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")}
 log_file=${ROYD_RUNTIME_LOG_FILE:-${result_file%.env}.log}
 container=${ROYD_QUALIFY_CONTAINER:-royd-qualify-$$}
 volume=${container}-data
@@ -87,24 +89,25 @@ binder_isolation_status=not-run
 image_id=unknown
 adb_endpoint=not-run
 
-run_stage host env ROYD_SECURITY_MODE="$security_mode" "$script_dir/host-check.sh"
+run_stage host env ROYD_SECURITY_MODE="$security_mode" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/host-check.sh"
 run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$hal_profile" "$script_dir/image-inspect.sh" "$arch" "$image_profile" "$image"
 
 if [ "$host_status" = pass ] && [ "$image_status" = pass ]; then
   profile_args=$("$script_dir/profile.sh" "$runtime_profile")
   security_args=$("$script_dir/security-args.sh" "$security_mode")
+gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backend" "$arch")
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker volume rm "$volume" >/dev/null 2>&1 || true
   docker volume create "$volume" >/dev/null
   log '==> start'
   # Word splitting is intentional because helpers emit trusted Docker and Android arguments.
   # shellcheck disable=SC2086
-  if docker run -d $security_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
+  if docker run -d $security_args $gpu_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
     image_id=$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || printf unknown)
     run_stage security "$script_dir/assert-security.sh" "$container" "$security_mode"
     run_stage boot "$script_dir/wait-for-boot.sh" "$container" "$timeout"
     [ "$boot_status" = pass ] && run_stage health "$script_dir/wait-for-health.sh" "$container" "$health_timeout"
-    [ "$boot_status" = pass ] && run_stage runtime env ROYD_HAL_PROFILE="$hal_profile" "$script_dir/assert-runtime.sh" "$container"
+    [ "$boot_status" = pass ] && run_stage runtime env ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/assert-runtime.sh" "$container"
     if [ "$boot_status" = pass ]; then
       run_stage logs sh -c 'docker logs "$1" 2>&1 | grep -Fq "[royd] logcat: forwarding Android logs to container output"' sh "$container"
     fi
@@ -174,6 +177,7 @@ runtime_result_write "$result_file" \
   "IMAGE_PROFILE=$image_profile" \
   "HAL_PROFILE=$hal_profile" \
   "SECURITY_MODE=$security_mode" \
+  "GRAPHICS_BACKEND=$graphics_backend" \
   "RUNTIME_PROFILE=$runtime_profile" \
   "IMAGE=$image" \
   "IMAGE_ID=$image_id" \

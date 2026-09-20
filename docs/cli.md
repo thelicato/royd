@@ -35,6 +35,8 @@ Runs a local royd container with conventional defaults:
 - optional Docker memory and swap limits
 - overridable display width, height, density, and frame rate
 
+`royd run` also accepts `--graphics software`, `--graphics host-gpu-generic`, or `--graphics host-gpu-intel`. Host GPU modes select the matching development image alias and pass `/dev/dri` into the container.
+
 ### `royd ps`
 
 Lists containers labelled by the CLI as royd instances.

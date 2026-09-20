@@ -15,6 +15,7 @@ profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$("$script_dir/profile.sh" "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
+graphics_backend_request=${ROYD_GRAPHICS_BACKEND:-software}
 stages=${ROYD_BUILD_STAGES:-"config build package"}
 sync_missing=${ROYD_BUILD_SYNC:-0}
 resume=${ROYD_BUILD_RESUME:-1}
@@ -94,6 +95,7 @@ record_result() {
     "ARCH=$current_arch" \
     "IMAGE_PROFILE=$profile" \
     "HAL_PROFILE=$hal_profile" \
+    "GRAPHICS_BACKEND=$current_graphics_backend" \
     "CLEAN_BUILD=$clean_build" \
     "STAGES=$stages" \
     "SYNC_STATUS=$sync_status" \
@@ -111,6 +113,8 @@ run_builder() {
   ROYD_ANDROID_VERSION=$current_version \
   ROYD_ANDROID_PROFILE=$profile \
   ROYD_HAL_PROFILE=$hal_profile \
+  ROYD_GRAPHICS_BACKEND=${current_graphics_backend:-$graphics_backend_request} \
+  ROYD_GRAPHICS_ARCH=${current_arch:-x86_64} \
   ROYD_BUILDER_TTY=never \
   ROYD_CLEAN_BUILD=$clean_build \
   "$builder" "$@"
@@ -126,6 +130,7 @@ printf '  versions: %s\n' "$(printf '%s' "$versions" | tr '\n' ' ')"
 printf '  arches: %s\n' "$arches"
 printf '  image profile: %s\n' "$profile"
 printf '  HAL profile: %s\n' "$hal_profile"
+printf '  graphics backend: %s\n' "$graphics_backend_request"
 printf '  stages: %s\n' "$stages"
 printf '  clean builds: %s\n' "$clean_build"
 printf '  resume: %s\n' "$resume"
@@ -141,7 +146,8 @@ for current_version in $versions; do
       sync_status=fail
       printf 'error: source synchronisation failed for Android %s\n' "$current_version" >&2
       for current_arch in $arches; do
-        key=$(result_key "$current_version" "$current_arch" "$profile" "$hal_profile")
+    current_graphics_backend=$(ROYD_ANDROID_VERSION="$current_version" ROYD_GRAPHICS_ARCH="$current_arch" "$script_dir/graphics-backend.sh" "$graphics_backend_request" "$current_arch")
+        key=$(result_key "$current_version" "$current_arch" "$profile" "$hal_profile" "$current_graphics_backend")
         result_file="$results_dir/$key"
         started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
         finished=$started
@@ -156,7 +162,8 @@ for current_version in $versions; do
   fi
 
   for current_arch in $arches; do
-    key=$(result_key "$current_version" "$current_arch" "$profile" "$hal_profile")
+    current_graphics_backend=$(ROYD_ANDROID_VERSION="$current_version" ROYD_GRAPHICS_ARCH="$current_arch" "$script_dir/graphics-backend.sh" "$graphics_backend_request" "$current_arch")
+    key=$(result_key "$current_version" "$current_arch" "$profile" "$hal_profile" "$current_graphics_backend")
     result_file="$results_dir/$key"
     log_file=${result_file%.env}.log
     mkdir -p "$(dirname -- "$result_file")"
@@ -214,7 +221,9 @@ for current_version in $versions; do
       printf '==> Android %s %s: packaging\n' "$current_version" "$current_arch"
       if run_builder android/scripts/package.sh "$current_arch" "$profile" >>"$log_file" 2>&1; then
         package_status=pass
-        package_manifest="$work_root/runtime/android-$current_version/royd-$current_arch-$profile-$hal_profile.manifest"
+        graphics_suffix=
+        [ "$current_graphics_backend" = software ] || graphics_suffix="-$current_graphics_backend"
+        package_manifest="$work_root/runtime/android-$current_version/royd-$current_arch-$profile-$hal_profile$graphics_suffix.manifest"
         if [ -f "$package_manifest" ]; then
           archive_sha=$(sed -n 's/^ARCHIVE_SHA256=//p' "$package_manifest" | tail -n 1)
           [ -n "$archive_sha" ] || archive_sha=unknown

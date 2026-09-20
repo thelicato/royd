@@ -48,8 +48,15 @@ if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
 else
   log 'cgroup: legacy or unavailable'
 fi
-if [ -e /dev/dri/renderD128 ]; then
-  log 'graphics: host render device detected'
+render_node=
+for node in /dev/dri/renderD*; do
+  if [ -e "$node" ]; then
+    render_node=$node
+    break
+  fi
+done
+if [ -n "$render_node" ]; then
+  log "graphics: host render device detected at $render_node"
 else
   log 'graphics: no host render device detected'
 fi

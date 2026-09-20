@@ -14,6 +14,7 @@ profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$("$script_dir/profile.sh" "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
+graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 
 emit() {
   printf '%s\n' "$*"
@@ -26,12 +27,13 @@ render() {
   emit ''
   emit "Image profile: \`$profile\`"
   emit "HAL profile: \`$hal_profile\`"
+  emit "Graphics backend: \`$graphics_backend\`"
   emit ''
   emit '| Android | Arch | Config | Build | Package | Result | Manifest provenance | Archive |'
   emit '| --- | --- | --- | --- | --- | --- | --- | --- |'
   for version in $("$script_dir/version-list.sh"); do
     for arch in x86_64 arm64; do
-      file="$results_dir/$(result_key "$version" "$arch" "$profile" "$hal_profile")"
+      file="$results_dir/$(result_key "$version" "$arch" "$profile" "$hal_profile" "$graphics_backend")"
       if [ -f "$file" ]; then
         config=$(result_get "$file" CONFIG_STATUS || printf unknown)
         build=$(result_get "$file" BUILD_STATUS || printf unknown)

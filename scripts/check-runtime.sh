@@ -45,7 +45,13 @@ grep -Fq 'royd_arm64.mk' android/royd/device/royd/AndroidProducts.mk
 grep -Fq 'Android version matrix test passed' android/scripts/version-test.sh
 grep -Fq 'Android graphics contract test passed' android/scripts/graphics-contract-test.sh
 grep -Fq 'name: "gralloc.royd"' android/royd/vendor/royd/Android.bp
-grep -Fq 'ro.hardware.gralloc=royd' android/compat/modern/vendor.mk
+grep -Fq 'ro.hardware.gralloc=royd' android/graphics/software.mk
+grep -Fq 'ro.hardware.egl=mesa' android/graphics/host-gpu-generic.mk
+grep -Fq 'gralloc.minigbm_intel' android/graphics/host-gpu-intel.mk
+grep -Fq 'Android graphics backend test passed' android/scripts/graphics-backend-test.sh
+grep -Fq 'Runtime GPU contract test passed' runtime/scripts/gpu-contract-test.sh
+grep -Fq 'android-build-host-gpu-arm64' Makefile
+! grep -Fq 'renderD128' runtime/scripts/host-check.sh android/royd/vendor/royd/bin/royd-binder-setup android/royd/vendor/royd/bin/royd-hardware-setup
 grep -Fq 'runtime-graphics-report' Makefile
 grep -Fq 'android-version-test' Makefile
 grep -Fq 'vendor/royd/royd.mk' android/royd/device/royd/royd_x86_64.mk
@@ -203,12 +209,16 @@ grep -RniE 'remote-android|vendor_[A-Za-z0-9_-]*droid|device_[A-Za-z0-9_-]*droid
   }
 rm -f /tmp/royd-forbidden-integrations.txt
 
-# The software graphics baseline must stay explicit until a host path is implemented.
-grep -Fq 'ro.hardware.egl=swiftshader' android/compat/modern/vendor.mk || {
+# Software remains the default while host GPU paths stay explicit and experimental.
+grep -Fq 'ro.hardware.egl=swiftshader' android/graphics/software.mk || {
   printf '%s\n' 'error: royd software graphics baseline is not configured' >&2
   exit 1
 }
-grep -Fq 'vendor.royd.graphics.mode software' runtime/scripts/assert-runtime.sh || {
-  printf '%s\n' 'error: runtime validation does not assert the graphics mode' >&2
+grep -Fq 'host-gpu-generic' android/scripts/graphics-backend.sh || {
+  printf '%s\n' 'error: host GPU graphics backend contract is missing' >&2
+  exit 1
+}
+grep -Fq 'graphics_mode=host-gpu' runtime/scripts/assert-runtime.sh || {
+  printf '%s\n' 'error: runtime validation does not assert host GPU mode' >&2
   exit 1
 }

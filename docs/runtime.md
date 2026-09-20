@@ -10,7 +10,7 @@ make runtime-host-check
 
 The current hard requirement is a Linux host whose kernel advertises binderfs. Docker must also be installed and reachable. cgroup v2 and memory PSI are strongly preferred and reported as warnings when unavailable.
 
-The initial graphics path is AOSP SwiftShader. `/dev/dri` is not required for this baseline, and host GPU acceleration is not yet a supported mode. See [`hardware-contract.md`](hardware-contract.md).
+The portable graphics baseline is AOSP SwiftShader and does not require `/dev/dri`. Android 10 and newer also have experimental AOSP Mesa/minigbm host-GPU backends with explicit `/dev/dri` passthrough. These backends are implemented but remain unqualified on real hosts. See [`hardware-contract.md`](hardware-contract.md) and [`host-gpu.md`](host-gpu.md).
 
 ## Repository-owned Android layer
 
@@ -89,3 +89,7 @@ royd assigns canonical image tags from the pinned AOSP release, Android image pr
 Every packaged root filesystem contains `/royd-release`. The package step also writes a sidecar manifest with the archive SHA-256 digest. Import refuses archives whose digest no longer matches the manifest.
 
 Imported images carry OCI metadata plus royd labels for image format, Android source ref, architecture, and image profile. `runtime/scripts/image-inspect.sh` verifies this contract without booting Android.
+
+## Host GPU runtime
+
+Host GPU images are experimental and require `/dev/dri` to be passed into the container. Set `ROYD_GRAPHICS_BACKEND=host-gpu-generic` or `host-gpu-intel`; Compose adds the GPU device overlay automatically. Direct runtime scripts use `runtime/scripts/gpu-args.sh`. Software mode does not request a GPU device.

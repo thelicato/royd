@@ -38,9 +38,9 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [ ] Build both royd-owned board configurations from a clean AOSP checkout and resolve any missing HAL or image requirements.
 - [x] Add a repository-owned memfd gralloc module and version-matched AOSP composer bridge for the software path.
 - [ ] Validate the software graphics path with clean builds and real SurfaceFlinger boots across representative Android generations.
-- [ ] Implement optional host GPU rendering through explicit `/dev/dri` access.
+- [x] Implement optional Android 10+ host GPU rendering through explicit `/dev/dri` access with AOSP Mesa/minigbm backends.
 - [x] Define initial graphical and headless-oriented HAL profiles with explicit image identity.
-- [ ] Validate the exact runtime HAL and service set for both profiles across representative Android generations.
+- [ ] Validate the exact runtime HAL/service set and selected graphics backend for both profiles across representative Android generations and real hosts.
 - [ ] Make runtime display parameters take effect without relying on emulator-specific services.
 
 ## 4. Container-native logging and diagnostics
@@ -112,7 +112,7 @@ Remaining work:
 - validate the royd-owned board configurations with clean AOSP builds and remove any unnecessary GSI defaults revealed by those builds
 - validate the repository-owned allocator and AOSP composer bridge with clean Android builds and real display output
 - validate the first complete boot without emulator-specific vendor services
-- design and benchmark a host GPU mode only after the software path is stable
+- qualify the implemented Android 10+ Mesa/minigbm host-GPU backends on real DRM drivers and keep only combinations that pass runtime qualification
 
 ## OCI image contract
 
