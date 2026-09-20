@@ -183,7 +183,7 @@ The following decisions are currently agreed:
 - Primary runtime: OCI container image.
 - Primary user experience: plain Docker or Docker Compose.
 - No mandatory royd host binary, daemon, or bootstrap service.
-- Optional CLI: Go. Keep the initial implementation small, local-first, and limited to convenience commands and lightweight host checks.
+- Optional CLI: Go. Keep the implementation small, local-first, transparent about Docker operations, and limited to convenience commands and lightweight host checks until runtime validation justifies more automation.
 - Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - Android init should remain PID 1 unless implementation evidence shows a better approach.

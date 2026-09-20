@@ -57,7 +57,9 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 7. Optional Go CLI
 
-- Add `royd doctor` for host capability checks.
-- Add convenience commands for run, list, shell, logs, stop, and remove workflows.
-- Keep command output transparent about the OCI operations being performed.
-- Keep every core runtime workflow usable without the CLI.
+- [x] Add `royd doctor` for host capability checks.
+- [x] Add convenience commands for run, list, shell, logs, stop, and remove workflows.
+- [x] Keep command output transparent about the OCI operations being performed.
+- [x] Keep every core runtime workflow usable without the CLI.
+- [ ] Add stronger host diagnostics only when backed by runtime validation evidence.
+- [ ] Add ADB convenience commands after the runtime contract is validated on reference hosts.

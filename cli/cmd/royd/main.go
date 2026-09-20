@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/royd-dev/royd/cli/internal/dockerutil"
 	"github.com/royd-dev/royd/cli/internal/doctor"
@@ -26,29 +25,41 @@ func main() {
 	}
 
 	runner := dockerutil.ExecRunner{}
+	if err := execute(runner, os.Args[1:]); err != nil {
+		exitWithError(err)
+	}
+}
 
-	switch os.Args[1] {
+func execute(runner dockerutil.Runner, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("command required")
+	}
+
+	switch args[0] {
 	case "doctor":
 		runDoctor()
+		return nil
 	case "run":
-		if err := runContainer(runner, os.Args[2:]); err != nil {
-			exitWithError(err)
-		}
+		return runContainer(runner, args[1:])
 	case "ps":
-		if err := runner.Run("ps", "--filter", "label=org.royd.instance=true"); err != nil {
-			exitWithError(err)
-		}
+		return runner.Run("ps", "-a", "--filter", "label=org.royd.instance=true")
 	case "logs":
-		if err := runLogs(runner, os.Args[2:]); err != nil {
-			exitWithError(err)
-		}
+		return runLogs(runner, args[1:])
+	case "shell":
+		return runShell(runner, args[1:])
+	case "stop":
+		return runStop(runner, args[1:])
+	case "rm":
+		return runRemove(runner, args[1:])
 	case "version":
 		fmt.Println(version)
+		return nil
 	case "help", "-h", "--help":
 		usage()
+		return nil
 	default:
 		usage()
-		exitWithError(fmt.Errorf("unknown command: %s", os.Args[1]))
+		return fmt.Errorf("unknown command: %s", args[0])
 	}
 }
 
@@ -74,20 +85,20 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected run arguments: %v", fs.Args())
+	}
 
-	dockerArgs := []string{
+	return runner.Run(
 		"run",
+		"-d",
 		"--privileged",
 		"--name", cfg.name,
 		"--label", "org.royd.instance=true",
-		"-v", cfg.volume + ":/data",
+		"-v", cfg.volume+":/data",
 		"-p", cfg.port,
-	}
-	if extra := fs.Args(); len(extra) > 0 {
-		dockerArgs = append(dockerArgs, extra...)
-	}
-	dockerArgs = append(dockerArgs, cfg.image)
-	return runner.Run(dockerArgs...)
+		cfg.image,
+	)
 }
 
 func runLogs(runner dockerutil.Runner, args []string) error {
@@ -108,25 +119,59 @@ func runLogs(runner dockerutil.Runner, args []string) error {
 	return runner.Run(dockerArgs...)
 }
 
+func runShell(runner dockerutil.Runner, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: royd shell <container>")
+	}
+	return runner.Run("exec", "-it", args[0], "/system/bin/sh")
+}
+
+func runStop(runner dockerutil.Runner, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: royd stop <container>")
+	}
+	return runner.Run("stop", args[0])
+}
+
+func runRemove(runner dockerutil.Runner, args []string) error {
+	fs := flag.NewFlagSet("rm", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	force := fs.Bool("f", false, "Force removal of a running container")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: royd rm [-f] <container>")
+	}
+	dockerArgs := []string{"rm"}
+	if *force {
+		dockerArgs = append(dockerArgs, "-f")
+	}
+	dockerArgs = append(dockerArgs, fs.Arg(0))
+	return runner.Run(dockerArgs...)
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "royd is an optional CLI for local royd container workflows.\n\n")
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  royd <command> [options]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "  doctor   Run lightweight host checks\n")
-	fmt.Fprintf(os.Stderr, "  run      Run a royd container through Docker\n")
+	fmt.Fprintf(os.Stderr, "  run      Start a royd container through Docker\n")
 	fmt.Fprintf(os.Stderr, "  ps       List royd-labelled containers\n")
 	fmt.Fprintf(os.Stderr, "  logs     Follow container logs\n")
+	fmt.Fprintf(os.Stderr, "  shell    Open an Android shell in a container\n")
+	fmt.Fprintf(os.Stderr, "  stop     Stop a container\n")
+	fmt.Fprintf(os.Stderr, "  rm       Remove a container\n")
 	fmt.Fprintf(os.Stderr, "  version  Print the CLI version\n")
 	fmt.Fprintf(os.Stderr, "  help     Show this help\n\n")
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "  royd doctor\n")
 	fmt.Fprintf(os.Stderr, "  royd run --name royd-test --image royd:dev\n")
 	fmt.Fprintf(os.Stderr, "  royd logs royd\n")
-	fmt.Fprintf(os.Stderr, "  royd ps\n")
-	fmt.Fprintf(os.Stderr, "\n")
-	fmt.Fprintf(os.Stderr, "Run options are passed before the image, with additional docker run flags accepted before the image if needed.\n")
-	fmt.Fprintf(os.Stderr, "Example: %s\n", strings.TrimSpace("royd run --name royd-test --image royd:dev --rm"))
+	fmt.Fprintf(os.Stderr, "  royd shell royd\n")
+	fmt.Fprintf(os.Stderr, "  royd stop royd\n")
+	fmt.Fprintf(os.Stderr, "  royd rm royd\n")
 }
 
 func exitWithError(err error) {

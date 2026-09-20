@@ -38,9 +38,25 @@ Lists containers labelled by the CLI as royd instances.
 
 Follows Docker logs for a given container. This is intended to surface the forwarded Android `logcat` stream.
 
+### `royd shell`
+
+Opens `/system/bin/sh` in a running royd container through `docker exec -it`.
+
+### `royd stop`
+
+Stops a named royd container.
+
+### `royd rm`
+
+Removes a named royd container. `-f` may be used when force removal is explicitly wanted. Persistent Docker volumes are not removed automatically.
+
 ### `royd version`
 
 Prints the CLI version.
+
+## Transparency
+
+Docker operations are echoed before they execute. This keeps the CLI behaviour visible and makes it straightforward to reproduce the same action without the CLI.
 
 ## Non-goals for now
 

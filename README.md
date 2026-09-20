@@ -107,6 +107,9 @@ royd doctor
 royd run
 royd ps
 royd logs
+royd shell
+royd stop
+royd rm
 royd version
 ```
 
