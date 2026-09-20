@@ -143,6 +143,8 @@ The current implementation now owns its Android product definitions, Binder allo
 Useful development entry points include:
 
 ```sh
+make ci
+make android-matrix-report
 make check
 make android-version-test
 make android-memory-compat-test
@@ -166,6 +168,6 @@ make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md).
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md).
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

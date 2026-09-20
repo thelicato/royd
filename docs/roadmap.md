@@ -125,3 +125,12 @@ Implemented:
 ## Next milestones
 - Validate every pinned Android version from 8.0 through 17 with resolved AOSP configuration, clean x86_64 and arm64 builds, OCI packaging, and boot smoke tests.
 - Validate the memfd-backed legacy shared-memory path for Android 8.0 through 10 on modern host kernels and identify any direct-ioctl compatibility gaps.
+
+## Build validation automation
+
+- [x] Add a canonical lightweight CI entry point.
+- [x] Add hosted CI for repository contracts without downloading AOSP.
+- [x] Add a version and architecture compatibility matrix report.
+- [x] Add strict matrix mode for dedicated AOSP validation hosts.
+- [ ] Run the strict matrix against real synced Android 8.0 through 17 trees.
+- [ ] Add clean-build results to the compatibility matrix once dedicated build hosts are available.

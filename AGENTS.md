@@ -151,7 +151,7 @@ These rules apply to every session and every contribution:
 - Prefer upstream Linux and Android mechanisms over distro-specific workarounds.
 - Avoid adding legacy compatibility code unless there is a demonstrated need and the maintenance cost is justified.
 - Keep changes scoped to one meaningful task at a time. Prefer a cohesive small milestone over micro-tasks that change only one trivial file, while keeping each task reviewable and independently revertible.
-- Stop after completing each atomic task. Summarise what changed, list the remaining roadmap tasks, and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
+- Stop after completing each atomic task. Summarise what changed, list the remaining roadmap tasks as a numbered list, and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
 - Use Conventional Commits for commit suggestions, for example `docs: add project architecture guidelines`, `feat: add binderfs bootstrap`, or `test: add host capability checks`.
 - Do not commit generated artefacts, build outputs, caches, credentials, secrets, or machine-specific files unless they are intentionally part of the project.
 - Treat the work as a repository, not as isolated files. Preserve the full repository structure across tasks.
@@ -170,7 +170,7 @@ At the start of a new session:
 4. Complete only that task.
 5. Run relevant checks or tests.
 6. Package the complete repository as a ZIP and generate a patch containing only the current task's changes.
-7. Summarise the result, list the remaining roadmap tasks, and suggest a Conventional Commit message.
+7. Summarise the result, list the remaining roadmap tasks as a numbered list, and suggest a Conventional Commit message.
 8. Stop and wait for the user before starting another task.
 
 When a design decision changes, update this file if the decision is important enough that a future session should know it.
@@ -178,6 +178,7 @@ When a design decision changes, update this file if the decision is important en
 ## Current decisions
 
 - Pinned Android versions: 8.0 through 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
+- CI model: `make ci` is the canonical lightweight repository suite. `make android-matrix-report` distinguishes configured Android metadata from resolved checks against locally synced AOSP trees. Missing trees are informational unless strict matrix mode is requested.
 
 The following decisions are currently agreed:
 
