@@ -15,14 +15,14 @@ See [`dependency-policy.md`](dependency-policy.md) for the enforceable dependenc
 
 ## Host and container responsibilities
 
-The host provides the Linux kernel and an OCI runtime. The container provides Android userspace and should perform Android-specific setup inside its own namespaces wherever the kernel permits it.
+The host provides the Linux kernel, a high-level container engine, and its low-level OCI runtime. The container provides Android userspace and should perform Android-specific setup inside its own namespaces wherever the kernel permits it. Docker Engine is the configured primary interface today; other engines require separate qualification. See [`runtime-engines.md`](runtime-engines.md).
 
 The intended ownership split is:
 
 | Concern | Host | Container |
 | --- | --- | --- |
 | Linux kernel | Yes | Shared |
-| OCI runtime | Yes | No |
+| Container engine and OCI runtime | Yes | No |
 | Binder IPC implementation | Kernel | Uses it |
 | binderfs instance | Kernel facility | Mounts and manages its instance |
 | Binder device allocation | Kernel facility | Requests and exposes devices |

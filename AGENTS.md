@@ -181,6 +181,7 @@ When a design decision changes, update this file if the decision is important en
 - CI model: `make ci` is the canonical lightweight repository suite. `make android-matrix-report` distinguishes configured Android metadata from resolved checks against locally synced AOSP trees. Missing trees are informational unless strict matrix mode is requested.
 - Clean-build validation: use `make android-build-matrix` on dedicated build hosts. Results are generated under `.work/build-results`, are resumable by default, and must remain separate from runtime support claims.
 - Runtime qualification: use `make runtime-qualification` on imported images. Persisted result format 4 evidence lives under `.work/runtime-results` and covers host, image, boot, health, runtime, security, graphics, log forwarding, ADB, Binder isolation, and a companion full Docker log/inspect evidence directory captured before container cleanup. A passing runtime qualification is evidence, not by itself a support claim.
+- Runtime engine boundary: rootful Docker Engine and Docker Compose v2 are the configured primary interfaces. Podman rootful is a documented compatibility candidate, not a qualified substitute. The packaged runtime tar is a root-filesystem archive and the current image import, inspect, security evidence, Compose, and qualification paths are Docker-specific. Rootless operation remains separate research.
 
 The following decisions are currently agreed:
 

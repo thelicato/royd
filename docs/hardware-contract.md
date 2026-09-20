@@ -7,7 +7,7 @@ royd is a containerised Android userspace, not a virtual machine. It therefore n
 The current runtime contract requires:
 
 - Linux as the host kernel.
-- An OCI runtime, with Docker as the currently tested interface.
+- A high-level container engine, with rootful Docker Engine as the configured primary interface. See [`runtime-engines.md`](runtime-engines.md) for the distinction between image portability and engine qualification.
 - Android Binder IPC with binderfs advertised by the host kernel.
 - Permission for the container to mount its own binderfs instance.
 - Normal Linux namespaces, `memfd`, procfs, sysfs, and tmpfs facilities expected by modern Android userspace.

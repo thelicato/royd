@@ -8,7 +8,7 @@ Before running a locally imported image, check the host with:
 make runtime-host-check
 ```
 
-The current hard requirement is a Linux host whose kernel advertises binderfs. Docker must also be installed and reachable. cgroup v2 and memory PSI are strongly preferred and reported as warnings when unavailable.
+The current hard requirement is a Linux host whose kernel advertises binderfs. Docker Engine is the configured primary runtime interface and must be installed and reachable for the repository tooling. Podman and other engines are not yet qualified substitutes. cgroup v2 and memory PSI are strongly preferred and reported as warnings when unavailable. See [`runtime-engines.md`](runtime-engines.md) for the engine compatibility boundary.
 
 The portable graphics baseline is AOSP SwiftShader and does not require `/dev/dri`. Android 10 and newer also have experimental AOSP Mesa/minigbm host-GPU backends with explicit `/dev/dri` passthrough. These backends are implemented but remain unqualified on real hosts. See [`hardware-contract.md`](hardware-contract.md) and [`host-gpu.md`](host-gpu.md).
 
