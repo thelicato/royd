@@ -183,7 +183,7 @@ The following decisions are currently agreed:
 - Primary runtime: OCI container image.
 - Primary user experience: plain Docker or Docker Compose.
 - No mandatory royd host binary, daemon, or bootstrap service.
-- Optional CLI: Go.
+- Optional CLI: Go. Keep the initial implementation small, local-first, and limited to convenience commands and lightweight host checks.
 - Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
@@ -195,6 +195,6 @@ The following decisions are currently agreed:
 - Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
 - Memory claims must be based on the repository measurement workflow and a documented workload.
-- Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README.
+- Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
 

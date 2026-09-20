@@ -1,6 +1,8 @@
-# royd
-
-<p align="center"><img src="logo.svg" alt="royd logo" width="160"></p>
+<h1 align="center">
+  <br>
+  <img src="./logo.svg" alt="royd logo" width="220">
+</h1>
+<p align="center"><b>royd</b></p>
 
 royd is an experimental Android runtime designed for OCI containers. The goal is to run Android directly on the host Linux kernel without QEMU or a guest kernel, while keeping the normal user experience as close as possible to running any other container.
 
@@ -98,24 +100,35 @@ More aggressive work, including package removal, detailed `lmkd` tuning, process
 
 ## Optional CLI
 
-A future `royd` CLI may be written in Go for convenience. It must not be required to run an Android container. Possible commands include:
+An optional `royd` CLI now has an initial Go scaffold for host checks and Docker convenience. It must not be required to run an Android container. The current commands are:
 
 ```text
 royd doctor
 royd run
 royd ps
-royd shell
 royd logs
-royd stop
-royd rm
+royd version
 ```
 
-The CLI may perform host checks, generate or execute container commands, and simplify ADB and multi-instance workflows.
+See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the current scope.
 
 ## Initial roadmap
 
-The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, import a local OCI image, and run repeatable single-instance and two-instance runtime smoke tests. The next milestone is to execute those tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and continue measured low-memory work.
+The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, import a local OCI image, run repeatable single-instance and two-instance runtime smoke tests, and provide an optional CLI scaffold for host validation and Docker workflows. The next milestone is to execute the runtime tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and continue measured low-memory work.
 
 ## Development
 
-Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). Android source and build workflow is documented in [`docs/building.md`](docs/building.md), and runtime assembly is documented in [`runtime/README.md`](runtime/README.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable milestone at a time.
+Useful development entry points include:
+
+```sh
+make check
+make android-sync
+make android-build-x86_64
+make android-package-x86_64
+make runtime-import-x86_64
+make runtime-smoke-test
+make cli-test
+make cli-build
+```
+
+See [`AGENTS.md`](AGENTS.md) for persistent project rules and [`docs/architecture.md`](docs/architecture.md) for the current design.

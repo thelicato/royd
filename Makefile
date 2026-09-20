@@ -1,8 +1,15 @@
-.PHONY: check android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-smoke-test runtime-multi-test memory-report
+.PHONY: check cli-test cli-build android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-smoke-test runtime-multi-test memory-report
 
 check:
 	./scripts/check-repo.sh
 	./scripts/check-runtime.sh
+
+cli-test:
+	cd cli && go test ./...
+
+cli-build:
+	mkdir -p bin
+	cd cli && go build -o ../bin/royd ./cmd/royd
 
 android-shell:
 	./android/scripts/builder.sh

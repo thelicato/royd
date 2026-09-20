@@ -1,7 +1,22 @@
-# Optional CLI
+# CLI
 
-This directory is reserved for the optional `royd` command-line client written in Go.
+The optional `royd` CLI is written in Go.
 
-The CLI is not required to run an Android container. It may provide host diagnostics and convenience wrappers around normal OCI and ADB workflows, but the underlying commands and configuration must remain available without it.
+It is a convenience layer only. The Docker and Compose workflows remain the primary interfaces and must continue to work without the CLI.
 
-CLI implementation should begin only after the runtime has a stable enough host contract for `royd doctor` to validate something concrete.
+The current scaffold provides:
+
+- `royd doctor` for lightweight host checks.
+- `royd run` for a conventional `docker run` invocation.
+- `royd ps` for listing containers created through the CLI.
+- `royd logs` for following container logs.
+- `royd version` for version output.
+
+The current implementation focuses on predictable local Docker workflows. It does not yet manage ADB, Compose generation, container updates, or advanced host diagnostics.
+
+Build and test it with:
+
+```sh
+make cli-test
+make cli-build
+```
