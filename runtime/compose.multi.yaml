@@ -1,0 +1,19 @@
+services:
+  android-a:
+    image: royd:dev
+    privileged: true
+    ports:
+      - "127.0.0.1:5555:5555"
+    volumes:
+      - android-a-data:/data
+  android-b:
+    image: royd:dev
+    privileged: true
+    ports:
+      - "127.0.0.1:5556:5555"
+    volumes:
+      - android-b-data:/data
+
+volumes:
+  android-a-data:
+  android-b-data:

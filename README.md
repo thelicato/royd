@@ -1,5 +1,7 @@
 # royd
 
+<p align="center"><img src="logo.svg" alt="royd logo" width="160"></p>
+
 royd is an experimental Android runtime designed for OCI containers. The goal is to run Android directly on the host Linux kernel without QEMU or a guest kernel, while keeping the normal user experience as close as possible to running any other container.
 
 royd is inspired by ReDroid's native container architecture and by Android-side low-memory optimisation work such as avdslim. It is intended to be container-first rather than an emulator image adapted to run in a container.
@@ -112,8 +114,8 @@ The CLI may perform host checks, generate or execute container commands, and sim
 
 ## Initial roadmap
 
-The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, and import a local OCI image. The next milestones are to validate boot behaviour across reference hosts, verify Binder isolation with multiple containers, establish the host compatibility contract, and then begin measured low-memory work.
+The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, import a local OCI image, and run repeatable single-instance and two-instance runtime smoke tests. The next milestone is to execute those tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and continue measured low-memory work.
 
 ## Development
 
-Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). Android source and build workflow is documented in [`docs/building.md`](docs/building.md), and runtime assembly is documented in [`runtime/README.md`](runtime/README.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable atomic task at a time.
+Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). Android source and build workflow is documented in [`docs/building.md`](docs/building.md), and runtime assembly is documented in [`runtime/README.md`](runtime/README.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable milestone at a time.

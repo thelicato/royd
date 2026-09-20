@@ -27,3 +27,10 @@ grep -Fq 'androidboot.redroid_width=540' runtime/scripts/import.sh
 grep -Fq 'androidboot.redroid_height=960' runtime/scripts/import.sh
 grep -Fq "CMD [\"androidboot.redroid_width=540\"" runtime/scripts/import.sh
 grep -Fq 'docker stats --no-stream' runtime/scripts/memory-report.sh
+
+grep -Fq 'sys.boot_completed' runtime/scripts/wait-for-boot.sh
+grep -Fq '[ -c /dev/binder ]' runtime/scripts/assert-runtime.sh
+grep -Fq 'runtime-smoke-test' Makefile
+grep -Fq 'runtime-multi-test' Makefile
+grep -Fq 'android-b:' runtime/compose.multi.yaml
+grep -Fq 'logo.svg' README.md

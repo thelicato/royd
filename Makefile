@@ -1,4 +1,4 @@
-.PHONY: check android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64 memory-report
+.PHONY: check android-shell android-sync android-build-x86_64 android-build-arm64 android-package-x86_64 android-package-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-smoke-test runtime-multi-test memory-report
 
 check:
 	./scripts/check-repo.sh
@@ -27,6 +27,12 @@ runtime-import-x86_64:
 
 runtime-import-arm64:
 	./runtime/scripts/import.sh arm64
+
+runtime-smoke-test:
+	./runtime/scripts/smoke-test.sh
+
+runtime-multi-test:
+	./runtime/scripts/multi-instance-test.sh
 
 memory-report:
 	./runtime/scripts/memory-report.sh

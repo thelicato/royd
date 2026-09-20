@@ -7,6 +7,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Select and document the initial Android and upstream ReDroid/AOSP baseline.
 - [x] Add a repeatable source synchronisation and Android build environment.
 - [x] Add reproducible packaging and local OCI image import tooling.
+- [x] Add a repeatable single-instance boot validation harness.
 - [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
 - [ ] Record a known-good build and boot validation from the pinned baseline.
 
@@ -31,7 +32,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a minimal `docker run` example.
 - [x] Add a Docker Compose example for a single instance.
 - [x] Document persistent `/data` and ADB access.
-- [ ] Add and validate a multiple-instance Compose example.
+- [x] Add a multiple-instance Compose example and repeatable two-instance smoke test.
+- [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Document optional GPU device access after host GPU testing.
 - [ ] Record the minimum known-good host kernel configuration.
 

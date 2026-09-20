@@ -53,6 +53,32 @@ adb logcat
 
 Early royd diagnostics are also written directly to PID 1 output. Binder setup failures should therefore be visible through `docker logs` even before `logcat` starts.
 
+## Runtime validation
+
+After importing `royd:dev`, run a disposable single-instance boot check with:
+
+```sh
+make runtime-smoke-test
+```
+
+The test waits for Android boot completion, verifies the conventional Binder devices and binderfs mount, confirms low-RAM mode and logcat forwarding, and checks that the binderfs readiness diagnostic reached Docker logs. It removes its temporary container and `/data` volume on exit.
+
+A two-instance test is also available:
+
+```sh
+make runtime-multi-test
+```
+
+This boots two containers concurrently with separate `/data` volumes and applies the same assertions to both. It validates concurrent binderfs setup but does not claim to prove cross-context Binder IPC isolation. See [`../docs/validation.md`](../docs/validation.md) for the full validation contract and reference-host recording template.
+
+For manual multi-instance testing with ADB:
+
+```sh
+docker compose -f runtime/compose.multi.yaml up -d
+```
+
+The example exposes the two instances on `127.0.0.1:5555` and `127.0.0.1:5556`.
+
 ## Host contract
 
 The current MVP expects a Linux host whose running kernel provides Binder IPC and binderfs. royd does not build or install kernel modules at runtime. `--privileged` is temporarily required so Android can mount binderfs and perform the other kernel interactions inherited from the ReDroid baseline.
