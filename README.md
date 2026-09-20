@@ -6,10 +6,10 @@
 
 royd is an experimental Android runtime designed for OCI containers. The goal is to run Android directly on the host Linux kernel without QEMU or a guest kernel, while keeping the normal user experience as close as possible to running any other container.
 
-royd is inspired by ReDroid's native container architecture and by Android-side low-memory optimisation work such as avdslim. It is intended to be container-first rather than an emulator image adapted to run in a container.
+royd is an independent AOSP-based project. ReDroid is credited as architectural inspiration for demonstrating native Android containers, but royd does not depend on or fetch ReDroid code, manifests, patches, device trees, vendor trees, or images. Android-side low-memory work such as avdslim also influenced the project's optimisation goals.
 
 > [!IMPORTANT]
-> royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP/ReDroid baseline, but host compatibility is not yet broadly validated.
+> royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP baseline and repository-owned Android integration, but the independent container boot and graphics path are not yet broadly validated.
 
 ## Goals
 
@@ -118,7 +118,7 @@ See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the cu
 
 ## Initial roadmap
 
-The current implementation can build and package the pinned Android baseline, produce standard and minimal Android image profiles, inject royd binderfs and logging integration, import local OCI images, run repeatable single-instance and two-instance runtime smoke tests, compare memory limits and image profiles, and provide an optional CLI for host validation and Docker workflows. The next milestone is to execute these tests on documented reference hosts, record known-good boot results, verify Binder isolation beyond mount-level checks, and use the collected evidence to guide further slimming.
+The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, OCI packaging, runtime arguments, validation tooling, and optional CLI. The normal build fetches only the pinned AOSP source baseline. The next gate is to build and boot this independent baseline on documented reference hosts, then implement and validate the remaining container-specific hardware and graphics surface.
 
 ## Development
 
@@ -140,4 +140,4 @@ make cli-test
 make cli-build
 ```
 
-See [`AGENTS.md`](AGENTS.md) for persistent project rules and [`docs/architecture.md`](docs/architecture.md) for the current design.
+See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

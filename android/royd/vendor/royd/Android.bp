@@ -1,0 +1,6 @@
+cc_binary {
+    name: "royd-binder-alloc",
+    srcs: ["binder_alloc/royd-binder-alloc.c"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    vendor: true,
+}

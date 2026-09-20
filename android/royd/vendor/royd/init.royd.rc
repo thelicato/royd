@@ -7,5 +7,15 @@ service royd-logcat /vendor/bin/royd-logcat
     group root log
     disabled
 
+service royd-display-setup /vendor/bin/royd-display-setup
+    class late_start
+    user root
+    group root shell
+    disabled
+    oneshot
+
 on property:init.svc.logd=running
     start royd-logcat
+
+on property:sys.boot_completed=1
+    start royd-display-setup

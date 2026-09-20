@@ -20,7 +20,3 @@ require_command() {
 source_dir() {
   printf '%s\n' "${ROYD_ANDROID_SRC:-$repo_root/.work/android-src}"
 }
-
-patches_dir() {
-  printf '%s\n' "${ROYD_REDROID_PATCHES:-$repo_root/.work/redroid-patches}"
-}

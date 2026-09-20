@@ -6,6 +6,13 @@ The OCI image is the primary royd product. It must remain runnable with a standa
 
 The optional Go CLI is a client-side convenience layer. It may inspect host capabilities, generate container commands, manage instances, open ADB shells, and follow logs, but it must not become a runtime dependency.
 
+
+## Source ownership
+
+The Android source boundary is deliberately narrow: royd synchronises a pinned AOSP tree and overlays only code committed to this repository. Product definitions, vendor modules, Binder setup, init integration, image profiles, and any required AOSP patches are repository-owned. No other Android container project is part of the build graph.
+
+See [`dependency-policy.md`](dependency-policy.md) for the enforceable dependency rules.
+
 ## Host and container responsibilities
 
 The host provides the Linux kernel and an OCI runtime. The container provides Android userspace and should perform Android-specific setup inside its own namespaces wherever the kernel permits it.

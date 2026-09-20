@@ -1,49 +1,71 @@
 # Runtime integration
 
-## Android vendor layer
+## Repository-owned Android layer
 
-royd installs a small `vendor/royd` project into the synchronised Android source tree. `device/redroid/redroid.mk` inherits `vendor/royd/royd.mk`, which adds the royd init configuration and helper scripts to the vendor image.
+royd owns both sides of its Android integration. `device/royd` defines the royd products and `vendor/royd` supplies container-specific userspace components. Source synchronisation copies both projects into the pinned AOSP tree.
 
-The integration is applied after the upstream ReDroid patch set. It is intentionally separate from ReDroid source patches so the royd-specific surface stays small and reviewable.
+No external Android container device tree, vendor tree, patch repository, or runtime helper is required.
 
 ## Binder startup
 
-ReDroid already ships a `binder_alloc` utility for creating Binder devices from binderfs. royd reuses that utility rather than maintaining another Binder ioctl implementation.
+royd includes its own small `royd-binder-alloc` binary. It uses the Linux binderfs `BINDER_CTL_ADD` ioctl to request Binder devices from the container's private binderfs mount.
 
 During Android `early-init`, `royd-binder-setup`:
 
 1. Creates `/dev/binderfs` if necessary.
 2. Mounts a private binderfs instance if `binder-control` is not already available.
 3. Allocates `binder`, `hwbinder`, and `vndbinder` when they are missing.
-4. Exposes those devices through the conventional `/dev` paths.
+4. Exposes those devices through `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder`.
 5. Prints basic cgroup and graphics diagnostics to container output.
 
-The setup is designed to be idempotent because the upstream ReDroid init configuration may also have performed part of the binderfs setup. This lets royd move towards container-owned Binder setup without immediately forking the upstream allocator.
+A missing binderfs implementation is considered a host compatibility failure. royd does not attempt DKMS, kernel module installation, or distribution-specific repair.
 
-A missing binderfs implementation is considered a host compatibility failure. royd reports it explicitly and does not attempt DKMS, kernel module installation, or distribution-specific repair.
+Linux binderfs is specifically designed to provide independent Binder device sets per binderfs instance, which is the isolation model royd intends to use for multiple containers.
 
 ## Container logging
 
-`init.royd.rc` waits for Android `logd` to report itself running, then starts `royd-logcat`. The helper executes:
+`init.royd.rc` waits for Android `logd` to report itself running, then starts `royd-logcat`. The helper runs `logcat -b all -v threadtime` and connects its output to PID 1's stdout and stderr. Android `/init` therefore remains PID 1 while normal OCI logging captures Android logs.
+
+This does not consume or disable the Android logging buffers. `adb logcat` remains available independently.
+
+## Display profile arguments
+
+Runtime profiles use royd-owned boot arguments:
 
 ```text
-logcat -b all -v threadtime
+androidboot.royd_width
+androidboot.royd_height
+androidboot.royd_dpi
+androidboot.royd_fps
 ```
 
-and connects its stdout and stderr to `/proc/1/fd/1` and `/proc/1/fd/2`. Android `/init` therefore remains PID 1 while OCI logging captures Android logs.
+Android exposes these as `ro.boot.royd_*` properties. After `sys.boot_completed=1`, `royd-display-setup` applies size and density through `wm` and requests the selected refresh rate through Android settings.
 
-This does not consume or disable the Android logging buffers. `adb logcat` remains available normally.
+This is an initial userspace implementation. A future container-specific graphics stack may consume these values earlier in boot.
 
 ## Root filesystem packaging
 
-The runtime archive is produced from the Android build output rather than from a conventional Dockerfile. The package script mounts `system.img` and `vendor.img` read-only, archives the system image as the container root, and places the vendor image at `/vendor` in the same archive.
-
-The archive is imported with an entrypoint equivalent to:
+The runtime archive is produced from royd's AOSP build output rather than from a conventional Dockerfile. The package step extracts AOSP's generated ramdisk as the OCI root, then mounts Android partition images read-only and merges their contents into one OCI root filesystem:
 
 ```text
-/init androidboot.hardware=redroid androidboot.use_memfd=true
+ramdisk.img      -> /
+system.img       -> /system
+vendor.img       -> /vendor
+system_ext.img   -> /system_ext, when present
+product.img      -> /product, when present
+odm.img          -> /odm, when present
 ```
 
-Display defaults are stored separately as the OCI image command, currently 540 x 960 at 240 dpi and 30 fps. Keeping essential boot arguments in the entrypoint and tunable display arguments in the command lets normal Docker arguments replace the display profile without dropping the required ReDroid hardware and `memfd` settings.
+Sparse Android images are converted with AOSP's `simg2img` before mounting.
 
-This follows the same basic image assembly model used by upstream ReDroid while keeping royd's build and runtime steps reproducible from this repository.
+The imported image starts Android with:
+
+```text
+/init androidboot.hardware=royd
+```
+
+Display defaults are stored separately as the OCI image command so normal Docker arguments can replace them.
+
+## Current limitation
+
+Removing the previous external integration deliberately resets some assumptions that had not been independently validated. The repository now owns its dependency boundary, Binder setup, product definitions, packaging, and runtime arguments, but a full graphical boot from this independent AOSP baseline still needs to be proven on a reference host. The roadmap treats that validation as the next gate rather than claiming compatibility inherited from another project.

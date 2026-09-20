@@ -34,7 +34,7 @@ for variable in ROYD_WIDTH ROYD_HEIGHT ROYD_DPI ROYD_FPS; do
   esac
 done
 
-printf 'androidboot.redroid_width=%s\n' "$ROYD_WIDTH"
-printf 'androidboot.redroid_height=%s\n' "$ROYD_HEIGHT"
-printf 'androidboot.redroid_dpi=%s\n' "$ROYD_DPI"
-printf 'androidboot.redroid_fps=%s\n' "$ROYD_FPS"
+printf 'androidboot.royd_width=%s\n' "$ROYD_WIDTH"
+printf 'androidboot.royd_height=%s\n' "$ROYD_HEIGHT"
+printf 'androidboot.royd_dpi=%s\n' "$ROYD_DPI"
+printf 'androidboot.royd_fps=%s\n' "$ROYD_FPS"

@@ -23,16 +23,19 @@ if [ ! -c "$control" ]; then
 fi
 [ -c "$control" ] || fail "$control is unavailable after mounting binderfs"
 
+missing=
 for name in binder hwbinder vndbinder; do
-  if [ ! -c "$binderfs/$name" ]; then
-    /vendor/bin/binder_alloc "$control" "$name" || fail "cannot allocate $name from binderfs"
-  fi
-  [ -c "$binderfs/$name" ] || fail "$binderfs/$name is not a character device"
+  [ -c "$binderfs/$name" ] || missing="$missing $name"
 done
+if [ -n "$missing" ]; then
+  # shellcheck disable=SC2086
+  /vendor/bin/royd-binder-alloc "$control" $missing || fail 'cannot allocate Binder devices from binderfs'
+fi
 
 for name in binder hwbinder vndbinder; do
   target=$binderfs/$name
   path=/dev/$name
+  [ -c "$target" ] || fail "$target is not a character device"
   if [ -L "$path" ] && [ "$(readlink "$path")" = "$target" ]; then
     continue
   fi

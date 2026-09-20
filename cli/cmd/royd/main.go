@@ -119,10 +119,10 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	}
 	dockerArgs = append(dockerArgs,
 		cfg.image,
-		fmt.Sprintf("androidboot.redroid_width=%d", cfg.width),
-		fmt.Sprintf("androidboot.redroid_height=%d", cfg.height),
-		fmt.Sprintf("androidboot.redroid_dpi=%d", cfg.dpi),
-		fmt.Sprintf("androidboot.redroid_fps=%d", cfg.fps),
+		fmt.Sprintf("androidboot.royd_width=%d", cfg.width),
+		fmt.Sprintf("androidboot.royd_height=%d", cfg.height),
+		fmt.Sprintf("androidboot.royd_dpi=%d", cfg.dpi),
+		fmt.Sprintf("androidboot.royd_fps=%d", cfg.fps),
 	)
 	return runner.Run(dockerArgs...)
 }

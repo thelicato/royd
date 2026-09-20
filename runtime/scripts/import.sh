@@ -41,8 +41,8 @@ command -v docker >/dev/null 2>&1 || {
 printf 'Importing %s as %s\n' "$archive" "$image"
 docker import \
   --platform "$platform" \
-  -c 'ENTRYPOINT ["/init","androidboot.hardware=redroid","androidboot.use_memfd=true"]' \
-  -c 'CMD ["androidboot.redroid_width=540","androidboot.redroid_height=960","androidboot.redroid_dpi=240","androidboot.redroid_fps=30"]' \
+  -c 'ENTRYPOINT ["/init","androidboot.hardware=royd"]' \
+  -c 'CMD ["androidboot.royd_width=540","androidboot.royd_height=960","androidboot.royd_dpi=240","androidboot.royd_fps=30"]' \
   -c "LABEL org.royd.image-profile=$profile" \
   "$archive" \
   "$image" >/dev/null

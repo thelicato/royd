@@ -42,10 +42,10 @@ func TestRunContainerDefaults(t *testing.T) {
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
-		"androidboot.redroid_width=540",
-		"androidboot.redroid_height=960",
-		"androidboot.redroid_dpi=240",
-		"androidboot.redroid_fps=30",
+		"androidboot.royd_width=540",
+		"androidboot.royd_height=960",
+		"androidboot.royd_dpi=240",
+		"androidboot.royd_fps=30",
 	})
 }
 
@@ -62,10 +62,10 @@ func TestRunContainerOverrides(t *testing.T) {
 		"-p", "127.0.0.1:5560:5555",
 		"--memory", "768m", "--memory-swap", "768m",
 		"example/royd:test",
-		"androidboot.redroid_width=360",
-		"androidboot.redroid_height=640",
-		"androidboot.redroid_dpi=160",
-		"androidboot.redroid_fps=24",
+		"androidboot.royd_width=360",
+		"androidboot.royd_height=640",
+		"androidboot.royd_dpi=160",
+		"androidboot.royd_fps=24",
 	})
 }
 

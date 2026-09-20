@@ -4,7 +4,7 @@ royd separates Android image profiles from runtime display profiles. Android ima
 
 ## `standard`
 
-The standard profile keeps the upstream ReDroid/AOSP package set intact while applying royd's low-RAM properties and container integration. It is the compatibility baseline and produces the default local image tag `royd:dev`.
+The standard profile keeps the inherited AOSP package set intact while applying royd's low-RAM properties and container integration. It is the compatibility baseline and produces the default local image tag `royd:dev`.
 
 Build and import it with:
 

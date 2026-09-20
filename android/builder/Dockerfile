@@ -12,6 +12,7 @@ RUN apt-get update \
     build-essential \
     ca-certificates \
     ccache \
+    cpio \
     curl \
     file \
     flex \
@@ -32,6 +33,7 @@ RUN apt-get update \
     python3 \
     repo \
     rsync \
+    sudo \
     unzip \
     x11proto-core-dev \
     xsltproc \
@@ -44,7 +46,9 @@ RUN git lfs install --system \
   && git config --system user.email royd-builder@localhost
 
 RUN groupadd --gid "$GID" builder \
-  && useradd --uid "$UID" --gid "$GID" --create-home --shell /bin/bash builder
+  && useradd --uid "$UID" --gid "$GID" --create-home --shell /bin/bash builder \
+  && printf "builder ALL=(root) NOPASSWD: /usr/bin/cpio, /usr/bin/mount, /usr/bin/tar, /usr/bin/umount\n" > /etc/sudoers.d/royd-builder \
+  && chmod 0440 /etc/sudoers.d/royd-builder
 
 USER builder
 WORKDIR /workspace/royd

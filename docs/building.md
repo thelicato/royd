@@ -2,11 +2,18 @@
 
 ## Baseline
 
-The first royd runtime baseline is Android 15 using AOSP tag `android-15.0.0_r36` and ReDroid's Android 15 integration. This version was chosen because ReDroid publishes Android 15 images and its public patch repository contains a matching `android-15.0.0_r36` patch set.
+royd currently targets AOSP `android-15.0.0_r36`. The source baseline is intentionally plain AOSP. No third-party Android manifest, device tree, vendor tree, or patch repository is fetched by the build.
 
-The baseline values live in [`android/baseline.env`](../android/baseline.env). ReDroid's manifest branch is currently `15.0.0`. The patch repository is fetched from its configured ref and detached to the resolved commit during source setup. After synchronisation, royd writes `.work/android-manifest.lock.xml` with exact project revisions for diagnostics and reproducibility work.
+The baseline values live in [`android/baseline.env`](../android/baseline.env). After synchronisation, royd writes `.work/android-manifest.lock.xml` with exact AOSP project revisions for diagnostics and reproducibility work.
 
-This is an implementation baseline, not a permanent compatibility promise. Android 16 can be evaluated after the Android 15 container boot path is understood.
+All royd-specific Android integration is stored in this repository:
+
+- `android/royd/device/royd` contains the royd product definitions.
+- `android/royd/vendor/royd` contains init integration, Binder allocation, logging, display setup, and low-memory properties.
+- `android/profiles` contains build-time image profiles.
+- `android/patches/<AOSP tag>` is reserved for source patches that cannot be expressed as product or vendor configuration.
+
+This is an implementation baseline, not a permanent Android-version compatibility promise.
 
 ## Storage and memory
 
@@ -16,7 +23,7 @@ All source and build output is kept below `.work/`, which is ignored by Git.
 
 ## Builder container
 
-The repository provides a development builder container so the AOSP toolchain dependencies do not have to be installed directly on the host. Docker is used only for the build environment here. This is separate from the royd runtime image that will eventually run Android.
+The repository provides a development builder container so AOSP toolchain dependencies do not have to be installed directly on the host.
 
 Open a builder shell with:
 
@@ -24,11 +31,7 @@ Open a builder shell with:
 make android-shell
 ```
 
-The scripts can also be called directly with `android/scripts/builder.sh`.
-
 The repository and `.work` directory are mounted into the builder. The container runs as the invoking user's UID and GID so generated files remain writable on the host.
-
-The builder currently uses Ubuntu 22.04 and downloads Google's `repo` launcher. It is intentionally a development aid rather than part of the runtime contract.
 
 ## Fetching sources
 
@@ -41,15 +44,12 @@ make android-sync
 The script:
 
 1. Initialises the pinned AOSP tag.
-2. Adds the ReDroid Android 15 local manifest.
-3. Synchronises AOSP and Git LFS content.
-4. Fetches the ReDroid patch repository.
-5. Applies the patch set matching the AOSP tag.
-6. Writes a resolved manifest to `.work/android-manifest.lock.xml`.
+2. Synchronises AOSP and Git LFS content.
+3. Applies any repository-owned patches under `android/patches/android-15.0.0_r36`.
+4. Copies the repository-owned `device/royd` and `vendor/royd` projects into the source tree.
+5. Writes a resolved manifest to `.work/android-manifest.lock.xml`.
 
-The default source tree is `.work/android-src`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit parallel source synchronisation and compilation.
-
-Source synchronisation is intentionally not run by repository checks because it downloads a very large external tree.
+The default source tree is `.work/android-src`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit source synchronisation and compilation.
 
 ## Building
 
@@ -65,7 +65,7 @@ Or build arm64 with:
 make android-build-arm64
 ```
 
-For Android 15 the scripts use the AP3A release configuration and the ReDroid `userdebug` products. The resulting Android output remains inside the AOSP source tree under `out/`.
+The build uses royd's own `royd_x86_64` and `royd_arm64` products with the Android 15 BP1A release configuration and `userdebug` variant. Those products inherit AOSP generic products as the current hardware baseline, then layer royd-owned container integration on top.
 
 After a successful build, package and import the development runtime with:
 
@@ -74,11 +74,14 @@ make android-package-x86_64
 make runtime-import-x86_64
 ```
 
-Use the corresponding arm64 targets for an arm64 build. The package step mounts the generated Android images read-only inside the privileged builder and writes `.work/runtime/royd-<arch>.tar`. The import step creates the local `royd:dev` OCI image. Runtime details are documented in [`runtime/README.md`](../runtime/README.md) and [`runtime.md`](runtime.md).
+The package step extracts the generated Android ramdisk with its recorded ownership and modes, then adds system and vendor plus system_ext, product, and odm images when present. Android sparse images are converted using the AOSP-built `simg2img` tool before read-only mounting. The result is `.work/runtime/royd-<arch>-<profile>.tar`.
 
-## Upstream references
+## Dependency policy
 
-- ReDroid documentation: <https://github.com/remote-android/redroid-doc>
-- ReDroid local manifests: <https://github.com/remote-android/local_manifests>
-- ReDroid patches: <https://github.com/remote-android/redroid-patches>
+The only Android source dependency in the normal build path is the pinned AOSP manifest. Any new royd-specific device code, vendor code, helper binary, init configuration, or AOSP patch must be added to this repository rather than fetched from another Android container project.
+
+See [`acknowledgements.md`](acknowledgements.md) for projects that influenced the design.
+
+## Upstream reference
+
 - AOSP build documentation: <https://source.android.com/docs/setup/build/building>

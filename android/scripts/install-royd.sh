@@ -8,23 +8,22 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src=${1:-$(source_dir)}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($script_dir/profile.sh "$profile")
-royd_vendor_src="$android_dir/royd/vendor/royd"
-royd_vendor_dst="$src/vendor/royd"
+royd_src="$android_dir/royd"
+device_src="$royd_src/device/royd"
+vendor_src="$royd_src/vendor/royd"
+device_dst="$src/device/royd"
+vendor_dst="$src/vendor/royd"
 profile_src="$android_dir/profiles/$profile.mk"
-profile_dst="$royd_vendor_dst/profile.mk"
-redroid_product="$src/device/redroid/redroid.mk"
-inherit_line='$(call inherit-product, vendor/royd/royd.mk)'
+profile_dst="$vendor_dst/profile.mk"
 
-[ -d "$src/device/redroid" ] || fail "ReDroid device tree not found at $src/device/redroid"
-[ -f "$redroid_product" ] || fail "ReDroid product file not found at $redroid_product"
-[ -d "$royd_vendor_src" ] || fail "royd vendor source not found at $royd_vendor_src"
+[ -d "$src/build" ] || fail "AOSP source tree not found at $src"
+[ -d "$device_src" ] || fail "royd device source not found at $device_src"
+[ -d "$vendor_src" ] || fail "royd vendor source not found at $vendor_src"
+[ -f "$profile_src" ] || fail "Android image profile not found at $profile_src"
 
-printf 'Installing royd Android integration with profile %s\n' "$profile"
-rm -rf "$royd_vendor_dst"
-mkdir -p "$royd_vendor_dst"
-cp -a "$royd_vendor_src/." "$royd_vendor_dst/"
+printf 'Installing repository-owned royd Android projects with profile %s\n' "$profile"
+rm -rf "$device_dst" "$vendor_dst"
+mkdir -p "$device_dst" "$vendor_dst"
+cp -a "$device_src/." "$device_dst/"
+cp -a "$vendor_src/." "$vendor_dst/"
 cp "$profile_src" "$profile_dst"
-
-if ! grep -Fqx "$inherit_line" "$redroid_product"; then
-  printf '\n# royd container integration\n%s\n' "$inherit_line" >> "$redroid_product"
-fi

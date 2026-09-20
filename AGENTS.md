@@ -13,7 +13,7 @@ royd is an Android runtime designed specifically for OCI containers. Its main go
 - Keep Android container images usable without any royd-specific host binary.
 - Offer an optional Go CLI for convenience, diagnostics, and instance management without making it a runtime requirement.
 
-royd is inspired by ReDroid's native container architecture and by the Android-side memory optimisation ideas demonstrated by avdslim. It should not depend on QEMU-based optimisation techniques.
+royd is an independent AOSP-based implementation. ReDroid is credited as architectural inspiration for native Android containers, and avdslim influenced the Android-side low-memory direction. ReDroid must not be a build, source, runtime, image, manifest, patch, device-tree, or vendor-tree dependency. royd should not depend on QEMU-based optimisation techniques.
 
 ## Core architecture
 
@@ -184,14 +184,15 @@ The following decisions are currently agreed:
 - Primary user experience: plain Docker or Docker Compose.
 - No mandatory royd host binary, daemon, or bootstrap service.
 - Optional CLI: Go. Keep the implementation small, local-first, transparent about Docker operations, and limited to convenience commands and lightweight host checks until runtime validation justifies more automation.
-- Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it.
+- Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it. The Binder allocation helper is implemented and built from this repository.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
 - Initial privileged containers are acceptable for an MVP, with capability reduction investigated later.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
-- Initial Android baseline: AOSP `android-15.0.0_r36` with ReDroid Android 15 integration.
-- Initial build architecture targets: `x86_64` and `arm64`, using ReDroid `userdebug` products.
-- Android customisation strategy: install a small `vendor/royd` product layer after applying upstream ReDroid patches.
+- Initial Android baseline: plain AOSP `android-15.0.0_r36`.
+- Initial build architecture targets: `x86_64` and `arm64`, using repository-owned `royd_x86_64` and `royd_arm64` products with the AOSP `userdebug` variant.
+- Android dependency policy: the normal build may fetch the pinned AOSP manifest only. All royd-specific device definitions, vendor code, helper binaries, init rules, image profiles, and AOSP patches must live in this repository.
+- Android customisation strategy: copy `android/royd/device/royd` and `android/royd/vendor/royd` into the synchronised AOSP tree, then apply only repository-owned patches from `android/patches`.
 - Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
 - Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.
