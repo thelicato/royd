@@ -3,6 +3,7 @@ set -eu
 
 errors=0
 warnings=0
+security_mode=${ROYD_SECURITY_MODE:-privileged}
 
 ok() {
   printf 'ok      %s\n' "$*"
@@ -17,6 +18,12 @@ fail() {
   errors=$((errors + 1))
   printf 'error   %s\n' "$*"
 }
+
+case "$security_mode" in
+  privileged) ok "runtime security mode: privileged development baseline" ;;
+  experimental) warn "runtime security mode: experimental reduced capability set" ;;
+  *) fail "unknown runtime security mode: $security_mode" ;;
+esac
 
 if [ "$(uname -s)" = Linux ]; then
   ok "Linux host kernel: $(uname -r)"

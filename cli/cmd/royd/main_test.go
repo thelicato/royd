@@ -69,6 +69,40 @@ func TestRunContainerOverrides(t *testing.T) {
 	})
 }
 
+func TestRunContainerExperimentalSecurity(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--security", "experimental"}); err != nil {
+		t.Fatal(err)
+	}
+	assertSingleCall(t, runner, []string{
+		"run", "-d",
+		"--cap-add=SYS_ADMIN",
+		"--cap-add=NET_ADMIN",
+		"--cap-add=SYS_NICE",
+		"--cap-add=SYS_RESOURCE",
+		"--cap-add=SYS_PTRACE",
+		"--name", "royd",
+		"--label", "org.royd.instance=true",
+		"-v", "royd-data:/data",
+		"-p", "127.0.0.1:5555:5555",
+		"royd:dev",
+		"androidboot.royd_width=540",
+		"androidboot.royd_height=960",
+		"androidboot.royd_dpi=240",
+		"androidboot.royd_fps=30",
+	})
+}
+
+func TestRunContainerRejectsUnknownSecurityMode(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--security", "unknown"}); err == nil {
+		t.Fatal("expected invalid security mode error")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no docker calls, got %d", len(runner.calls))
+	}
+}
+
 func TestRunContainerRejectsInvalidDisplay(t *testing.T) {
 	runner := &fakeRunner{}
 	if err := execute(runner, []string{"run", "--width", "0"}); err == nil {

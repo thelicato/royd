@@ -31,6 +31,7 @@ Runs a local royd container with conventional defaults:
 - privileged container
 - `/data` volume mounted from `royd-data`
 - ADB port published on `127.0.0.1:5555`
+- privileged security mode by default, with `--security experimental` available for capability-reduction tests
 - optional Docker memory and swap limits
 - overridable display width, height, density, and frame rate
 

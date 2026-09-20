@@ -84,6 +84,15 @@ grep -Fq 'docker stats --no-stream' runtime/scripts/memory-report.sh
 grep -Fq 'sys.boot_completed' runtime/scripts/wait-for-boot.sh
 grep -Fq '[ -c /dev/binder ]' runtime/scripts/assert-runtime.sh
 grep -Fq 'runtime-smoke-test' Makefile
+grep -Fq 'SYS_ADMIN' runtime/security/experimental.env
+grep -Fq 'privileged: false' runtime/compose.experimental.yaml
+grep -Fq 'security-args.sh' runtime/scripts/smoke-test.sh
+grep -Fq 'security-args.sh' runtime/scripts/multi-instance-test.sh
+grep -Fq 'security-args.sh' runtime/scripts/memory-sweep.sh
+grep -Fq 'runtime-security-contract-test' Makefile
+grep -Fq 'runtime-security-sweep' Makefile
+grep -Fq 'ROYD_SECURITY_MODES' runtime/scripts/security-sweep.sh
+grep -Fq 'ROYD_SECURITY_MODE' runtime/.env.example
 grep -Fq 'runtime-multi-test' Makefile
 grep -Fq 'android-b:' runtime/compose.multi.yaml
 grep -Fq 'logo.svg' README.md

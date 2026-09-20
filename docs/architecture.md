@@ -80,6 +80,6 @@ Low-resolution and low-refresh-rate display profiles should be available for wor
 
 ## Security direction
 
-The first runtime may require `--privileged` while the architecture is being proven. Once the required kernel interactions are known, royd should document and test a reduced privilege profile.
+Privileged mode remains the development baseline while the architecture is being proven. royd also carries an experimental reduced profile with an explicit capability inventory so the same smoke and benchmark workflows can gather evidence without granting every capability and device.
 
-Security work should focus on explicit devices, capabilities, mounts, namespace behaviour, and seccomp policy. It should not introduce hidden host mutation as a substitute for understanding those requirements.
+Security work should focus on explicit devices, capabilities, mounts, namespace behaviour, and seccomp policy. The reduced profile must stay experimental until it passes the reference-host validation matrix. It must not introduce hidden host mutation as a substitute for understanding those requirements.

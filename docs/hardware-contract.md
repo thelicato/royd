@@ -9,10 +9,10 @@ The current runtime contract requires:
 - Linux as the host kernel.
 - An OCI runtime, with Docker as the currently tested interface.
 - Android Binder IPC with binderfs advertised by the host kernel.
-- Permission for the privileged development container to mount its own binderfs instance.
+- Permission for the container to mount its own binderfs instance.
 - Normal Linux namespaces, `memfd`, procfs, sysfs, and tmpfs facilities expected by modern Android userspace.
 
-The development runtime still uses `--privileged`. The exact capability and device set required to remove that flag remains future work.
+Privileged mode remains the development baseline. An experimental reduced profile now removes `--privileged` and tests an explicit capability set. It is not yet a supported minimum. See [`security.md`](security.md).
 
 Run the host-side preflight with:
 

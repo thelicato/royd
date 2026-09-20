@@ -151,7 +151,7 @@ These rules apply to every session and every contribution:
 - Prefer upstream Linux and Android mechanisms over distro-specific workarounds.
 - Avoid adding legacy compatibility code unless there is a demonstrated need and the maintenance cost is justified.
 - Keep changes scoped to one meaningful task at a time. Prefer a cohesive small milestone over micro-tasks that change only one trivial file, while keeping each task reviewable and independently revertible.
-- Stop after completing each atomic task. Summarise what changed and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
+- Stop after completing each atomic task. Summarise what changed, list the remaining roadmap tasks, and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
 - Use Conventional Commits for commit suggestions, for example `docs: add project architecture guidelines`, `feat: add binderfs bootstrap`, or `test: add host capability checks`.
 - Do not commit generated artefacts, build outputs, caches, credentials, secrets, or machine-specific files unless they are intentionally part of the project.
 - Treat the work as a repository, not as isolated files. Preserve the full repository structure across tasks.
@@ -170,7 +170,7 @@ At the start of a new session:
 4. Complete only that task.
 5. Run relevant checks or tests.
 6. Package the complete repository as a ZIP and generate a patch containing only the current task's changes.
-7. Summarise the result and suggest a Conventional Commit message.
+7. Summarise the result, list the remaining roadmap tasks, and suggest a Conventional Commit message.
 8. Stop and wait for the user before starting another task.
 
 When a design decision changes, update this file if the decision is important enough that a future session should know it.
@@ -187,13 +187,13 @@ The following decisions are currently agreed:
 - Binder strategy: prefer a private binderfs instance managed from inside each container where the host kernel and container runtime permit it. The Binder allocation helper is implemented and built from this repository.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
-- Initial privileged containers are acceptable for an MVP, with capability reduction investigated later.
+- Privileged containers remain the development baseline. An experimental restricted mode is maintained for evidence-driven capability reduction and must not be described as a supported minimum until reference-host tests pass.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
 - Initial Android baseline: plain AOSP `android-15.0.0_r36`.
 - Initial build architecture targets: `x86_64` and `arm64`, using repository-owned `royd_x86_64` and `royd_arm64` products with the AOSP `userdebug` variant.
 - Android dependency policy: the normal build may fetch the pinned AOSP manifest only. All royd-specific device definitions, vendor code, helper binaries, init rules, image profiles, and AOSP patches must live in this repository.
 - Android customisation strategy: copy `android/royd/device/royd` and `android/royd/vendor/royd` into the synchronised AOSP tree, then apply only repository-owned patches from `android/patches`.
-- Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
+- Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
 - Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.
 - Android image profile tags: standard imports as `royd:dev`; minimal imports as `royd:dev-minimal` by default.
@@ -208,7 +208,8 @@ The following decisions are currently agreed:
 - Product composition: do not inherit AOSP emulator product definitions or `emulator_vendor.mk`; compose royd products from explicit AOSP userspace building blocks and repository-owned x86_64 and arm64 board configuration.
 - Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; the first graphics baseline is AOSP SwiftShader and does not require `/dev/dri`.
 - Graphics direction: do not claim host GPU acceleration until royd owns and validates the full allocator, composer, device exposure, permissions, and fallback path.
-- AOSP generic product inheritance is transitional. Replace emulator-oriented upstream board/product inheritance with royd-owned definitions before calling the container hardware layer independent end to end.
+- AOSP build primitives remain upstream dependencies, but royd owns its product and board definitions and must not inherit emulator product bundles.
 - Reference-host evidence: use the repository report workflow to record kernel, Docker, Binder, cgroup, and smoke-test results before making host compatibility claims.
 - Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
+- Runtime security modes: `privileged` is the current baseline; `experimental` removes `--privileged` and tests explicit capabilities through the same smoke, benchmark, report, Compose, and CLI workflows.
 

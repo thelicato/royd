@@ -59,6 +59,27 @@ docker run -d \
   androidboot.royd_fps=30
 ```
 
+## Security modes
+
+The supported development baseline still uses `--privileged`. royd also carries an experimental restricted mode that replaces it with an explicit capability list for validation work. It is not yet a supported least-privilege configuration.
+
+Test it with:
+
+```sh
+make runtime-security-contract-test
+make runtime-smoke-test-experimental
+make runtime-multi-test-experimental
+ROYD_SECURITY_SWEEP_OUTPUT=security-sweep.md make runtime-security-sweep
+```
+
+Compose can use the same mode:
+
+```sh
+ROYD_SECURITY_MODE=experimental make runtime-up
+```
+
+See [`../docs/security.md`](../docs/security.md) for the capability inventory and reduction process.
+
 ## Compose
 
 Start the default Compose configuration with:

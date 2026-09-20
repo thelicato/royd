@@ -12,15 +12,16 @@ import (
 const version = "0.1.0-dev"
 
 type runConfig struct {
-	image  string
-	name   string
-	volume string
-	port   string
-	memory string
-	width  int
-	height int
-	dpi    int
-	fps    int
+	image    string
+	name     string
+	volume   string
+	port     string
+	memory   string
+	width    int
+	height   int
+	dpi      int
+	fps      int
+	security string
 }
 
 func main() {
@@ -95,6 +96,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	fs.IntVar(&cfg.height, "height", 960, "Android display height")
 	fs.IntVar(&cfg.dpi, "dpi", 240, "Android display density")
 	fs.IntVar(&cfg.fps, "fps", 30, "Android display frame rate")
+	fs.StringVar(&cfg.security, "security", "privileged", "Runtime security mode: privileged or experimental")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -105,15 +107,23 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	if cfg.width <= 0 || cfg.height <= 0 || cfg.dpi <= 0 || cfg.fps <= 0 {
 		return fmt.Errorf("display values must be positive integers")
 	}
-	dockerArgs := []string{
-		"run",
-		"-d",
-		"--privileged",
+	dockerArgs := []string{"run", "-d"}
+	switch cfg.security {
+	case "privileged":
+		dockerArgs = append(dockerArgs, "--privileged")
+	case "experimental":
+		for _, capability := range []string{"SYS_ADMIN", "NET_ADMIN", "SYS_NICE", "SYS_RESOURCE", "SYS_PTRACE"} {
+			dockerArgs = append(dockerArgs, "--cap-add="+capability)
+		}
+	default:
+		return fmt.Errorf("unknown security mode: %s", cfg.security)
+	}
+	dockerArgs = append(dockerArgs,
 		"--name", cfg.name,
 		"--label", "org.royd.instance=true",
-		"-v", cfg.volume + ":/data",
+		"-v", cfg.volume+":/data",
 		"-p", cfg.port,
-	}
+	)
 	if cfg.memory != "" {
 		dockerArgs = append(dockerArgs, "--memory", cfg.memory, "--memory-swap", cfg.memory)
 	}
@@ -194,6 +204,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "  royd doctor\n")
 	fmt.Fprintf(os.Stderr, "  royd run --name royd-test --image royd:dev --memory 768m\n")
+	fmt.Fprintf(os.Stderr, "  royd run --security experimental --name royd-test\n")
 	fmt.Fprintf(os.Stderr, "  royd logs royd\n")
 	fmt.Fprintf(os.Stderr, "  royd shell royd\n")
 	fmt.Fprintf(os.Stderr, "  royd stop royd\n")

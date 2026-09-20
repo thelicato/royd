@@ -19,6 +19,8 @@ docker image inspect "$image" >/dev/null 2>&1 || {
 }
 
 profile_args=$("$script_dir/profile.sh" "$profile")
+security_mode=${ROYD_SECURITY_MODE:-privileged}
+security_args=$("$script_dir/security-args.sh" "$security_mode")
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -28,14 +30,15 @@ trap cleanup EXIT HUP INT TERM
 cleanup
 
 docker volume create "$volume" >/dev/null
-printf 'Starting runtime smoke test with %s using profile %s\n' "$image" "$profile"
-# Word splitting is intentional because profile.sh emits one trusted argument per line.
+printf 'Starting runtime smoke test with %s using profile %s and security mode %s\n' "$image" "$profile" "$security_mode"
+# Word splitting is intentional because profile.sh and security-args.sh emit trusted arguments.
 # shellcheck disable=SC2086
-docker run -d --privileged \
+docker run -d $security_args \
   --name "$container" \
   -v "$volume:/data" \
   "$image" $profile_args >/dev/null
 
+"$script_dir/assert-security.sh" "$container" "$security_mode"
 "$script_dir/wait-for-boot.sh" "$container" "$timeout"
 "$script_dir/assert-runtime.sh" "$container"
 printf '%s\n' 'Single-instance runtime smoke test passed'

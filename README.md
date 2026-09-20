@@ -52,7 +52,7 @@ volumes:
     name: ${ROYD_DATA_VOLUME:-royd-data}
 ```
 
-`--privileged` is acceptable for the first working implementation. Reducing privileges to the minimum required capabilities and devices is a later security goal.
+`--privileged` remains the development baseline. An experimental restricted mode now tests an explicit capability set through the same runtime validation workflows, but it is not yet a supported minimum. See [`docs/security.md`](docs/security.md).
 
 ## Runtime model
 

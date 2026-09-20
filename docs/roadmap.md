@@ -69,8 +69,13 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 7. Privilege reduction
 
-- [ ] Inventory every capability and device required by a working privileged container.
-- [ ] Replace `--privileged` with the smallest practical OCI configuration.
+- [x] Add an explicit experimental capability inventory and reduced Compose/Docker mode.
+- [x] Run the existing smoke, multi-instance, benchmark, CLI, and report tooling through selectable security modes.
+- [x] Add a security-mode comparison report with captured failure diagnostics.
+- [ ] Validate the experimental mode on a known-good reference host.
+- [ ] Remove capabilities that are not demonstrated requirements.
+- [ ] Record any required seccomp, LSM, device, cgroup, or system-path exceptions.
+- [ ] Promote the smallest validated OCI configuration to the default.
 - [ ] Document runtime differences across Docker, Podman, and other supported engines.
 - [ ] Evaluate rootless operation separately.
 

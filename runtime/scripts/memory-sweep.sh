@@ -26,6 +26,8 @@ docker image inspect "$image" >/dev/null 2>&1 || {
 }
 
 profile_args=$("$script_dir/profile.sh" "$profile")
+security_mode=${ROYD_SECURITY_MODE:-privileged}
+security_args=$("$script_dir/security-args.sh" "$security_mode")
 
 case "$settle" in
   ''|*[!0-9]*)
@@ -53,15 +55,22 @@ run_candidate() {
   started=$(date +%s)
 
   set +e
-  # Word splitting is intentional because profile.sh emits one trusted argument per line.
+  # Word splitting is intentional because profile.sh and security-args.sh emit trusted arguments.
   # shellcheck disable=SC2086
-  docker run -d --privileged \
+  docker run -d $security_args \
     --name "$container" \
     --memory "$limit" \
     --memory-swap "$limit" \
     -v "$volume:/data" \
     "$image" $profile_args >"$log" 2>&1
   run_status=$?
+  if [ "$run_status" -eq 0 ]; then
+    "$script_dir/assert-security.sh" "$container" "$security_mode" >>"$log" 2>&1
+    security_status=$?
+    if [ "$security_status" -ne 0 ]; then
+      run_status=$security_status
+    fi
+  fi
   if [ "$run_status" -eq 0 ]; then
     "$script_dir/wait-for-boot.sh" "$container" "$timeout" >>"$log" 2>&1
     boot_status=$?
@@ -116,6 +125,7 @@ report="$workdir/report.md"
   printf 'This report tests candidate container memory limits. A pass is evidence only for this exact image, host, profile, and boot workload. It is not a general minimum-RAM claim.\n\n'
   printf -- '- image: `%s`\n' "$image"
   printf -- '- profile: `%s`\n' "$profile"
+  printf -- '- security mode: `%s`\n' "$security_mode"
   printf -- '- boot timeout: `%s seconds`\n' "$timeout"
   printf -- '- settle time: `%s seconds`\n\n' "$settle"
   printf '| Limit | Result | Seconds | Container usage | Android total RAM | Image profile | Packages |\n'

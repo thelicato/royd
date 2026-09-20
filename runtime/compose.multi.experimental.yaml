@@ -1,0 +1,17 @@
+services:
+  android-a:
+    privileged: false
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_NICE
+      - SYS_RESOURCE
+      - SYS_PTRACE
+  android-b:
+    privileged: false
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_NICE
+      - SYS_RESOURCE
+      - SYS_PTRACE
