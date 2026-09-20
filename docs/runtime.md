@@ -1,5 +1,17 @@
 # Runtime integration
 
+## Host contract
+
+Before running a locally imported image, check the host with:
+
+```sh
+make runtime-host-check
+```
+
+The current hard requirement is a Linux host whose kernel advertises binderfs. Docker must also be installed and reachable. cgroup v2 and memory PSI are strongly preferred and reported as warnings when unavailable.
+
+The initial graphics path is AOSP SwiftShader. `/dev/dri` is not required for this baseline, and host GPU acceleration is not yet a supported mode. See [`hardware-contract.md`](hardware-contract.md).
+
 ## Repository-owned Android layer
 
 royd owns both sides of its Android integration. `device/royd` defines the royd products and `vendor/royd` supplies container-specific userspace components. Source synchronisation copies both projects into the pinned AOSP tree.

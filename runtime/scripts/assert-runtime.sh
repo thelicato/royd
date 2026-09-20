@@ -26,6 +26,7 @@ assert_property() {
 assert_property sys.boot_completed 1
 assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
+assert_property vendor.royd.graphics.mode software
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
   printf 'error: conventional Binder device paths are not ready in %s\n' "$container" >&2
@@ -34,6 +35,11 @@ docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ 
 
 docker exec "$container" sh -c "grep -q ' /dev/binderfs binder ' /proc/mounts" || {
   printf 'error: binderfs is not mounted at /dev/binderfs in %s\n' "$container" >&2
+  exit 1
+}
+
+docker logs "$container" 2>&1 | grep -Fq '[royd] graphics: software renderer selected' || {
+  printf 'error: software graphics readiness diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 

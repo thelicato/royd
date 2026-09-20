@@ -202,6 +202,9 @@ The following decisions are currently agreed:
 - Memory claims must be based on the repository measurement workflow and a documented workload.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
+- Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; the first graphics baseline is AOSP SwiftShader and does not require `/dev/dri`.
+- Graphics direction: do not claim host GPU acceleration until royd owns and validates the full allocator, composer, device exposure, permissions, and fallback path.
+- AOSP generic product inheritance is transitional. Replace emulator-oriented upstream board/product inheritance with royd-owned definitions before calling the container hardware layer independent end to end.
 - Reference-host evidence: use the repository report workflow to record kernel, Docker, Binder, cgroup, and smoke-test results before making host compatibility claims.
 - Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
 

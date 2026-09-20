@@ -99,9 +99,9 @@ func checkPSI() Check {
 func checkDRI() Check {
 	_, err := os.Stat("/dev/dri")
 	if err != nil {
-		return Check{Name: "gpu", Status: StatusWarning, Details: "/dev/dri not present; software rendering may be used"}
+		return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri not present; not required for the software graphics baseline"}
 	}
-	return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri present"}
+	return Check{Name: "gpu", Status: StatusOK, Details: "/dev/dri present; host GPU mode is not enabled yet"}
 }
 
 func (report Report) HasErrors() bool {

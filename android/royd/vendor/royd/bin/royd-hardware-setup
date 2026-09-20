@@ -1,0 +1,47 @@
+#!/system/bin/sh
+
+stdout=/proc/1/fd/1
+stderr=/proc/1/fd/2
+
+log() {
+  printf '[royd] %s\n' "$*" > "$stdout"
+}
+
+warn() {
+  printf '[royd] warning: %s\n' "$*" > "$stderr"
+}
+
+set_status() {
+  setprop "vendor.royd.host.$1" "$2"
+}
+
+log "hardware: probing container host contract"
+
+if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+  set_status cgroup v2
+  log "hardware: cgroup v2 detected"
+else
+  set_status cgroup legacy
+  warn "cgroup v2 not detected; memory accounting and lmkd behaviour may be degraded"
+fi
+
+if [ -r /proc/pressure/memory ]; then
+  set_status psi available
+  log "hardware: memory PSI available"
+else
+  set_status psi unavailable
+  warn "memory PSI is unavailable"
+fi
+
+if [ -e /dev/dri/renderD128 ]; then
+  set_status dri available
+  log "hardware: /dev/dri/renderD128 available"
+else
+  set_status dri unavailable
+  log "hardware: no DRM render node exposed"
+fi
+
+# SwiftShader is the only supported graphics mode until royd owns a validated
+# host GPU path end to end. Keep the runtime property explicit for diagnostics.
+setprop vendor.royd.graphics.mode software
+log "graphics: software renderer selected"

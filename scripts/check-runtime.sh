@@ -78,3 +78,13 @@ grep -Rni 'remote-android\|redroid-patches\|vendor_redroid\|device_redroid\|andr
     exit 1
   }
 rm -f /tmp/royd-forbidden-dependencies.txt
+
+# The software graphics baseline must stay explicit until a host path is implemented.
+grep -Fq 'ro.hardware.egl=swiftshader' android/royd/vendor/royd/royd.mk || {
+  printf '%s\n' 'error: royd software graphics baseline is not configured' >&2
+  exit 1
+}
+grep -Fq 'vendor.royd.graphics.mode software' runtime/scripts/assert-runtime.sh || {
+  printf '%s\n' 'error: runtime validation does not assert the graphics mode' >&2
+  exit 1
+}

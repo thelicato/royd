@@ -16,6 +16,7 @@ royd is an independent AOSP-based project. ReDroid is credited as architectural 
 - Run Android as an OCI container without QEMU or KVM.
 - Make plain `docker run` and `docker compose up` the primary interfaces.
 - Keep host setup minimal and distribution-independent where the Linux kernel permits it.
+- Define royd's required host and virtual hardware contract explicitly instead of inheriting hidden emulator assumptions.
 - Prefer private binderfs instances over statically allocated host Binder devices.
 - Prefer modern Android and Linux interfaces such as `memfd`, cgroup v2, and PSI-aware memory management.
 - Reduce Android memory usage through build-time configuration and removal of unnecessary components.
@@ -91,7 +92,9 @@ Direct Android debugging must remain available independently through ADB:
 adb -s localhost:5555 logcat
 ```
 
-Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities.
+Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android.
+
+The first graphics baseline is software-rendered with AOSP SwiftShader, so `/dev/dri` is not required. Host GPU acceleration remains intentionally unsupported until royd owns and validates the complete allocator/composer path. See [`docs/hardware-contract.md`](docs/hardware-contract.md).
 
 ## Low-memory direction
 

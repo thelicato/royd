@@ -76,3 +76,20 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Keep command output transparent about Docker operations.
 - [x] Keep every core runtime workflow usable without the CLI.
 - [ ] Add ADB convenience commands after the independent runtime contract is validated.
+
+## Container hardware ownership
+
+Completed in the current baseline:
+
+- repository-owned binderfs allocation and conventional Binder device exposure
+- explicit host preflight checks
+- early-boot cgroup, PSI, and DRM diagnostics
+- AOSP SwiftShader libraries selected as the software EGL baseline
+- runtime assertion of the selected software graphics mode
+
+Remaining work:
+
+- replace upstream AOSP emulator-oriented product and board inheritance with royd-owned board configuration
+- provide a royd-owned graphics composer and allocator contract suitable for container display output
+- validate the first complete boot without emulator-specific vendor services
+- design and benchmark a host GPU mode only after the software path is stable
