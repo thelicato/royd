@@ -191,4 +191,6 @@ The following decisions are currently agreed:
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
 - Initial Android baseline: AOSP `android-15.0.0_r36` with ReDroid Android 15 integration.
 - Initial build architecture targets: `x86_64` and `arm64`, using ReDroid `userdebug` products.
+- Android customisation strategy: install a small `vendor/royd` product layer after applying upstream ReDroid patches.
+- Runtime image assembly: package built `system.img` and `vendor.img`, then import the resulting root filesystem with Android `/init` as the OCI entrypoint.
 

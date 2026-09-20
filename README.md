@@ -5,7 +5,7 @@ royd is an experimental Android runtime designed for OCI containers. The goal is
 royd is inspired by ReDroid's native container architecture and by Android-side low-memory optimisation work such as avdslim. It is intended to be container-first rather than an emulator image adapted to run in a container.
 
 > [!IMPORTANT]
-> royd is currently in early development. There is no runnable royd image yet. Commands in this document describe the intended interface unless stated otherwise.
+> royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP/ReDroid baseline, but host compatibility is not yet broadly validated.
 
 ## Goals
 
@@ -21,13 +21,13 @@ royd is inspired by ReDroid's native container architecture and by Android-side 
 
 ## Intended usage
 
-The target Docker interface is deliberately small:
+The target Docker interface is deliberately small. A locally built development image is currently tagged `royd:dev`:
 
 ```sh
 docker run --privileged \
   -v android-data:/data \
   -p 5555:5555 \
-  ghcr.io/<owner>/royd:<tag>
+  royd:dev
 ```
 
 The equivalent Compose configuration should be similarly direct:
@@ -35,7 +35,7 @@ The equivalent Compose configuration should be similarly direct:
 ```yaml
 services:
   android:
-    image: ghcr.io/<owner>/royd:<tag>
+    image: royd:dev
     privileged: true
     ports:
       - "127.0.0.1:5555:5555"
@@ -120,17 +120,8 @@ The CLI may perform host checks, generate or execute container commands, and sim
 
 ## Initial roadmap
 
-The first implementation milestones are:
-
-1. Establish the minimal container boot path and host capability checks.
-2. Mount binderfs and create Binder devices from inside the container.
-3. Boot an Android userspace with `/init` as PID 1.
-4. Forward `logcat` to container stdout and stderr.
-5. Produce a reproducible OCI image build.
-6. Measure baseline memory use and define low-memory image profiles.
-7. Reduce container privileges after the architecture is proven.
-8. Add the optional Go CLI without making it a runtime dependency.
+The current implementation can build and package the pinned Android baseline, inject royd binderfs and logging integration, and import a local OCI image. The next milestones are to validate boot behaviour across reference hosts, verify Binder isolation with multiple containers, establish the host compatibility contract, and then begin measured low-memory work.
 
 ## Development
 
-Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). The initial Android source and build workflow is documented in [`docs/building.md`](docs/building.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable atomic task at a time.
+Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). Android source and build workflow is documented in [`docs/building.md`](docs/building.md), and runtime assembly is documented in [`runtime/README.md`](runtime/README.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable atomic task at a time.

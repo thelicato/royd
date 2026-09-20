@@ -1,0 +1,11 @@
+on early-init
+    exec -- /vendor/bin/royd-binder-setup
+
+service royd-logcat /vendor/bin/royd-logcat
+    class core
+    user root
+    group root log
+    disabled
+
+on property:init.svc.logd=running
+    start royd-logcat

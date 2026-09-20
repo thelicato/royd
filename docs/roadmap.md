@@ -6,32 +6,34 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 - [x] Select and document the initial Android and upstream ReDroid/AOSP baseline.
 - [x] Add a repeatable source synchronisation and Android build environment.
-- [ ] Package the Android build into the first royd OCI image.
+- [x] Add reproducible packaging and local OCI image import tooling.
 - [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
-- [ ] Keep the first runtime deliberately close to upstream until the container lifecycle is understood.
+- [ ] Record a known-good build and boot validation from the pinned baseline.
 
 ## 2. Container-owned Binder setup
 
-- Detect Binder IPC and binderfs availability at startup.
-- Mount a private binderfs instance from inside the container where supported.
-- Allocate `binder`, `hwbinder`, and `vndbinder` dynamically.
-- Present the conventional device paths to Android.
-- Fail early with actionable logs when the host contract is not met.
-- Verify multiple simultaneous containers use isolated Binder contexts.
+- [x] Add binderfs-first startup integration that reuses ReDroid's Binder allocator.
+- [x] Expose private binderfs devices at the conventional Android device paths.
+- [x] Emit actionable Binder compatibility diagnostics to container output.
+- [ ] Validate binderfs-only hosts with no pre-created Binder devices.
+- [ ] Verify multiple simultaneous containers use isolated Binder contexts.
 
 ## 3. Container-native logging and diagnostics
 
-- Forward Android `logcat` to container stdout and stderr.
-- Preserve normal `adb logcat` behaviour.
-- Add concise startup diagnostics for Binder, cgroups, memory, graphics, and fatal host incompatibilities.
-- Make boot failures understandable from `docker logs` alone where practical.
+- [x] Add `logcat` forwarding to container stdout and stderr.
+- [x] Keep Android `/init` as PID 1.
+- [x] Add initial Binder, cgroup, and graphics startup diagnostics.
+- [ ] Verify normal `adb logcat` behaviour alongside container log forwarding.
+- [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 
 ## 4. Reproducible runtime examples
 
-- Add a minimal `docker run` example.
-- Add Docker Compose examples for single and multiple instances.
-- Document persistent `/data`, ADB access, port allocation, and optional GPU device access.
-- Record the minimum known-good host kernel configuration.
+- [x] Add a minimal `docker run` example.
+- [x] Add a Docker Compose example for a single instance.
+- [x] Document persistent `/data` and ADB access.
+- [ ] Add and validate a multiple-instance Compose example.
+- [ ] Document optional GPU device access after host GPU testing.
+- [ ] Record the minimum known-good host kernel configuration.
 
 ## 5. Low-memory Android profile
 

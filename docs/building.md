@@ -67,7 +67,14 @@ make android-build-arm64
 
 For Android 15 the scripts use the AP3A release configuration and the ReDroid `userdebug` products. The resulting Android output remains inside the AOSP source tree under `out/`.
 
-This task stops at producing the upstream-compatible Android build. Packaging the build into the first royd OCI runtime image, changing Binder ownership, and forwarding `logcat` to container output are subsequent milestones.
+After a successful build, package and import the development runtime with:
+
+```sh
+make android-package-x86_64
+make runtime-import-x86_64
+```
+
+Use the corresponding arm64 targets for an arm64 build. The package step mounts the generated Android images read-only inside the privileged builder and writes `.work/runtime/royd-<arch>.tar`. The import step creates the local `royd:dev` OCI image. Runtime details are documented in [`runtime/README.md`](../runtime/README.md) and [`runtime.md`](runtime.md).
 
 ## Upstream references
 

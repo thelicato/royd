@@ -1,0 +1,11 @@
+services:
+  android:
+    image: royd:dev
+    privileged: true
+    ports:
+      - "127.0.0.1:5555:5555"
+    volumes:
+      - android-data:/data
+
+volumes:
+  android-data:

@@ -71,6 +71,8 @@ else
   printf '%s\n' "$patch_commit" > "$patch_marker"
 fi
 
+"$script_dir/install-royd.sh" "$src"
+
 printf 'Writing resolved source manifest\n'
 (
   cd "$src"

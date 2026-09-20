@@ -1,0 +1,53 @@
+#!/system/bin/sh
+
+stdout=/proc/1/fd/1
+stderr=/proc/1/fd/2
+binderfs=/dev/binderfs
+control=$binderfs/binder-control
+
+log() {
+  printf '[royd] %s\n' "$*" > "$stdout"
+}
+
+fail() {
+  printf '[royd] fatal: %s\n' "$*" > "$stderr"
+  exit 1
+}
+
+log "kernel: $(uname -r)"
+mkdir -p "$binderfs" || fail "cannot create $binderfs"
+
+if [ ! -c "$control" ]; then
+  log 'binderfs: mounting private instance'
+  mount -t binder binder "$binderfs" || fail 'cannot mount binderfs; the host kernel must provide Android Binder IPC and binderfs'
+fi
+[ -c "$control" ] || fail "$control is unavailable after mounting binderfs"
+
+for name in binder hwbinder vndbinder; do
+  if [ ! -c "$binderfs/$name" ]; then
+    /vendor/bin/binder_alloc "$control" "$name" || fail "cannot allocate $name from binderfs"
+  fi
+  [ -c "$binderfs/$name" ] || fail "$binderfs/$name is not a character device"
+done
+
+for name in binder hwbinder vndbinder; do
+  target=$binderfs/$name
+  path=/dev/$name
+  if [ -L "$path" ] && [ "$(readlink "$path")" = "$target" ]; then
+    continue
+  fi
+  rm -f "$path" || fail "cannot replace $path with the private binderfs device"
+  ln -s "$target" "$path" || fail "cannot expose $target at $path"
+done
+
+if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+  log 'cgroup: v2'
+else
+  log 'cgroup: legacy or unavailable'
+fi
+if [ -e /dev/dri/renderD128 ]; then
+  log 'graphics: host render device detected'
+else
+  log 'graphics: no host render device detected'
+fi
+log 'binderfs: ready'

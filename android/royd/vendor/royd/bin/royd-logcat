@@ -1,0 +1,4 @@
+#!/system/bin/sh
+
+printf '%s\n' '[royd] logcat: forwarding Android logs to container output' > /proc/1/fd/1
+exec /system/bin/logcat -b all -v threadtime > /proc/1/fd/1 2> /proc/1/fd/2
