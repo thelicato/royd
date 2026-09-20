@@ -16,7 +16,7 @@ for script in android/scripts/*.sh runtime/scripts/*.sh android/royd/vendor/royd
 done
 
 grep -Fq 'ROYD_DEFAULT_ANDROID_VERSION=15' android/baseline.env
-for version in 8.1 9 10 11 12 13 14 15 16 17; do
+for version in 8.0 8.1 9 10 11 12 13 14 15 16 17; do
   test -f "android/versions/$version.env"
 done
 grep -Fq 'AOSP_TAG=android-8.1.0_r81' android/versions/8.1.env
@@ -43,6 +43,10 @@ grep -Fq 'ANDROID_PRODUCT_ARM64=royd_arm64' android/baseline.env
 grep -Fq 'royd_x86_64.mk' android/royd/device/royd/AndroidProducts.mk
 grep -Fq 'royd_arm64.mk' android/royd/device/royd/AndroidProducts.mk
 grep -Fq 'Android version matrix test passed' android/scripts/version-test.sh
+grep -Fq 'Android graphics contract test passed' android/scripts/graphics-contract-test.sh
+grep -Fq 'name: "gralloc.royd"' android/royd/vendor/royd/Android.bp
+grep -Fq 'ro.hardware.gralloc=royd' android/compat/modern/vendor.mk
+grep -Fq 'runtime-graphics-report' Makefile
 grep -Fq 'android-version-test' Makefile
 grep -Fq 'vendor/royd/royd.mk' android/royd/device/royd/royd_x86_64.mk
 grep -Fq 'device/royd/container_common.mk' android/royd/device/royd/royd_x86_64.mk

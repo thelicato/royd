@@ -33,5 +33,7 @@ cp "$compat_src/product.mk" "$device_dst/container_version.mk"
 cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.memory_compat=%s\n' "$ANDROID_MEMORY_COMPAT" >> "$vendor_dst/version.mk"
+printf 'PRODUCT_PACKAGES += android.hardware.graphics.composer@%s-service\n' "$ANDROID_GRAPHICS_COMPOSER" >> "$vendor_dst/version.mk"
+printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_composer=%s ro.vendor.royd.graphics_allocator=%s\n' "$ANDROID_GRAPHICS_COMPOSER" "$ANDROID_GRAPHICS_ALLOCATOR" >> "$vendor_dst/version.mk"
 
 "$script_dir/install-memory-compat.sh" "$src"

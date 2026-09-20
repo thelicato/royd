@@ -35,7 +35,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Stop inheriting AOSP emulator product definitions and `emulator_vendor.mk`.
 - [x] Add royd-owned x86_64 and arm64 board configuration.
 - [ ] Build both royd-owned board configurations from a clean AOSP checkout and resolve any missing HAL or image requirements.
-- [ ] Implement and validate a royd graphics path for software rendering.
+- [x] Add a repository-owned memfd gralloc module and version-matched AOSP composer bridge for the software path.
+- [ ] Validate the software graphics path with clean builds and real SurfaceFlinger boots across representative Android generations.
 - [ ] Implement optional host GPU rendering through explicit `/dev/dri` access.
 - [ ] Define the minimum HAL set required for headless and graphical profiles.
 - [ ] Make runtime display parameters take effect without relying on emulator-specific services.
@@ -104,7 +105,7 @@ Completed in the current baseline:
 Remaining work:
 
 - validate the royd-owned board configurations with clean AOSP builds and remove any unnecessary GSI defaults revealed by those builds
-- provide a royd-owned graphics composer and allocator contract suitable for container display output
+- validate the repository-owned allocator and AOSP composer bridge with clean Android builds and real display output
 - validate the first complete boot without emulator-specific vendor services
 - design and benchmark a host GPU mode only after the software path is stable
 

@@ -27,6 +27,9 @@ assert_property sys.boot_completed 1
 assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
 assert_property vendor.royd.graphics.mode software
+assert_property vendor.royd.graphics.allocator gralloc0-memfd
+assert_property ro.hardware.gralloc royd
+assert_property ro.hardware.hwcomposer default
 assert_property vendor.royd.host.memfd available
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
@@ -36,6 +39,11 @@ docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ 
 
 docker exec "$container" sh -c "grep -q ' /dev/binderfs binder ' /proc/mounts" || {
   printf 'error: binderfs is not mounted at /dev/binderfs in %s\n' "$container" >&2
+  exit 1
+}
+
+docker logs "$container" 2>&1 | grep -Fq '[royd] graphics: allocator gralloc0-memfd ready' || {
+  printf 'error: royd graphics allocator readiness diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 

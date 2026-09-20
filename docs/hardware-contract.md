@@ -30,10 +30,12 @@ No host-side Binder device naming convention is part of the royd contract.
 
 ## Graphics baseline
 
-The first self-contained graphics baseline uses SwiftShader for EGL and OpenGL ES. The royd product includes the AOSP SwiftShader libraries and sets:
+The software-first graphics baseline uses SwiftShader for EGL and OpenGL ES together with the repository-owned `gralloc.royd` allocator. AOSP supplies the version-matched composer service and conventional `hwcomposer.default` bridge. The royd product sets:
 
 ```text
 ro.hardware.egl=swiftshader
+ro.hardware.gralloc=royd
+ro.hardware.hwcomposer=default
 ro.opengles.version=196610
 ```
 
@@ -44,6 +46,8 @@ The runtime records the selected path as:
 ```text
 vendor.royd.graphics.mode=software
 ```
+
+See [`graphics.md`](graphics.md) for the cross-version composer mapping and allocator contract.
 
 Host GPU acceleration is deliberately not exposed as a supported mode yet. A future host mode must define the buffer allocator, graphics composer, render-node exposure, permissions, and fallback behaviour as one tested contract instead of merely passing `/dev/dri` into the container.
 

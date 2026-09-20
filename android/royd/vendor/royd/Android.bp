@@ -11,3 +11,17 @@ cc_binary {
     cflags: ["-Wall", "-Wextra", "-Werror"],
     vendor: true,
 }
+
+cc_library_shared {
+    name: "gralloc.royd",
+    srcs: ["gralloc/gralloc_royd.cpp"],
+    relative_install_path: "hw",
+    vendor: true,
+    shared_libs: [
+        "libcutils",
+        "libhardware",
+        "liblog",
+    ],
+    header_libs: ["libhardware_headers"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+}

@@ -1,6 +1,7 @@
 on early-init
     exec -- /vendor/bin/royd-binder-setup
     exec -- /vendor/bin/royd-hardware-setup
+    exec -- /vendor/bin/royd-graphics-setup
 
 service royd-logcat /vendor/bin/royd-logcat
     class core

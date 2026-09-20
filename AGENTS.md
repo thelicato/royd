@@ -200,6 +200,7 @@ The following decisions are currently agreed:
 - Legacy memory policy: Android 8.0 through 10 install a repository-owned `libcutils` ashmem API backend backed by sealed memfds. Never require the removed host `ashmem_linux` module. Keep these releases in configured status until direct-ioctl compatibility and real workloads are validated.
 - Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
+- Software graphics baseline: SwiftShader plus repository-owned `gralloc.royd`, `hwcomposer.default`, and the AOSP composer service selected per Android generation. Host GPU mode is not yet supported.
 - Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.
 - Android image profile tags: standard imports as `royd:dev`; minimal imports as `royd:dev-minimal` by default.
 - Runtime display profiles: `default` (540 x 960, 240 dpi, 30 fps), `compact` (360 x 640, 160 dpi, 30 fps), and `tablet` (720 x 1280, 320 dpi, 30 fps). Profiles do not imply supported memory minimums.
