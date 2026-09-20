@@ -193,7 +193,7 @@ grep -Fq 'default-image.sh' runtime/scripts/smoke-test.sh
 grep -Fq 'default-image.sh' runtime/scripts/memory-sweep.sh
 grep -Fq 'Single-instance smoke test' runtime/scripts/reference-report.sh
 grep -Fq 'Two-instance smoke test' runtime/scripts/reference-report.sh
-grep -Fq 'CONFIG_ANDROID_BINDERFS' runtime/scripts/reference-report.sh
+grep -Fq 'kernel-evidence.sh' runtime/scripts/reference-report.sh
 grep -Fq 'memory-sweep' Makefile
 grep -Fq 'ROYD_WIDTH=540' runtime/profiles/default.env
 grep -Fq 'ROYD_MEMORY_LIMITS' runtime/scripts/memory-sweep.sh
@@ -239,12 +239,16 @@ grep -Fq 'graphics_mode=host-gpu' runtime/scripts/assert-runtime.sh || {
 }
 grep -Fq 'runtime-reference-qualify' Makefile
 grep -Fq 'runtime-reference-bundle-verify' Makefile
-grep -Fq 'ROYD_REFERENCE_BUNDLE_FORMAT=2' runtime/scripts/reference-host-qualify.sh
+grep -Fq 'ROYD_REFERENCE_BUNDLE_FORMAT=3' runtime/scripts/reference-host-qualify.sh
 grep -Fq 'SHA256SUMS' runtime/scripts/reference-host-qualify.sh
 grep -Fq 'PROFILE_POLICY_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'SECURITY_PROFILE_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'CONTAINER_EVIDENCE_STATUS' runtime/scripts/qualification.sh
 grep -Fq 'runtime-evidence/container.log' runtime/scripts/reference-bundle-verify.sh
+grep -Fq 'runtime-kernel-evidence' Makefile
+grep -Fq 'kernel-evidence-test.sh' scripts/ci.sh
+grep -Fq 'CONFIG_ANDROID_BINDERFS' runtime/kernel/config-contract.tsv
+grep -Fq 'CONFIG_CONTRACT_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'runtime-rootless-probe' Makefile
 grep -Fq 'rootless-probe-test.sh' scripts/ci.sh
 grep -Fq 'unshare --user --map-root-user --mount --ipc' runtime/scripts/rootless-probe.sh

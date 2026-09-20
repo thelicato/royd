@@ -33,6 +33,7 @@ include_memory=${ROYD_REFERENCE_INCLUDE_MEMORY:-1}
 include_capability_sweep=${ROYD_REFERENCE_INCLUDE_CAPABILITY_SWEEP:-0}
 replace=${ROYD_REFERENCE_REPLACE:-0}
 
+kernel_runner=${ROYD_REFERENCE_KERNEL_RUNNER:-$script_dir/kernel-evidence.sh}
 host_runner=${ROYD_REFERENCE_HOST_RUNNER:-$script_dir/host-check.sh}
 image_runner=${ROYD_REFERENCE_IMAGE_RUNNER:-$script_dir/image-inspect.sh}
 qualification_runner=${ROYD_REFERENCE_QUALIFICATION_RUNNER:-$script_dir/qualification.sh}
@@ -76,6 +77,7 @@ run_stage() {
   printf '<== %s: %s\n' "$name" "$(eval "printf '%s' \"\$${name}_status\"")" | tee -a "$log"
 }
 
+kernel_status=not-run
 host_status=not-run
 image_status=not-run
 qualification_status=not-run
@@ -85,6 +87,12 @@ capability_status=not-run
 runtime_log_status=not-run
 runtime_evidence_status=not-run
 
+run_stage kernel env ROYD_KERNEL_EVIDENCE_OUTPUT="$output/kernel.env" "$kernel_runner"
+if [ ! -f "$output/kernel.env" ]; then
+  printf '%s\n' 'warning: kernel evidence file was not produced' >> "$log"
+  kernel_status=fail
+  overall=fail
+fi
 run_stage host env ROYD_SECURITY_MODE="$security_mode" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$host_runner"
 run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$image_runner" "$arch" "$image_profile" "$image"
 run_stage qualification env \
@@ -146,7 +154,7 @@ fi
 
 ended=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$output/manifest.env" <<MANIFEST
-ROYD_REFERENCE_BUNDLE_FORMAT=2
+ROYD_REFERENCE_BUNDLE_FORMAT=3
 RESULT_STATUS=$overall
 STARTED_AT=$started
 FINISHED_AT=$ended
@@ -163,6 +171,7 @@ RUNTIME_PROFILE=$runtime_profile
 SECURITY_MODE=$security_mode
 SECURITY_PROFILE=$security_profile
 SECURITY_PROFILE_SHA256=$security_profile_sha256
+KERNEL_STATUS=$kernel_status
 HOST_STATUS=$host_status
 IMAGE_STATUS=$image_status
 QUALIFICATION_STATUS=$qualification_status

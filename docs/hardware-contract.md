@@ -22,6 +22,18 @@ make runtime-host-check
 
 A missing hard requirement returns a non-zero exit status. cgroup v2 and memory PSI are reported as warnings because Android may still start without them, although low-memory behaviour can be worse. Rootless feasibility has an additional user-namespace binderfs probe documented in [`rootless.md`](rootless.md).
 
+## Kernel evidence contract
+
+Capture image-independent kernel evidence with:
+
+```sh
+make runtime-kernel-evidence
+```
+
+The machine-readable output records the kernel release and architecture, binderfs advertisement, cgroup v2 controllers, memory PSI, active LSMs when readable, the unprivileged user-namespace sysctl when present, DRM render nodes, and relevant Kconfig values. Kconfig is read from `/proc/config.gz`, `/boot/config-$(uname -r)`, or the kernel build tree when one is available. An unreadable Kconfig is recorded as `unknown` rather than inferred from the distribution name.
+
+The versioned contract in `runtime/kernel/config-contract.tsv` classifies Binder IPC and binderfs as required configuration evidence, cgroup and PSI options as preferred, and rootless or DRM options as path-specific. Live capability checks remain authoritative for the running host. A matching Kconfig does not prove that Android boots, and this contract is not the minimum known-good host kernel until a successful reference-host qualification supplies that evidence.
+
 ## Binder
 
 Each royd container mounts a private binderfs instance and dynamically allocates `binder`, `hwbinder`, and `vndbinder`. Android sees them at the conventional paths under `/dev`.

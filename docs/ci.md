@@ -10,7 +10,7 @@ Run the same checks used by the hosted workflow with:
 make ci
 ```
 
-This covers repository rules, runtime contracts, the Android version matrix, builder families, image and HAL profiles, mocked AOSP configuration resolution, legacy memory compatibility, graphics and HAL contracts, OCI image metadata, security, ADB, the rootless feasibility probe contract, runtime qualification contracts and matrix-runner behaviour, and Go CLI tests.
+This covers repository rules, runtime contracts, the Android version matrix, builder families, image and HAL profiles, mocked AOSP configuration resolution, legacy memory compatibility, graphics and HAL contracts, OCI image metadata, security, ADB, the kernel-evidence and rootless feasibility probe contracts, runtime qualification contracts and matrix-runner behaviour, and Go CLI tests.
 
 It does not download or compile AOSP.
 

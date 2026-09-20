@@ -22,7 +22,7 @@ To test another image:
 ROYD_IMAGE=example/royd:test ROYD_REPORT_OUTPUT=reference-host.md make runtime-reference-report
 ```
 
-The command runs both the single-instance and two-instance smoke tests and exits non-zero if either fails. The report is still written when a smoke test fails so that the failure evidence is preserved.
+The command first captures the versioned kernel evidence contract, then runs both the single-instance and two-instance smoke tests. It exits non-zero if kernel evidence capture or either smoke test fails. The report is still written on failure so that the evidence is preserved.
 
 ## Recorded data
 
@@ -37,7 +37,7 @@ The report includes:
 - cgroup mode
 - binderfs availability
 - `/dev/dri` presence
-- relevant kernel configuration when readable
+- versioned kernel evidence, including live Binder/cgroup/PSI/DRM state and relevant Kconfig values when readable
 - Docker version and Docker info
 - complete single-instance smoke-test output
 - complete two-instance smoke-test output
@@ -52,7 +52,7 @@ For support-oriented validation, prefer the higher-level bundle workflow after t
 make runtime-reference-qualify
 ```
 
-By default the bundle is written under `.work/reference-hosts/` and includes the host check, OCI image inspection, persisted runtime qualification result and detailed log, the captured runtime container logs and Docker inspect evidence, reference-host report, memory sweep, orchestration log, a versioned `manifest.env`, and `SHA256SUMS`. The default bundle deliberately does not run the expensive experimental capability-removal sweep. Enable that only while qualifying the experimental security mode:
+By default the bundle is written under `.work/reference-hosts/` and includes `kernel.env`, the host check, OCI image inspection, persisted runtime qualification result and detailed log, captured runtime container logs and Docker inspect evidence, reference-host report, memory sweep, orchestration log, a versioned `manifest.env`, and `SHA256SUMS`. The default bundle deliberately does not run the expensive experimental capability-removal sweep. Enable that only while qualifying the experimental security mode:
 
 ```sh
 ROYD_SECURITY_MODE=experimental \
@@ -75,9 +75,9 @@ Verify a collected bundle with:
 make runtime-reference-bundle-verify BUNDLE=evidence/15-x86_64-standard
 ```
 
-Verification checks every file listed in `SHA256SUMS`, requires the mandatory host/image/runtime/reference stages to have passed, requires runtime result format 4 plus successful container-evidence capture, and compares the recorded image-profile and security-policy identities with the current repository. A changed minimal-package policy or security policy therefore makes old evidence stale instead of silently reusable.
+Verification checks every file listed in `SHA256SUMS`, requires the mandatory kernel/host/image/runtime/reference stages to have passed, requires kernel evidence format 1 and runtime result format 4 plus successful container-evidence capture, and compares the recorded kernel contract, image-profile policy, and security-policy identities with the current repository. Changing any of those contracts therefore makes old evidence stale instead of silently reusable.
 
-A verified bundle is still evidence for one exact tuple and host. It is not by itself a support declaration. The support review must also confirm that the Android build evidence corresponds to the same image and that any published workload or hardware claims are represented by the collected evidence.
+A verified bundle is still evidence for one exact tuple and host. The kernel evidence records what the host exposed and configured, but it does not establish a minimum host configuration until successful boots provide comparative evidence. It is not by itself a support declaration. The support review must also confirm that the Android build evidence corresponds to the same image and that any published workload or hardware claims are represented by the collected evidence.
 
 ## Memory measurements
 

@@ -126,7 +126,13 @@ The image also carries a Docker health check covering Android boot completion, `
 
 Each container attempts to mount its own binderfs instance and allocate `binder`, `hwbinder`, and `vndbinder` with the repository-owned `royd-binder-alloc` helper. The devices are exposed at the conventional Android paths under `/dev`.
 
-The host kernel must provide Android Binder IPC and binderfs. royd does not install kernel modules or change the host distribution.
+The host kernel must provide Android Binder IPC and binderfs. royd does not install kernel modules or change the host distribution. Capture image-independent kernel evidence before the first build or boot attempt with:
+
+```sh
+make runtime-kernel-evidence
+```
+
+The output is machine-readable and is included automatically in reference-host qualification bundles. It records live kernel facilities and relevant Kconfig values when the host exposes a readable configuration.
 
 ## Runtime profiles
 

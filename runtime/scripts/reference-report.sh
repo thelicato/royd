@@ -32,25 +32,6 @@ capture() {
   printf '%s' "$status" >"$workdir/$name.status"
 }
 
-first_existing_kernel_config() {
-  kernel=$(uname -r)
-  for path in "/proc/config.gz" "/boot/config-$kernel" "/lib/modules/$kernel/build/.config"; do
-    if [ -r "$path" ]; then
-      printf '%s\n' "$path"
-      return 0
-    fi
-  done
-  return 1
-}
-
-read_kernel_config() {
-  path=$1
-  case "$path" in
-    *.gz) gzip -cd "$path" 2>/dev/null || true ;;
-    *) cat "$path" 2>/dev/null || true ;;
-  esac
-}
-
 format_command_result() {
   title=$1
   name=$2
@@ -62,17 +43,20 @@ format_command_result() {
   printf '\n```\n\n'
 }
 
+capture kernel env ROYD_KERNEL_EVIDENCE_OUTPUT="$workdir/kernel.env" "$script_dir/kernel-evidence.sh"
 capture docker_version docker version
 capture docker_info docker info
 capture smoke env ROYD_PROFILE="$profile" ROYD_SECURITY_MODE="$security_mode" "$script_dir/smoke-test.sh" "$image"
 capture multi env ROYD_PROFILE="$profile" ROYD_SECURITY_MODE="$security_mode" "$script_dir/multi-instance-test.sh" "$image"
 
-kernel_config_path=''
-if kernel_config_path=$(first_existing_kernel_config); then
-  read_kernel_config "$kernel_config_path" | grep -E '^(CONFIG_ANDROID_BINDER_IPC|CONFIG_ANDROID_BINDERFS|CONFIG_MEMCG|CONFIG_PSI|CONFIG_NAMESPACES|CONFIG_SECCOMP|CONFIG_DMABUF_HEAPS)=' >"$workdir/kernel-config.out" || true
-else
-  printf '%s\n' 'kernel configuration not readable from common locations' >"$workdir/kernel-config.out"
+if [ ! -f "$workdir/kernel.env" ]; then
+  cat >"$workdir/kernel.env" <<'KERNEL'
+ROYD_KERNEL_EVIDENCE_FORMAT=unavailable
+CONFIG_SOURCE=unavailable
+KERNEL
 fi
+kernel_config_path=$(sed -n 's/^CONFIG_SOURCE=//p' "$workdir/kernel.env" | tail -n 1)
+[ -n "$kernel_config_path" ] || kernel_config_path=unavailable
 
 if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
   cgroup_mode='v2'
@@ -146,9 +130,10 @@ report="$workdir/report.md"
   printf -- '- binderfs: `%s`\n' "$binderfs"
   printf -- '- GPU: `%s`\n' "$gpu_state"
   printf -- '- kernel config source: `%s`\n\n' "${kernel_config_path:-unavailable}"
-  printf '### Relevant kernel configuration\n\n'
+  printf '### Kernel evidence\n\n'
+  printf 'Capture exit status: `%s`\n\n' "$(cat "$workdir/kernel.status")"
   printf '```text\n'
-  cat "$workdir/kernel-config.out"
+  cat "$workdir/kernel.env"
   printf '```\n\n'
   format_command_result 'Docker version' docker_version
   format_command_result 'Docker info' docker_info
@@ -156,10 +141,10 @@ report="$workdir/report.md"
   format_command_result 'Single-instance smoke test' smoke
   format_command_result 'Two-instance smoke test' multi
   printf '## Interpretation\n\n'
-  if [ "$(cat "$workdir/smoke.status")" -eq 0 ] && [ "$(cat "$workdir/multi.status")" -eq 0 ]; then
-    printf 'Both repository runtime smoke tests passed on this host. This records a known-good result for the exact image, kernel, Docker configuration, and royd revision above.\n'
+  if [ "$(cat "$workdir/kernel.status")" -eq 0 ] && [ "$(cat "$workdir/smoke.status")" -eq 0 ] && [ "$(cat "$workdir/multi.status")" -eq 0 ]; then
+    printf 'Kernel evidence capture and both repository runtime smoke tests passed on this host. This records a known-good result for the exact image, kernel, Docker configuration, and royd revision above.\n'
   else
-    printf 'One or more runtime smoke tests failed. Review the captured output above before treating this host as compatible.\n'
+    printf 'Kernel evidence capture or one or more runtime smoke tests failed. Review the captured output above before treating this host as compatible.\n'
   fi
 } >"$report"
 
@@ -171,6 +156,6 @@ else
   printf 'Wrote reference-host report to %s\n' "$output"
 fi
 
-if [ "$(cat "$workdir/smoke.status")" -ne 0 ] || [ "$(cat "$workdir/multi.status")" -ne 0 ]; then
+if [ "$(cat "$workdir/kernel.status")" -ne 0 ] || [ "$(cat "$workdir/smoke.status")" -ne 0 ] || [ "$(cat "$workdir/multi.status")" -ne 0 ]; then
   exit 1
 fi

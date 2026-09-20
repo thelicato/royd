@@ -105,7 +105,7 @@ Direct Android debugging must remain available independently through ADB:
 adb -s localhost:5555 logcat
 ```
 
-Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android. For rootless feasibility without an Android image, run `make runtime-rootless-probe` and see [`docs/rootless.md`](docs/rootless.md).
+Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android. `make runtime-kernel-evidence` records the live kernel facilities and relevant Kconfig values used by reference-host qualification without requiring an Android image. For rootless feasibility, run `make runtime-rootless-probe` and see [`docs/rootless.md`](docs/rootless.md).
 
 The default graphics baseline is software-rendered with AOSP SwiftShader, so `/dev/dri` is not required. royd also has an experimental Android 10+ host GPU path using AOSP Mesa and minigbm with an explicit `/dev/dri` contract. Separate `graphical` and headless-oriented HAL profiles retain the minimum graphics stack required for Android framework boot. See [`docs/hardware-contract.md`](docs/hardware-contract.md), [`docs/graphics.md`](docs/graphics.md), [`docs/host-gpu.md`](docs/host-gpu.md), and [`docs/hal-profiles.md`](docs/hal-profiles.md).
 
@@ -156,6 +156,7 @@ make android-config-check
 make android-build-x86_64
 make android-package-x86_64
 make runtime-import-x86_64
+make runtime-kernel-evidence
 make runtime-rootless-probe
 make android-build-headless-x86_64
 make runtime-import-headless-x86_64

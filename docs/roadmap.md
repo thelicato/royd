@@ -67,6 +67,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
 
+The repository now captures a versioned kernel/Kconfig evidence file in every reference-host qualification bundle. The minimum-known-good item remains open until a successful real Android boot establishes which recorded configuration is actually sufficient.
+
 ## 6. Low-memory Android profiles
 
 - [x] Enable Android low-RAM behaviour with PSI-based `lmkd`.

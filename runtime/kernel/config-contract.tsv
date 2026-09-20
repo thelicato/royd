@@ -1,0 +1,11 @@
+# scope	level	option	description
+binder	required	CONFIG_ANDROID_BINDER_IPC	Android Binder IPC driver
+binder	required	CONFIG_ANDROID_BINDERFS	Private binderfs instances
+container	recorded	CONFIG_NAMESPACES	Linux namespace support
+memory	preferred	CONFIG_CGROUPS	Control group infrastructure
+memory	preferred	CONFIG_MEMCG	Memory control group controller
+memory	preferred	CONFIG_PSI	Pressure stall information
+security	recorded	CONFIG_SECCOMP	Seccomp support
+security	recorded	CONFIG_SECCOMP_FILTER	Seccomp BPF filters
+rootless	path-specific	CONFIG_USER_NS	User namespaces for the rootless candidate
+host-gpu	path-specific	CONFIG_DRM	Direct Rendering Manager core

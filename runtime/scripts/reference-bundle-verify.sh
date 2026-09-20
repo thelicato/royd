@@ -17,9 +17,9 @@ bundle=${1:-}
 ) >/dev/null
 
 get() { sed -n "s/^$1=//p" "$bundle/manifest.env" | tail -n 1; }
-[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 2 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
+[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 3 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
 [ "$(get RESULT_STATUS)" = pass ] || { printf '%s\n' 'error: reference bundle did not pass qualification' >&2; exit 1; }
-for stage in HOST_STATUS IMAGE_STATUS QUALIFICATION_STATUS REFERENCE_STATUS RUNTIME_LOG_STATUS RUNTIME_EVIDENCE_STATUS; do
+for stage in KERNEL_STATUS HOST_STATUS IMAGE_STATUS QUALIFICATION_STATUS REFERENCE_STATUS RUNTIME_LOG_STATUS RUNTIME_EVIDENCE_STATUS; do
   [ "$(get "$stage")" = pass ] || { printf 'error: required stage is not pass: %s\n' "$stage" >&2; exit 1; }
 done
 
@@ -34,6 +34,12 @@ expected_security_sha=$("$script_dir/security-profile.sh" "$security_mode" diges
 [ "$(get PROFILE_POLICY_SHA256)" = "$expected_policy_sha" ] || { printf '%s\n' 'error: bundle image-profile policy digest is stale' >&2; exit 1; }
 [ "$(get SECURITY_PROFILE)" = "$expected_security" ] || { printf '%s\n' 'error: bundle security profile is stale' >&2; exit 1; }
 [ "$(get SECURITY_PROFILE_SHA256)" = "$expected_security_sha" ] || { printf '%s\n' 'error: bundle security profile digest is stale' >&2; exit 1; }
+
+[ -f "$bundle/kernel.env" ] || { printf '%s\n' 'error: kernel.env is missing' >&2; exit 1; }
+kernel_get() { sed -n "s/^$1=//p" "$bundle/kernel.env" | tail -n 1; }
+[ "$(kernel_get ROYD_KERNEL_EVIDENCE_FORMAT)" = 1 ] || { printf '%s\n' 'error: kernel evidence format is stale' >&2; exit 1; }
+expected_kernel_contract_sha=$(sha256sum "$repo_root/runtime/kernel/config-contract.tsv" | awk '{print $1}')
+[ "$(kernel_get CONFIG_CONTRACT_SHA256)" = "$expected_kernel_contract_sha" ] || { printf '%s\n' 'error: kernel config contract is stale' >&2; exit 1; }
 
 [ -f "$bundle/runtime-result.env" ] || { printf '%s\n' 'error: runtime-result.env is missing' >&2; exit 1; }
 [ -f "$bundle/runtime-qualification.log" ] || { printf '%s\n' 'error: runtime-qualification.log is missing' >&2; exit 1; }

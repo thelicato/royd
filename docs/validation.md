@@ -56,6 +56,14 @@ The Make targets use `royd:dev`. The scripts can also be invoked directly with a
 
 ## Recording a reference host
 
+Before an image is available, capture the kernel-side baseline with:
+
+```sh
+make runtime-kernel-evidence
+```
+
+This does not qualify a host, but it makes the later boot evidence comparable and records unknown Kconfig values explicitly.
+
 A known-good result should record at least:
 
 ```text
@@ -63,7 +71,7 @@ royd commit:
 Android baseline:
 image architecture:
 host distribution:
-host kernel:
+host kernel and kernel-evidence contract:
 Docker version:
 cgroup mode:
 CPU:
