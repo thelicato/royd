@@ -17,7 +17,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a repository-owned local AOSP patch mechanism.
 - [x] Package the generated AOSP root and partition images into an OCI root filesystem.
 - [ ] Run the AOSP-resolved build-contract preflight on a clean synced checkout.
-- [ ] Build both royd products from a clean AOSP checkout.
+- [ ] Build both royd products from clean AOSP checkouts using the clean-build matrix.
 - [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
 - [ ] Record a known-good build and boot validation from the independent baseline.
 
@@ -92,7 +92,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add run, list, shell, logs, stop, and remove workflows.
 - [x] Keep command output transparent about Docker operations.
 - [x] Keep every core runtime workflow usable without the CLI.
-- [ ] Add ADB convenience commands after the independent runtime contract is validated.
+- [x] Add ADB convenience commands while keeping direct host ADB workflows available.
 
 ## Container hardware ownership
 
@@ -133,4 +133,6 @@ Implemented:
 - [x] Add a version and architecture compatibility matrix report.
 - [x] Add strict matrix mode for dedicated AOSP validation hosts.
 - [ ] Run the strict matrix against real synced Android 8.0 through 17 trees.
-- [ ] Add clean-build results to the compatibility matrix once dedicated build hosts are available.
+- [x] Add resumable clean-build orchestration and persistent per-tuple build results.
+- [x] Integrate clean-build and package evidence into the compatibility matrix.
+- [ ] Run the clean-build matrix on dedicated build hosts for Android 8.0 through 17.

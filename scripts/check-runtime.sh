@@ -37,7 +37,7 @@ test -f android/builder/Dockerfile.legacy
 test -f android/compat/legacy/product.mk
 test -f android/compat/transitional/product.mk
 test -f android/compat/modern/product.mk
-grep -Fq 'Android builder family test passed' android/scripts/builder-family-test.sh
+grep -Fq 'Android builder family and TTY tests passed' android/scripts/builder-family-test.sh
 grep -Fq 'ANDROID_PRODUCT_X86_64=royd_x86_64' android/baseline.env
 grep -Fq 'ANDROID_PRODUCT_ARM64=royd_arm64' android/baseline.env
 grep -Fq 'royd_x86_64.mk' android/royd/device/royd/AndroidProducts.mk
@@ -72,6 +72,13 @@ grep -Fq 'ANDROID_OPTIONAL_PARTITIONS' android/scripts/package.sh
 grep -Fq 'android-config-check' Makefile
 grep -Fq 'android-config-check-test' Makefile
 grep -Fq 'Android resolved build contract test passed' android/scripts/config-check-test.sh
+grep -Fq 'android-build-matrix' Makefile
+grep -Fq 'android-build-results-report' Makefile
+grep -Fq 'RESULT_STATUS' android/scripts/build-matrix.sh
+grep -Fq 'ROYD_BUILD_RESUME' android/scripts/build-matrix.sh
+grep -Fq 'ROYD_CLEAN_BUILD' android/scripts/build.sh
+grep -Fq 'ROYD_BUILDER_TTY' android/scripts/builder.sh
+grep -Fq 'Build `pass` is recorded only by the clean-build matrix runner' android/scripts/matrix-report.sh
 grep -Fq 'android-contract-test' Makefile
 ! grep -Fq 'aosp_x86_64.mk' android/royd/device/royd/royd_x86_64.mk
 ! grep -Fq 'aosp_arm64.mk' android/royd/device/royd/royd_arm64.mk

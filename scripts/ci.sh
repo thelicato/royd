@@ -21,6 +21,7 @@ run ./android/scripts/memory-compat-test.sh
 run ./android/scripts/graphics-contract-test.sh
 run ./android/scripts/hal-contract-test.sh
 run ./android/scripts/matrix-report-test.sh
+run ./android/scripts/build-matrix-test.sh
 run ./runtime/scripts/image-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/adb-contract-test.sh

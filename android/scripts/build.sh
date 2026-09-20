@@ -15,6 +15,11 @@ jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
 
+if [ "${ROYD_CLEAN_BUILD:-0}" = 1 ]; then
+  printf 'Removing previous Android build output for clean validation: %s/out\n' "$src"
+  rm -rf "$src/out"
+fi
+
 case "$arch" in
   x86_64)
     product=$ANDROID_PRODUCT_X86_64

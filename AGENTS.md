@@ -179,6 +179,7 @@ When a design decision changes, update this file if the decision is important en
 
 - Pinned Android versions: 8.0 through 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
 - CI model: `make ci` is the canonical lightweight repository suite. `make android-matrix-report` distinguishes configured Android metadata from resolved checks against locally synced AOSP trees. Missing trees are informational unless strict matrix mode is requested.
+- Clean-build validation: use `make android-build-matrix` on dedicated build hosts. Results are generated under `.work/build-results`, are resumable by default, and must remain separate from runtime support claims.
 
 The following decisions are currently agreed:
 
@@ -200,6 +201,7 @@ The following decisions are currently agreed:
 - Android customisation strategy: copy `android/royd/device/royd` and `android/royd/vendor/royd` into the synchronised AOSP tree, then apply only repository-owned patches from `android/patches`.
 - Android compatibility families: `legacy` for 8.0/8.1/9, `transitional` for 10, and `modern` for 11+. Version metadata selects the builder, partition set, product fragment, board fragment, and vendor properties.
 - Legacy Android builder: Android 8.0 through 10 use an Ubuntu 18.04 builder with OpenJDK 8 and Python 2/3; Android 11 onward uses the modern builder.
+- Android builder TTY policy: `ROYD_BUILDER_TTY=auto` is the default, allocating an interactive TTY only when the caller is interactive. Dedicated CI and matrix validation use `never`.
 - Legacy memory policy: Android 8.0 through 10 install a repository-owned `libcutils` ashmem API backend backed by sealed memfds. Never require the removed host `ashmem_linux` module. Keep these releases in configured status until direct-ioctl compatibility and real workloads are validated.
 - Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.

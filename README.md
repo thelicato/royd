@@ -145,6 +145,8 @@ Useful development entry points include:
 ```sh
 make ci
 make android-matrix-report
+make android-build-matrix-test
+make android-build-results-report
 make check
 make android-version-test
 make android-memory-compat-test
@@ -168,6 +170,6 @@ make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md).
+ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

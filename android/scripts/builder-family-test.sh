@@ -16,7 +16,7 @@ run_case() {
   version=$1
   expected=$2
   : > "$tmp/docker.log"
-  PATH="$tmp/bin:$PATH" ROYD_DOCKER_LOG="$tmp/docker.log" ROYD_WORK_DIR="$tmp/work" ROYD_ANDROID_VERSION="$version" "$script_dir/builder.sh" true
+  PATH="$tmp/bin:$PATH" ROYD_DOCKER_LOG="$tmp/docker.log" ROYD_WORK_DIR="$tmp/work" ROYD_ANDROID_VERSION="$version" ROYD_BUILDER_TTY=never "$script_dir/builder.sh" true
   grep -Fq -- "-f $repo_root/android/builder/$expected" "$tmp/docker.log" || {
     printf 'error: Android %s did not select %s\n' "$version" "$expected" >&2
     exit 1
@@ -28,4 +28,19 @@ run_case 8.1 Dockerfile.legacy
 run_case 10 Dockerfile.legacy
 run_case 11 Dockerfile
 run_case 17 Dockerfile
-printf '%s\n' 'Android builder family test passed'
+
+: > "$tmp/docker.log"
+PATH="$tmp/bin:$PATH" ROYD_DOCKER_LOG="$tmp/docker.log" ROYD_WORK_DIR="$tmp/work" ROYD_ANDROID_VERSION=15 ROYD_BUILDER_TTY=always "$script_dir/builder.sh" true
+grep -Fq -- 'run --rm -it --privileged' "$tmp/docker.log" || {
+  printf '%s\n' 'error: ROYD_BUILDER_TTY=always did not request an interactive TTY' >&2
+  exit 1
+}
+
+: > "$tmp/docker.log"
+PATH="$tmp/bin:$PATH" ROYD_DOCKER_LOG="$tmp/docker.log" ROYD_WORK_DIR="$tmp/work" ROYD_ANDROID_VERSION=15 ROYD_BUILDER_TTY=never "$script_dir/builder.sh" true
+if grep -Fq -- 'run --rm -it' "$tmp/docker.log"; then
+  printf '%s\n' 'error: ROYD_BUILDER_TTY=never still requested an interactive TTY' >&2
+  exit 1
+fi
+
+printf '%s\n' 'Android builder family and TTY tests passed'

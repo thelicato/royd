@@ -40,6 +40,27 @@ command -v docker >/dev/null 2>&1 || {
 
 mkdir -p "$work_dir"
 printf 'Using %s Android builder for Android %s\n' "$family" "$android_version"
+
+tty_mode=${ROYD_BUILDER_TTY:-auto}
+case "$tty_mode" in
+  auto)
+    if [ -t 0 ] && [ -t 1 ]; then
+      tty_args='-it'
+    else
+      tty_args=
+    fi
+    ;;
+  always)
+    tty_args='-it'
+    ;;
+  never)
+    tty_args=
+    ;;
+  *)
+    printf 'error: unsupported ROYD_BUILDER_TTY value: %s; expected auto, always or never\n' "$tty_mode" >&2
+    exit 1
+    ;;
+esac
 docker build \
   -f "$dockerfile" \
   --build-arg UID="$(id -u)" \
@@ -47,7 +68,7 @@ docker build \
   -t "$image" \
   "$android_dir/builder"
 
-docker run --rm -it \
+docker run --rm $tty_args \
   --privileged \
   -e ROYD_ANDROID_VERSION="$android_version" \
   -v "$repo_root:/workspace/royd" \
