@@ -60,9 +60,14 @@ for version in $versions; do
     log_file=${result_file%.env}.log
     expected_profile_policy=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-policy.sh" "$image_profile")
     expected_profile_policy_sha256=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
+    evidence_dir=${result_file%.env}.evidence
     if [ "$resume" = 1 ] \
-      && [ "$(runtime_result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 3 ] \
+      && [ "$(runtime_result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 4 ] \
       && [ "$(runtime_result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$(runtime_result_get "$result_file" CONTAINER_EVIDENCE_STATUS 2>/dev/null || true)" = pass ] \
+      && [ -f "$evidence_dir/container-inspect.json" ] \
+      && [ -f "$evidence_dir/container.log" ] \
+      && [ -f "$evidence_dir/state.txt" ] \
       && [ "$(runtime_result_get "$result_file" PROFILE_POLICY 2>/dev/null || true)" = "$expected_profile_policy" ] \
       && [ "$(runtime_result_get "$result_file" PROFILE_POLICY_SHA256 2>/dev/null || true)" = "$expected_profile_policy_sha256" ] \
       && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE 2>/dev/null || true)" = "$security_profile" ] \

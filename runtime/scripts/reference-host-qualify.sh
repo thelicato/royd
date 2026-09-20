@@ -82,6 +82,8 @@ qualification_status=not-run
 reference_status=not-run
 memory_status=not-run
 capability_status=not-run
+runtime_log_status=not-run
+runtime_evidence_status=not-run
 
 run_stage host env ROYD_SECURITY_MODE="$security_mode" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$host_runner"
 run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$image_runner" "$arch" "$image_profile" "$image"
@@ -113,17 +115,38 @@ runtime_result=${ROYD_RUNTIME_RESULT_FILE:-}
 if [ -z "$runtime_result" ]; then
   runtime_result="$work_root/runtime-results/$(runtime_result_key "$android_version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")"
 fi
+runtime_log=${ROYD_RUNTIME_LOG_FILE:-${runtime_result%.env}.log}
+runtime_evidence=${ROYD_RUNTIME_EVIDENCE_DIR:-${runtime_result%.env}.evidence}
 if [ -f "$runtime_result" ]; then
-  cp "$runtime_result" "$output/runtime-result.env"
+  [ "$runtime_result" = "$output/runtime-result.env" ] || cp "$runtime_result" "$output/runtime-result.env"
 else
   printf 'warning: runtime result was not produced: %s\n' "$runtime_result" >> "$log"
   qualification_status=fail
   overall=fail
 fi
+if [ -f "$runtime_log" ]; then
+  [ "$runtime_log" = "$output/runtime-qualification.log" ] || cp "$runtime_log" "$output/runtime-qualification.log"
+  runtime_log_status=pass
+else
+  printf 'warning: runtime qualification log was not produced: %s\n' "$runtime_log" >> "$log"
+  runtime_log_status=fail
+  overall=fail
+fi
+if [ -f "$runtime_evidence/container-inspect.json" ] && [ -f "$runtime_evidence/container.log" ] && [ -f "$runtime_evidence/state.txt" ]; then
+  if [ "$runtime_evidence" != "$output/runtime-evidence" ]; then
+    mkdir -p "$output/runtime-evidence"
+    cp "$runtime_evidence/container-inspect.json" "$runtime_evidence/container.log" "$runtime_evidence/state.txt" "$output/runtime-evidence/"
+  fi
+  runtime_evidence_status=pass
+else
+  printf 'warning: runtime container evidence was incomplete: %s\n' "$runtime_evidence" >> "$log"
+  runtime_evidence_status=fail
+  overall=fail
+fi
 
 ended=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$output/manifest.env" <<MANIFEST
-ROYD_REFERENCE_BUNDLE_FORMAT=1
+ROYD_REFERENCE_BUNDLE_FORMAT=2
 RESULT_STATUS=$overall
 STARTED_AT=$started
 FINISHED_AT=$ended
@@ -146,6 +169,8 @@ QUALIFICATION_STATUS=$qualification_status
 REFERENCE_STATUS=$reference_status
 MEMORY_STATUS=$memory_status
 CAPABILITY_SWEEP_STATUS=$capability_status
+RUNTIME_LOG_STATUS=$runtime_log_status
+RUNTIME_EVIDENCE_STATUS=$runtime_evidence_status
 MANIFEST
 
 (

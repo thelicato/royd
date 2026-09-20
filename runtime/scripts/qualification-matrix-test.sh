@@ -16,7 +16,7 @@ if [ "${MOCK_FAIL_ARCH:-}" = "$ROYD_QUALIFY_ARCH" ]; then
   result=fail
 fi
 cat > "$ROYD_RUNTIME_RESULT_FILE" <<RESULT
-RESULT_FORMAT=3
+RESULT_FORMAT=4
 ANDROID_VERSION=$ROYD_ANDROID_VERSION
 ARCH=$ROYD_QUALIFY_ARCH
 IMAGE_PROFILE=$ROYD_ANDROID_PROFILE
@@ -37,8 +37,14 @@ GRAPHICS_STATUS=$result
 LOGS_STATUS=$result
 ADB_STATUS=$result
 BINDER_ISOLATION_STATUS=$result
+CONTAINER_EVIDENCE_STATUS=$result
 RESULT_STATUS=$result
 RESULT
+evidence_dir=${ROYD_RUNTIME_EVIDENCE_DIR:-${ROYD_RUNTIME_RESULT_FILE%.env}.evidence}
+mkdir -p "$evidence_dir"
+printf '%s\n' '[{}]' > "$evidence_dir/container-inspect.json"
+printf '%s\n' 'mock container log' > "$evidence_dir/container.log"
+printf '%s\n' 'status=running' > "$evidence_dir/state.txt"
 : > "$ROYD_RUNTIME_LOG_FILE"
 [ "$result" = pass ]
 MOCK
@@ -53,7 +59,7 @@ ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
 MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 2 ]
-grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$tmp/report.md"
+grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$tmp/report.md"
 
 # Resume must skip already-passing tuples.
 ROYD_QUALIFY_VERSIONS=15 \
@@ -65,6 +71,20 @@ MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 2 ]
 
+# Missing companion container evidence must invalidate resume state.
+rm -f "$tmp/results/15/x86_64-standard-graphical-privileged.evidence/container.log"
+ROYD_QUALIFY_VERSIONS=15 \
+ROYD_QUALIFY_ARCHES=x86_64 \
+ROYD_QUALIFY_RUNNER="$tmp/runner" \
+ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
+ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
+MOCK_CALLS="$tmp/calls" \
+"$script_dir/qualification-matrix.sh" >/dev/null
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 3 ] || {
+  printf '%s\n' 'error: missing container evidence did not invalidate runtime qualification resume state' >&2
+  exit 1
+}
+
 # A changed package-policy digest must invalidate a passing runtime result.
 sed -i 's/^PROFILE_POLICY_SHA256=.*/PROFILE_POLICY_SHA256=stale/' "$tmp/results/15/x86_64-standard-graphical-privileged.env"
 ROYD_QUALIFY_VERSIONS=15 \
@@ -74,7 +94,7 @@ ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
 ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
 MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
-[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 3 ] || {
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 4 ] || {
   printf '%s\n' 'error: changed image-profile policy did not invalidate runtime qualification resume state' >&2
   exit 1
 }
@@ -88,7 +108,7 @@ ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
 ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
 MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
-[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 4 ] || {
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 5 ] || {
   printf '%s\n' 'error: changed security profile did not invalidate runtime qualification resume state' >&2
   exit 1
 }

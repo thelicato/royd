@@ -103,9 +103,15 @@ for version in $("$script_dir/version-list.sh"); do
       runtime_format=$(runtime_result_get "$runtime_file" RESULT_FORMAT || printf unknown)
       recorded_security_profile=$(runtime_result_get "$runtime_file" SECURITY_PROFILE || printf unknown)
       recorded_security_profile_sha256=$(runtime_result_get "$runtime_file" SECURITY_PROFILE_SHA256 || printf unknown)
-      if [ "$runtime_format" != 3 ] \
+      recorded_container_evidence=$(runtime_result_get "$runtime_file" CONTAINER_EVIDENCE_STATUS || printf unknown)
+      runtime_evidence_dir=${runtime_file%.env}.evidence
+      if [ "$runtime_format" != 4 ] \
         || [ "$recorded_security_profile" != "$expected_security_profile" ] \
-        || [ "$recorded_security_profile_sha256" != "$expected_security_profile_sha256" ]; then
+        || [ "$recorded_security_profile_sha256" != "$expected_security_profile_sha256" ] \
+        || [ "$recorded_container_evidence" != pass ] \
+        || [ ! -f "$runtime_evidence_dir/container-inspect.json" ] \
+        || [ ! -f "$runtime_evidence_dir/container.log" ] \
+        || [ ! -f "$runtime_evidence_dir/state.txt" ]; then
         runtime_state=stale
         row_status=runtime-stale
       else

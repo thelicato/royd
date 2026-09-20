@@ -3,6 +3,8 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+# shellcheck disable=SC1091
+. "$script_dir/runtime-result-lib.sh"
 bundle=${1:-}
 [ -n "$bundle" ] || { printf '%s\n' 'usage: reference-bundle-verify.sh BUNDLE_DIR' >&2; exit 2; }
 [ -d "$bundle" ] || { printf 'error: bundle directory not found: %s\n' "$bundle" >&2; exit 2; }
@@ -15,9 +17,9 @@ bundle=${1:-}
 ) >/dev/null
 
 get() { sed -n "s/^$1=//p" "$bundle/manifest.env" | tail -n 1; }
-[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 1 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
+[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 2 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
 [ "$(get RESULT_STATUS)" = pass ] || { printf '%s\n' 'error: reference bundle did not pass qualification' >&2; exit 1; }
-for stage in HOST_STATUS IMAGE_STATUS QUALIFICATION_STATUS REFERENCE_STATUS; do
+for stage in HOST_STATUS IMAGE_STATUS QUALIFICATION_STATUS REFERENCE_STATUS RUNTIME_LOG_STATUS RUNTIME_EVIDENCE_STATUS; do
   [ "$(get "$stage")" = pass ] || { printf 'error: required stage is not pass: %s\n' "$stage" >&2; exit 1; }
 done
 
@@ -34,4 +36,10 @@ expected_security_sha=$("$script_dir/security-profile.sh" "$security_mode" diges
 [ "$(get SECURITY_PROFILE_SHA256)" = "$expected_security_sha" ] || { printf '%s\n' 'error: bundle security profile digest is stale' >&2; exit 1; }
 
 [ -f "$bundle/runtime-result.env" ] || { printf '%s\n' 'error: runtime-result.env is missing' >&2; exit 1; }
+[ -f "$bundle/runtime-qualification.log" ] || { printf '%s\n' 'error: runtime-qualification.log is missing' >&2; exit 1; }
+[ -f "$bundle/runtime-evidence/container-inspect.json" ] || { printf '%s\n' 'error: runtime container inspect evidence is missing' >&2; exit 1; }
+[ -f "$bundle/runtime-evidence/container.log" ] || { printf '%s\n' 'error: runtime container log evidence is missing' >&2; exit 1; }
+[ -f "$bundle/runtime-evidence/state.txt" ] || { printf '%s\n' 'error: runtime container state evidence is missing' >&2; exit 1; }
+[ "$(runtime_result_get "$bundle/runtime-result.env" RESULT_FORMAT || true)" = 4 ] || { printf '%s\n' 'error: runtime result format is stale' >&2; exit 1; }
+[ "$(runtime_result_get "$bundle/runtime-result.env" CONTAINER_EVIDENCE_STATUS || true)" = pass ] || { printf '%s\n' 'error: runtime container evidence did not pass' >&2; exit 1; }
 printf 'Reference-host evidence bundle verified: %s\n' "$bundle"

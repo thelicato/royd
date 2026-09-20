@@ -66,6 +66,10 @@ BUILD_STATUS=pass
 PACKAGE_STATUS=pass
 RESULT_STATUS=pass
 RESULT
+mkdir -p "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.evidence"
+printf '%s\n' '[{}]' > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.evidence/container-inspect.json"
+printf '%s\n' 'mock container log' > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.evidence/container.log"
+printf '%s\n' 'status=running' > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.evidence/state.txt"
 ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-report.sh" >/dev/null
 grep -Fq '| 15 | `android-15.0.0_r36` | modern | modern | x86_64 | present | pass | pass | pass | not-run | package-validated |' "$report"
 
@@ -73,7 +77,7 @@ mkdir -p "$tmp/runtime-results/15"
 security_profile=$($repo_root/runtime/scripts/security-profile.sh privileged id)
 security_profile_sha256=$($repo_root/runtime/scripts/security-profile.sh privileged digest)
 cat > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env" <<RESULT
-RESULT_FORMAT=3
+RESULT_FORMAT=4
 ANDROID_VERSION=15
 ARCH=x86_64
 IMAGE_PROFILE=standard
@@ -81,6 +85,7 @@ HAL_PROFILE=graphical
 SECURITY_MODE=privileged
 SECURITY_PROFILE=$security_profile
 SECURITY_PROFILE_SHA256=$security_profile_sha256
+CONTAINER_EVIDENCE_STATUS=pass
 RESULT_STATUS=pass
 RESULT
 ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-report.sh" >/dev/null

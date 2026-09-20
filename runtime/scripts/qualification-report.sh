@@ -20,15 +20,15 @@ graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 
 render() {
   printf '%s\n\n' '# royd runtime qualification results'
-  printf '%s\n\n' 'A passing row records successful host, image, boot, Docker health, runtime, security, graphics, container-log, ADB, and Binder-isolation validation for that exact tuple.'
+  printf '%s\n\n' 'A passing row records successful host, image, boot, Docker health, runtime, security, graphics, container-log, ADB, Binder-isolation, and persisted container-evidence validation for that exact tuple.'
   printf 'Image profile: `%s`\n\n' "$image_profile"
   printf 'HAL profile: `%s`\n\n' "$hal_profile"
   printf 'Security mode: `%s`\n\n' "$security_mode"
   printf 'Security profile: `%s`\n\n' "$security_profile"
   printf 'Security profile SHA-256: `%s`\n\n' "$security_profile_sha256"
   printf 'Graphics backend: `%s`\n\n' "$graphics_backend"
-  printf '%s\n' '| Android | Arch | Host | Image | Boot | Health | Runtime | Security | Security evidence | Graphics | Logs | ADB | Binder isolation | Result |'
-  printf '%s\n' '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
+  printf '%s\n' '| Android | Arch | Host | Image | Boot | Health | Runtime | Security | Security evidence | Graphics | Logs | ADB | Binder isolation | Container evidence | Result |'
+  printf '%s\n' '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
   for version in $("$repo_root/android/scripts/version-list.sh"); do
     for arch in x86_64 arm64; do
       file="$results_dir/$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")"
@@ -44,13 +44,14 @@ render() {
         logs=$(runtime_result_get "$file" LOGS_STATUS || printf unknown)
         adb=$(runtime_result_get "$file" ADB_STATUS || printf unknown)
         binder=$(runtime_result_get "$file" BINDER_ISOLATION_STATUS || printf unknown)
+        evidence=$(runtime_result_get "$file" CONTAINER_EVIDENCE_STATUS || printf unknown)
         result=$(runtime_result_get "$file" RESULT_STATUS || printf unknown)
       else
         host=not-run; image=not-run; boot=not-run; health=not-run; runtime=not-run
-        security=not-run; security_evidence=not-run; graphics=not-run; logs=not-run; adb=not-run; binder=not-run; result=not-run
+        security=not-run; security_evidence=not-run; graphics=not-run; logs=not-run; adb=not-run; binder=not-run; evidence=not-run; result=not-run
       fi
-      printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
-        "$version" "$arch" "$host" "$image" "$boot" "$health" "$runtime" "$security" "$security_evidence" "$graphics" "$logs" "$adb" "$binder" "$result"
+      printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+        "$version" "$arch" "$host" "$image" "$boot" "$health" "$runtime" "$security" "$security_evidence" "$graphics" "$logs" "$adb" "$binder" "$evidence" "$result"
     done
   done
 }

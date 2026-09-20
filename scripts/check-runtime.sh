@@ -239,7 +239,9 @@ grep -Fq 'graphics_mode=host-gpu' runtime/scripts/assert-runtime.sh || {
 }
 grep -Fq 'runtime-reference-qualify' Makefile
 grep -Fq 'runtime-reference-bundle-verify' Makefile
-grep -Fq 'ROYD_REFERENCE_BUNDLE_FORMAT=1' runtime/scripts/reference-host-qualify.sh
+grep -Fq 'ROYD_REFERENCE_BUNDLE_FORMAT=2' runtime/scripts/reference-host-qualify.sh
 grep -Fq 'SHA256SUMS' runtime/scripts/reference-host-qualify.sh
 grep -Fq 'PROFILE_POLICY_SHA256' runtime/scripts/reference-bundle-verify.sh
 grep -Fq 'SECURITY_PROFILE_SHA256' runtime/scripts/reference-bundle-verify.sh
+grep -Fq 'CONTAINER_EVIDENCE_STATUS' runtime/scripts/qualification.sh
+grep -Fq 'runtime-evidence/container.log' runtime/scripts/reference-bundle-verify.sh

@@ -37,6 +37,7 @@ work_root=${ROYD_WORK_DIR:-$repo_root/.work}
 results_dir=${ROYD_RUNTIME_RESULTS_DIR:-$work_root/runtime-results}
 result_file=${ROYD_RUNTIME_RESULT_FILE:-$results_dir/$(runtime_result_key "$android_version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")}
 log_file=${ROYD_RUNTIME_LOG_FILE:-${result_file%.env}.log}
+evidence_dir=${ROYD_RUNTIME_EVIDENCE_DIR:-${result_file%.env}.evidence}
 container=${ROYD_QUALIFY_CONTAINER:-royd-qualify-$$}
 volume=${container}-data
 status=0
@@ -45,7 +46,8 @@ started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 case "$arch" in x86_64|arm64) ;; *) printf 'error: unsupported qualification architecture: %s\n' "$arch" >&2; exit 2 ;; esac
 case "$require_adb" in 0|1) ;; *) printf '%s\n' 'error: ROYD_QUALIFY_REQUIRE_ADB must be 0 or 1' >&2; exit 2 ;; esac
 
-mkdir -p "$(dirname -- "$result_file")" "$(dirname -- "$log_file")"
+mkdir -p "$(dirname -- "$result_file")" "$(dirname -- "$log_file")" "$evidence_dir"
+rm -f "$evidence_dir/container-inspect.json" "$evidence_dir/container.log" "$evidence_dir/state.txt"
 : > "$log_file"
 
 log() {
@@ -91,6 +93,7 @@ graphics_status=not-run
 logs_status=not-run
 adb_status=not-run
 binder_isolation_status=not-run
+container_evidence_status=not-run
 image_id=unknown
 adb_endpoint=not-run
 docker_privileged=unknown
@@ -181,6 +184,9 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
     status=1
     log '<== start: fail'
   fi
+  if docker inspect "$container" >/dev/null 2>&1; then
+    run_stage container_evidence "$script_dir/container-evidence.sh" "$container" "$evidence_dir"
+  fi
 else
   status=1
 fi
@@ -201,7 +207,7 @@ else
   result_status=fail
 fi
 runtime_result_write "$result_file" \
-  'RESULT_FORMAT=3' \
+  'RESULT_FORMAT=4' \
   "ANDROID_VERSION=$android_version" \
   "AOSP_TAG=$AOSP_TAG" \
   "ARCH=$arch" \
@@ -237,6 +243,7 @@ runtime_result_write "$result_file" \
   "ADB_STATUS=$adb_status" \
   "ADB_ENDPOINT=$adb_endpoint" \
   "BINDER_ISOLATION_STATUS=$binder_isolation_status" \
+  "CONTAINER_EVIDENCE_STATUS=$container_evidence_status" \
   "RESULT_STATUS=$result_status" \
   "STARTED_AT=$started" \
   "FINISHED_AT=$finished"
@@ -244,4 +251,5 @@ runtime_result_write "$result_file" \
 log "Runtime qualification result: $result_status"
 log "Result: $result_file"
 log "Log: $log_file"
+log "Container evidence: $evidence_dir"
 exit "$status"

@@ -41,7 +41,8 @@ The gate records these stages independently:
 8. container logcat forwarding
 9. SurfaceFlinger service and `dumpsys SurfaceFlinger`
 10. host-side ADB connectivity and `adb logcat`
-11. two-container Binder isolation
+11. full timestamped container logs plus Docker inspect and state evidence
+12. two-container Binder isolation
 
 The Binder isolation stage starts two disposable Android containers and compares the kernel character-device identities returned by the repository-owned `royd-binder-info` helper. Each private binderfs mount must expose different `binder-control`, `binder`, `hwbinder`, and `vndbinder` device identities. Linux binderfs defines devices in separate binderfs instances as independent Binder contexts, so this gives royd a concrete runtime check that each container received a distinct private device set.
 
@@ -52,9 +53,10 @@ Results are stored under:
 ```text
 .work/runtime-results/<android>/<arch>-<image-profile>-<hal-profile>-<security-mode>.env
 .work/runtime-results/<android>/<arch>-<image-profile>-<hal-profile>-<security-mode>.log
+.work/runtime-results/<android>/<arch>-<image-profile>-<hal-profile>-<security-mode>.evidence/
 ```
 
-The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains the detailed command output needed to diagnose a failure.
+The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains detailed stage output. The companion evidence directory persists `container.log` from full timestamped `docker logs`, `container-inspect.json`, and `state.txt` before the qualification container is removed. This makes boot-watchdog and early-init diagnostics reviewable after a failed run.
 
 Qualify several already-imported images with the resumable matrix runner:
 
@@ -97,4 +99,4 @@ Qualification containers and `/data` volumes are disposable and removed when the
 
 ## Policy provenance
 
-Runtime qualification results use result format 3. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, and `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`. Resume mode accepts previous evidence only when both policy identities still match the repository. Package-policy or security-policy changes therefore invalidate stale runtime qualification automatically.
+Runtime qualification results use result format 4. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, and `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`. Result format 4 also requires successful persisted container-evidence capture for a passing qualification. Resume mode accepts previous evidence only when both policy identities still match the repository. Package-policy or security-policy changes therefore invalidate stale runtime qualification automatically.

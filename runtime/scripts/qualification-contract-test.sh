@@ -16,7 +16,7 @@ key=$(runtime_result_key 15 x86_64 standard graphical privileged)
 [ "$key" = '15/x86_64-standard-graphical-privileged.env' ]
 file="$tmp/runtime-results/$key"
 runtime_result_write "$file" \
-  'RESULT_FORMAT=3' \
+  'RESULT_FORMAT=4' \
   'ANDROID_VERSION=15' \
   'ARCH=x86_64' \
   'IMAGE_PROFILE=standard' \
@@ -37,12 +37,13 @@ runtime_result_write "$file" \
   'LOGS_STATUS=pass' \
   'ADB_STATUS=pass' \
   'BINDER_ISOLATION_STATUS=pass' \
+  'CONTAINER_EVIDENCE_STATUS=pass' \
   'RESULT_STATUS=pass'
 [ "$(runtime_result_get "$file" RESULT_STATUS)" = pass ]
 
 report="$tmp/runtime.md"
 ROYD_RUNTIME_RESULTS_DIR="$tmp/runtime-results" ROYD_RUNTIME_REPORT_OUTPUT="$report" "$script_dir/qualification-report.sh" >/dev/null
-grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$report"
+grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$report"
 
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/Android.bp"
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/royd.mk"
@@ -71,5 +72,7 @@ grep -Fq '/dev/zero=' "$tmp/binder-info.out"
 
 [ "$(ROYD_HAL_PROFILE=graphical "$script_dir/default-runtime-profile.sh")" = default ]
 [ "$(ROYD_HAL_PROFILE=headless "$script_dir/default-runtime-profile.sh")" = headless ]
+grep -Fq 'container-evidence.sh' "$script_dir/qualification.sh"
+grep -Fq 'CONTAINER_EVIDENCE_STATUS=' "$script_dir/qualification.sh"
 
 printf '%s\n' 'Runtime qualification contract test passed'
