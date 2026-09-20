@@ -51,6 +51,7 @@ assert_property ro.hardware.egl "$egl_hal"
 assert_property ro.hardware.hwcomposer default
 assert_property vendor.royd.host.memfd available
 assert_property vendor.royd.display.ready 1
+assert_property vendor.royd.boot_watchdog complete
 
 for display_property in width height dpi fps; do
   value=$(docker exec "$container" getprop "vendor.royd.display.$display_property" 2>/dev/null | tr -d '\r')
@@ -88,6 +89,16 @@ docker logs "$container" 2>&1 | grep -Fq "$readiness" || {
 
 docker logs "$container" 2>&1 | grep -Fq '[royd] display: early configuration' || {
   printf 'error: early display diagnostic is missing from logs for %s\n' "$container" >&2
+  exit 1
+}
+
+docker logs "$container" 2>&1 | grep -Fq '[royd] boot-watchdog: armed timeout=' || {
+  printf 'error: boot watchdog arm diagnostic is missing from logs for %s\n' "$container" >&2
+  exit 1
+}
+
+docker logs "$container" 2>&1 | grep -Fq '[royd] boot-watchdog: boot completed after ' || {
+  printf 'error: boot watchdog completion diagnostic is missing from logs for %s\n' "$container" >&2
   exit 1
 }
 

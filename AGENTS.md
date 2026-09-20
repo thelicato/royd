@@ -229,3 +229,5 @@ The following decisions are currently agreed:
 
 
 Android version validation is an explicit remaining project task until every pinned version passes clean x86_64 and arm64 builds, OCI packaging, and runtime smoke tests.
+
+- Failed-boot diagnostics must remain available through container stdout without depending on ADB. The boot watchdog is diagnostic-only and must not reboot or kill Android.

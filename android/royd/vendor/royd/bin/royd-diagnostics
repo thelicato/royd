@@ -1,0 +1,26 @@
+#!/system/bin/sh
+stdout=${ROYD_DIAGNOSTICS_STDOUT:-/proc/1/fd/1}
+log() { printf '[royd] diagnostics: %s\n' "$*" > "$stdout"; }
+section() { printf '[royd] diagnostics: --- %s ---\n' "$1" > "$stdout"; }
+run() { "$@" >> "$stdout" 2>&1 || true; }
+section summary
+log "boot_completed=$(getprop sys.boot_completed) bootanim=$(getprop init.svc.bootanim) surfaceflinger=$(getprop init.svc.surfaceflinger) adbd=$(getprop init.svc.adbd)"
+log "graphics=$(getprop vendor.royd.graphics.mode) display_ready=$(getprop vendor.royd.display.ready) memfd=$(getprop vendor.royd.host.memfd)"
+section royd-properties
+getprop 2>/dev/null | grep -E '(^\[royd\.|^\[vendor\.royd\.|^\[ro\.vendor\.royd\.|^\[sys\.boot_completed\]|^\[init\.svc\.)' >> "$stdout" 2>&1 || true
+section binder
+run ls -l /dev/binder /dev/hwbinder /dev/vndbinder /dev/binderfs
+section mounts
+grep -E 'binder|cgroup|tmpfs' /proc/mounts >> "$stdout" 2>&1 || true
+section pid1
+run cat /proc/1/status
+section memory
+run cat /proc/meminfo
+if [ -r /proc/pressure/memory ]; then run cat /proc/pressure/memory; fi
+section processes
+run ps -A
+section services
+run service list
+section recent-logcat
+logcat -d -b all -t 200 >> "$stdout" 2>&1 || true
+log 'snapshot complete'

@@ -52,6 +52,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add checksummed reference-host qualification bundles with policy-staleness and tamper verification.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
 - [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
+- [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.
 - [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.
 - [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 

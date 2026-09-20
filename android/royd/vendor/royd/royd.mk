@@ -1,3 +1,5 @@
+PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.boot_watchdog_timeout=120
+
 PRODUCT_PACKAGES += \
     royd-binder-alloc \
     royd-binder-info \
@@ -11,6 +13,8 @@ PRODUCT_COPY_FILES += \
     vendor/royd/bin/royd-hardware-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-hardware-setup \
     vendor/royd/bin/royd-graphics-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-graphics-setup \
     vendor/royd/bin/royd-health:$(TARGET_COPY_OUT_VENDOR)/bin/royd-health \
+    vendor/royd/bin/royd-diagnostics:$(TARGET_COPY_OUT_VENDOR)/bin/royd-diagnostics \
+    vendor/royd/bin/royd-boot-watchdog:$(TARGET_COPY_OUT_VENDOR)/bin/royd-boot-watchdog \
     vendor/royd/profile-packages.txt:$(TARGET_COPY_OUT_VENDOR)/etc/royd-profile-packages.txt
 
 $(call inherit-product, vendor/royd/version.mk)

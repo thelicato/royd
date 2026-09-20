@@ -17,3 +17,13 @@ on property:init.svc.logd=running
 on post-fs-data
     setprop service.adb.tcp.port 5555
     start adbd
+
+service royd-boot-watchdog /vendor/bin/royd-boot-watchdog
+    class core
+    user root
+    group root log
+    disabled
+    oneshot
+
+on property:init.svc.zygote=running
+    start royd-boot-watchdog

@@ -1,0 +1,22 @@
+#!/system/bin/sh
+stdout=${ROYD_DIAGNOSTICS_STDOUT:-/proc/1/fd/1}
+interval=${ROYD_BOOT_WATCHDOG_INTERVAL:-5}
+timeout=${ROYD_BOOT_WATCHDOG_TIMEOUT:-$(getprop ro.vendor.royd.boot_watchdog_timeout)}
+[ -n "$timeout" ] || timeout=120
+diagnostics=${ROYD_DIAGNOSTICS_BIN:-/vendor/bin/royd-diagnostics}
+case "$timeout:$interval" in *[!0-9:]*) timeout=120; interval=5;; esac
+elapsed=0
+printf '[royd] boot-watchdog: armed timeout=%ss\n' "$timeout" > "$stdout"
+while [ "$elapsed" -lt "$timeout" ]; do
+  if [ "$(getprop sys.boot_completed)" = 1 ]; then
+    setprop vendor.royd.boot_watchdog complete
+    printf '[royd] boot-watchdog: boot completed after %ss\n' "$elapsed" > "$stdout"
+    exit 0
+  fi
+  sleep "$interval"
+  elapsed=$((elapsed + interval))
+done
+setprop vendor.royd.boot_watchdog timeout
+printf '[royd] boot-watchdog: timeout after %ss; collecting diagnostics\n' "$timeout" > "$stdout"
+"$diagnostics"
+exit 0
