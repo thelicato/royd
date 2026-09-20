@@ -106,6 +106,14 @@ make runtime-multi-test
 
 This boots two containers concurrently with separate `/data` volumes and applies the same assertions to both. It validates concurrent binderfs setup but does not claim to prove cross-context Binder IPC isolation. See [`../docs/validation.md`](../docs/validation.md) for the full validation contract and reference-host recording template.
 
+Collect a shareable Markdown report containing host metadata and both smoke-test results with:
+
+```sh
+make runtime-reference-report
+```
+
+Set `ROYD_REPORT_OUTPUT=reference-host.md` to save it instead of printing it to stdout.
+
 For manual multi-instance testing with ADB:
 
 ```sh

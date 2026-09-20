@@ -10,6 +10,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a repeatable single-instance boot validation harness.
 - [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
 - [ ] Record a known-good build and boot validation from the pinned baseline.
+- [x] Add a reproducible reference-host report that captures host metadata and smoke-test evidence.
 
 ## 2. Container-owned Binder setup
 

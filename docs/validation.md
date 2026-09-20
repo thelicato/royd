@@ -74,3 +74,19 @@ two-instance smoke test:
 ```
 
 Record the exact container memory limit, display profile, graphics mode, settling time, and workload alongside any memory measurement. A successful boot is not sufficient evidence for a minimum RAM claim.
+
+## Automated reference-host report
+
+Once `royd:dev` is available on a real host, collect the host metadata and both runtime smoke-test results in one Markdown report:
+
+```sh
+make runtime-reference-report
+```
+
+Save it directly with:
+
+```sh
+ROYD_REPORT_OUTPUT=reference-host.md make runtime-reference-report
+```
+
+The report is generated even when a smoke test fails, and the command returns non-zero when either smoke test fails. See [`reference-hosts.md`](reference-hosts.md) for the evidence contract.

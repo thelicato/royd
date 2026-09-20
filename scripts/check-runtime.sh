@@ -41,3 +41,8 @@ grep -Fq 'runtime-ps' Makefile
 grep -Fq 'ROYD_IMAGE' runtime/compose.yaml
 grep -Fq 'ROYD_ADB_PORT' runtime/compose.yaml
 grep -Fq 'exec docker compose' runtime/scripts/compose.sh
+
+grep -Fq 'runtime-reference-report' Makefile
+grep -Fq 'Single-instance smoke test' runtime/scripts/reference-report.sh
+grep -Fq 'Two-instance smoke test' runtime/scripts/reference-report.sh
+grep -Fq 'CONFIG_ANDROID_BINDERFS' runtime/scripts/reference-report.sh

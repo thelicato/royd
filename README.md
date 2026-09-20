@@ -134,6 +134,7 @@ cp runtime/.env.example runtime/.env
 make runtime-up
 make runtime-logs
 make runtime-smoke-test
+make runtime-reference-report
 make cli-test
 make cli-build
 ```
