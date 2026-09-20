@@ -4,10 +4,11 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 1. Baseline container boot
 
-- Select and document the initial Android and upstream ReDroid/AOSP baseline.
-- Add a reproducible image build path.
-- Boot Android as PID 1 in an OCI container on a documented reference host.
-- Keep the first runtime deliberately close to upstream until the container lifecycle is understood.
+- [x] Select and document the initial Android and upstream ReDroid/AOSP baseline.
+- [x] Add a repeatable source synchronisation and Android build environment.
+- [ ] Package the Android build into the first royd OCI image.
+- [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
+- [ ] Keep the first runtime deliberately close to upstream until the container lifecycle is understood.
 
 ## 2. Container-owned Binder setup
 

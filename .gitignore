@@ -15,6 +15,7 @@
 /coverage.out
 
 # Android and general build output
+/.work/
 /out/
 /dist/
 /build/

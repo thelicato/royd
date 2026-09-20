@@ -133,4 +133,4 @@ The first implementation milestones are:
 
 ## Development
 
-Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable atomic task at a time.
+Project-wide architecture decisions and contribution rules are recorded in [`AGENTS.md`](AGENTS.md). The initial Android source and build workflow is documented in [`docs/building.md`](docs/building.md). In particular, documentation and user-facing text use British English, em dashes are avoided, and changes are kept to one reviewable atomic task at a time.

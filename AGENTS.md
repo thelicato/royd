@@ -189,4 +189,6 @@ The following decisions are currently agreed:
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
 - Initial privileged containers are acceptable for an MVP, with capability reduction investigated later.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
+- Initial Android baseline: AOSP `android-15.0.0_r36` with ReDroid Android 15 integration.
+- Initial build architecture targets: `x86_64` and `arm64`, using ReDroid `userdebug` products.
 
