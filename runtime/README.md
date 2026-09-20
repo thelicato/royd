@@ -64,7 +64,7 @@ The image entrypoint validates these arguments and then `exec`s Android `/init`.
 
 ## Security modes
 
-The supported development baseline still uses `--privileged`. royd also carries an experimental restricted mode that replaces it with an explicit capability list for validation work. It is not yet a supported least-privilege configuration.
+The supported development baseline still uses `--privileged`. royd also carries an experimental restricted mode with a versioned exact-capability policy. It resets Docker's default capability set with `--cap-drop=ALL`, then adds the repository-owned compatibility inventory. It is not yet a supported least-privilege configuration.
 
 Test it with:
 
@@ -73,6 +73,7 @@ make runtime-security-contract-test
 make runtime-smoke-test-experimental
 make runtime-multi-test-experimental
 ROYD_SECURITY_SWEEP_OUTPUT=security-sweep.md make runtime-security-sweep
+ROYD_SECURITY_CAPABILITY_SWEEP_OUTPUT=security-capabilities.md make runtime-security-capability-sweep
 ```
 
 Compose can use the same mode:

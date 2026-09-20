@@ -65,7 +65,7 @@ volumes:
     name: ${ROYD_DATA_VOLUME:-royd-data}
 ```
 
-`--privileged` remains the development baseline. An experimental restricted mode now tests an explicit capability set through the same runtime validation workflows, but it is not yet a supported minimum. See [`docs/security.md`](docs/security.md).
+`--privileged` remains the development baseline. An experimental restricted mode now uses a versioned exact-capability policy: it drops Docker's default capability set first, then adds the repository-owned inventory and records the resulting kernel-visible security state during qualification. It is not yet a supported minimum. See [`docs/security.md`](docs/security.md).
 
 ## Runtime model
 

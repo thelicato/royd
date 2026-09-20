@@ -79,7 +79,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 7. Privilege reduction
 
-- [x] Add an explicit experimental capability inventory and reduced Compose/Docker mode.
+- [x] Add a versioned deterministic experimental capability inventory with exact Docker/Compose/CLI parity and kernel-visible security evidence.
 - [x] Run the existing smoke, multi-instance, benchmark, CLI, and report tooling through selectable security modes.
 - [x] Add a security-mode comparison report with captured failure diagnostics.
 - [ ] Validate the experimental mode on a known-good reference host.

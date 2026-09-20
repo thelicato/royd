@@ -16,7 +16,7 @@ key=$(runtime_result_key 15 x86_64 standard graphical privileged)
 [ "$key" = '15/x86_64-standard-graphical-privileged.env' ]
 file="$tmp/runtime-results/$key"
 runtime_result_write "$file" \
-  'RESULT_FORMAT=2' \
+  'RESULT_FORMAT=3' \
   'ANDROID_VERSION=15' \
   'ARCH=x86_64' \
   'IMAGE_PROFILE=standard' \
@@ -24,12 +24,15 @@ runtime_result_write "$file" \
   'PROFILE_POLICY_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' \
   'HAL_PROFILE=graphical' \
   'SECURITY_MODE=privileged' \
+  'SECURITY_PROFILE=privileged-v1' \
+  'SECURITY_PROFILE_SHA256=placeholder' \
   'HOST_STATUS=pass' \
   'IMAGE_STATUS=pass' \
   'BOOT_STATUS=pass' \
   'HEALTH_STATUS=pass' \
   'RUNTIME_STATUS=pass' \
   'SECURITY_STATUS=pass' \
+  'SECURITY_EVIDENCE_STATUS=pass' \
   'GRAPHICS_STATUS=pass' \
   'LOGS_STATUS=pass' \
   'ADB_STATUS=pass' \
@@ -39,7 +42,7 @@ runtime_result_write "$file" \
 
 report="$tmp/runtime.md"
 ROYD_RUNTIME_RESULTS_DIR="$tmp/runtime-results" ROYD_RUNTIME_REPORT_OUTPUT="$report" "$script_dir/qualification-report.sh" >/dev/null
-grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$report"
+grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$report"
 
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/Android.bp"
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/royd.mk"

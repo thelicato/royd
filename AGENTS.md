@@ -224,7 +224,7 @@ The following decisions are currently agreed:
 - AOSP build primitives remain upstream dependencies, but royd owns its product and board definitions and must not inherit emulator product bundles.
 - Reference-host evidence: use the repository report workflow to record kernel, Docker, Binder, cgroup, and smoke-test results before making host compatibility claims.
 - Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
-- Runtime security modes: `privileged` is the current baseline; `experimental` removes `--privileged` and tests explicit capabilities through the same smoke, benchmark, report, Compose, and CLI workflows.
+- Runtime security modes: `privileged` is the current baseline; `experimental` is a versioned deterministic profile that uses `--cap-drop=ALL` followed by the repository-owned capability inventory. Qualification records Docker security configuration plus PID 1 capability, `NoNewPrivs`, and seccomp state. Capability removal must be driven by the one-at-a-time sweep and real-host evidence, not by assumption.
 - Runtime argument transport: OCI command arguments use the `royd.width`, `royd.height`, `royd.dpi`, and `royd.fps` namespace. `/royd-entrypoint` validates them, writes `/royd-runtime.conf`, and `exec`s `/init`; do not pass arbitrary `androidboot.*` values as `/init` argv.
 
 

@@ -28,7 +28,7 @@ Write it to a file with:
 ROYD_MATRIX_OUTPUT=android-matrix.md make android-matrix-report
 ```
 
-For each Android version and architecture, the report records source-tree presence, resolved AOSP configuration, clean-build evidence, package evidence, and matching persisted runtime qualification evidence when available.
+For each Android version and architecture, the report records source-tree presence, resolved AOSP configuration, clean-build evidence, package evidence, and matching persisted runtime qualification evidence when available. Runtime evidence is treated as stale if its result format or recorded security-profile digest no longer matches the repository policy.
 
 Missing source trees are informational by default. On a dedicated AOSP validation host, require every source tree and resolved configuration to pass with:
 

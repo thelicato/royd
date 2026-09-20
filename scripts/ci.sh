@@ -30,6 +30,8 @@ run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
+run ./runtime/scripts/security-capability-sweep-test.sh
+run ./runtime/scripts/security-evidence-test.sh
 run ./runtime/scripts/adb-contract-test.sh
 run ./runtime/scripts/qualification-contract-test.sh
 run ./runtime/scripts/qualification-matrix-test.sh

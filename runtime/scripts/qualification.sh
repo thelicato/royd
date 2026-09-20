@@ -24,6 +24,8 @@ profile_policy_sha256=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/andr
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+security_profile=$($script_dir/security-profile.sh "$security_mode" id)
+security_profile_sha256=$($script_dir/security-profile.sh "$security_mode" digest)
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
 runtime_profile=${ROYD_PROFILE:-$(ROYD_HAL_PROFILE="$hal_profile" "$script_dir/default-runtime-profile.sh")}
@@ -84,12 +86,22 @@ boot_status=not-run
 health_status=not-run
 runtime_status=not-run
 security_status=not-run
+security_evidence_status=not-run
 graphics_status=not-run
 logs_status=not-run
 adb_status=not-run
 binder_isolation_status=not-run
 image_id=unknown
 adb_endpoint=not-run
+docker_privileged=unknown
+docker_cap_add=unknown
+docker_cap_drop=unknown
+docker_security_opt=unknown
+apparmor_profile=unknown
+pid1_cap_eff=unknown
+pid1_cap_bnd=unknown
+pid1_no_new_privs=unknown
+pid1_seccomp=unknown
 
 run_stage host env ROYD_SECURITY_MODE="$security_mode" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/host-check.sh"
 run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$hal_profile" "$script_dir/image-inspect.sh" "$arch" "$image_profile" "$image"
@@ -107,6 +119,22 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
   if docker run -d $security_args $gpu_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
     image_id=$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || printf unknown)
     run_stage security "$script_dir/assert-security.sh" "$container" "$security_mode"
+    if [ "$security_status" = pass ]; then
+      run_stage security_evidence "$script_dir/security-evidence.sh" "$container" "$security_mode"
+      if [ "$security_evidence_status" = pass ]; then
+        evidence_file="$log_file.security_evidence"
+        evidence_get() { sed -n "s/^$1=//p" "$evidence_file" | tail -n 1; }
+        docker_privileged=$(evidence_get DOCKER_PRIVILEGED)
+        docker_cap_add=$(evidence_get DOCKER_CAP_ADD)
+        docker_cap_drop=$(evidence_get DOCKER_CAP_DROP)
+        docker_security_opt=$(evidence_get DOCKER_SECURITY_OPT)
+        apparmor_profile=$(evidence_get APPARMOR_PROFILE)
+        pid1_cap_eff=$(evidence_get PID1_CAP_EFF)
+        pid1_cap_bnd=$(evidence_get PID1_CAP_BND)
+        pid1_no_new_privs=$(evidence_get PID1_NO_NEW_PRIVS)
+        pid1_seccomp=$(evidence_get PID1_SECCOMP)
+      fi
+    fi
     run_stage boot "$script_dir/wait-for-boot.sh" "$container" "$timeout"
     [ "$boot_status" = pass ] && run_stage health "$script_dir/wait-for-health.sh" "$container" "$health_timeout"
     [ "$boot_status" = pass ] && run_stage runtime env ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/assert-runtime.sh" "$container"
@@ -145,6 +173,7 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
     boot_status=fail
     health_status=not-run
     security_status=not-run
+    security_evidence_status=not-run
     runtime_status=not-run
     graphics_status=not-run
     logs_status=not-run
@@ -172,7 +201,7 @@ else
   result_status=fail
 fi
 runtime_result_write "$result_file" \
-  'RESULT_FORMAT=2' \
+  'RESULT_FORMAT=3' \
   "ANDROID_VERSION=$android_version" \
   "AOSP_TAG=$AOSP_TAG" \
   "ARCH=$arch" \
@@ -181,6 +210,8 @@ runtime_result_write "$result_file" \
   "PROFILE_POLICY_SHA256=$profile_policy_sha256" \
   "HAL_PROFILE=$hal_profile" \
   "SECURITY_MODE=$security_mode" \
+  "SECURITY_PROFILE=$security_profile" \
+  "SECURITY_PROFILE_SHA256=$security_profile_sha256" \
   "GRAPHICS_BACKEND=$graphics_backend" \
   "RUNTIME_PROFILE=$runtime_profile" \
   "IMAGE=$image" \
@@ -191,6 +222,16 @@ runtime_result_write "$result_file" \
   "HEALTH_STATUS=$health_status" \
   "RUNTIME_STATUS=$runtime_status" \
   "SECURITY_STATUS=$security_status" \
+  "SECURITY_EVIDENCE_STATUS=$security_evidence_status" \
+  "DOCKER_PRIVILEGED=$docker_privileged" \
+  "DOCKER_CAP_ADD=$docker_cap_add" \
+  "DOCKER_CAP_DROP=$docker_cap_drop" \
+  "DOCKER_SECURITY_OPT=$docker_security_opt" \
+  "APPARMOR_PROFILE=$apparmor_profile" \
+  "PID1_CAP_EFF=$pid1_cap_eff" \
+  "PID1_CAP_BND=$pid1_cap_bnd" \
+  "PID1_NO_NEW_PRIVS=$pid1_no_new_privs" \
+  "PID1_SECCOMP=$pid1_seccomp" \
   "GRAPHICS_STATUS=$graphics_status" \
   "LOGS_STATUS=$logs_status" \
   "ADB_STATUS=$adb_status" \

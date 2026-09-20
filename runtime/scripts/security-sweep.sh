@@ -7,6 +7,8 @@ image=${1:-${ROYD_IMAGE:-$default_image}}
 profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 modes=${ROYD_SECURITY_MODES:-'privileged experimental'}
 output=${ROYD_SECURITY_SWEEP_OUTPUT:--}
+experimental_profile=$($script_dir/security-profile.sh experimental id)
+experimental_profile_sha256=$($script_dir/security-profile.sh experimental digest)
 workdir=$(mktemp -d)
 
 cleanup() {
@@ -47,7 +49,9 @@ report="$workdir/report.md"
   printf 'This report compares runtime validation under the configured OCI security modes. It does not prove that a passing reduced profile is minimal.\n\n'
   printf -- '- image: `%s`\n' "$image"
   printf -- '- runtime profile: `%s`\n' "$profile"
-  printf -- '- security modes: `%s`\n\n' "$modes"
+  printf -- '- security modes: `%s`\n' "$modes"
+  printf -- '- experimental profile: `%s`\n' "$experimental_profile"
+  printf -- '- experimental profile SHA-256: `%s`\n\n' "$experimental_profile_sha256"
   printf '| Security mode | Single instance | Two instances |\n'
   printf '| --- | --- | --- |\n'
   while IFS="$(printf '\t')" read -r mode single_status multi_status; do

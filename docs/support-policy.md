@@ -23,7 +23,7 @@ A release may be described as supported only after the relevant architecture and
 9. documented security mode
 10. reference-host compatibility record
 
-Support claims must state the Android version, architecture, image profile, HAL profile, and security mode they cover.
+Support claims must state the Android version, architecture, image profile, HAL profile, security mode, and security-profile policy identity they cover. A security-profile digest change invalidates older runtime qualification for support purposes.
 
 ## Evidence ownership
 

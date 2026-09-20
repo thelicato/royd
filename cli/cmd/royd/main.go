@@ -13,6 +13,28 @@ import (
 
 const version = "0.1.0-dev"
 
+var experimentalCapabilities = []string{
+	"AUDIT_WRITE",
+	"CHOWN",
+	"DAC_OVERRIDE",
+	"FOWNER",
+	"FSETID",
+	"KILL",
+	"MKNOD",
+	"NET_BIND_SERVICE",
+	"NET_RAW",
+	"SETFCAP",
+	"SETGID",
+	"SETPCAP",
+	"SETUID",
+	"SYS_CHROOT",
+	"SYS_ADMIN",
+	"NET_ADMIN",
+	"SYS_NICE",
+	"SYS_RESOURCE",
+	"SYS_PTRACE",
+}
+
 type runConfig struct {
 	image    string
 	name     string
@@ -135,7 +157,8 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	case "privileged":
 		dockerArgs = append(dockerArgs, "--privileged")
 	case "experimental":
-		for _, capability := range []string{"SYS_ADMIN", "NET_ADMIN", "SYS_NICE", "SYS_RESOURCE", "SYS_PTRACE"} {
+		dockerArgs = append(dockerArgs, "--cap-drop=ALL")
+		for _, capability := range experimentalCapabilities {
 			dockerArgs = append(dockerArgs, "--cap-add="+capability)
 		}
 	default:

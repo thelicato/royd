@@ -34,13 +34,14 @@ The gate records these stages independently:
 1. host contract preflight
 2. OCI image contract inspection
 3. selected security-mode inspection
-4. Android boot completion
-5. Docker health check
-6. royd runtime assertions
-7. container logcat forwarding
-8. SurfaceFlinger service and `dumpsys SurfaceFlinger`
-9. host-side ADB connectivity and `adb logcat`
-10. two-container Binder isolation
+4. configured and kernel-visible security evidence
+5. Android boot completion
+6. Docker health check
+7. royd runtime assertions
+8. container logcat forwarding
+9. SurfaceFlinger service and `dumpsys SurfaceFlinger`
+10. host-side ADB connectivity and `adb logcat`
+11. two-container Binder isolation
 
 The Binder isolation stage starts two disposable Android containers and compares the kernel character-device identities returned by the repository-owned `royd-binder-info` helper. Each private binderfs mount must expose different `binder-control`, `binder`, `hwbinder`, and `vndbinder` device identities. Linux binderfs defines devices in separate binderfs instances as independent Binder contexts, so this gives royd a concrete runtime check that each container received a distinct private device set.
 
@@ -53,7 +54,7 @@ Results are stored under:
 .work/runtime-results/<android>/<arch>-<image-profile>-<hal-profile>-<security-mode>.log
 ```
 
-The result file records the selected image identity and each qualification stage. The log contains the detailed command output needed to diagnose a failure.
+The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains the detailed command output needed to diagnose a failure.
 
 Qualify several already-imported images with the resumable matrix runner:
 
@@ -94,6 +95,6 @@ This does not promote the tuple to supported. The support policy also requires r
 
 Qualification containers and `/data` volumes are disposable and removed when the test exits. The runner publishes ADB on an automatically selected loopback port, so it can coexist with other local Android instances without assuming port 5555 is free.
 
-## Image-profile policy provenance
+## Policy provenance
 
-Runtime qualification results use result format 2 and record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`. Resume mode accepts previous evidence only when the recorded policy still matches the repository policy for that Android version. A package-policy change therefore invalidates stale runtime qualification automatically.
+Runtime qualification results use result format 3. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, and `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`. Resume mode accepts previous evidence only when both policy identities still match the repository. Package-policy or security-policy changes therefore invalidate stale runtime qualification automatically.

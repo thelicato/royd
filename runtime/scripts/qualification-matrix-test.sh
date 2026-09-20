@@ -16,7 +16,7 @@ if [ "${MOCK_FAIL_ARCH:-}" = "$ROYD_QUALIFY_ARCH" ]; then
   result=fail
 fi
 cat > "$ROYD_RUNTIME_RESULT_FILE" <<RESULT
-RESULT_FORMAT=2
+RESULT_FORMAT=3
 ANDROID_VERSION=$ROYD_ANDROID_VERSION
 ARCH=$ROYD_QUALIFY_ARCH
 IMAGE_PROFILE=$ROYD_ANDROID_PROFILE
@@ -24,12 +24,15 @@ PROFILE_POLICY=$ROYD_EXPECTED_PROFILE_POLICY
 PROFILE_POLICY_SHA256=$ROYD_EXPECTED_PROFILE_POLICY_SHA256
 HAL_PROFILE=$ROYD_HAL_PROFILE
 SECURITY_MODE=$ROYD_SECURITY_MODE
+SECURITY_PROFILE=$ROYD_EXPECTED_SECURITY_PROFILE
+SECURITY_PROFILE_SHA256=$ROYD_EXPECTED_SECURITY_PROFILE_SHA256
 HOST_STATUS=$result
 IMAGE_STATUS=$result
 BOOT_STATUS=$result
 HEALTH_STATUS=$result
 RUNTIME_STATUS=$result
 SECURITY_STATUS=$result
+SECURITY_EVIDENCE_STATUS=$result
 GRAPHICS_STATUS=$result
 LOGS_STATUS=$result
 ADB_STATUS=$result
@@ -50,7 +53,7 @@ ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
 MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 2 ]
-grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$tmp/report.md"
+grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |' "$tmp/report.md"
 
 # Resume must skip already-passing tuples.
 ROYD_QUALIFY_VERSIONS=15 \
@@ -73,6 +76,20 @@ MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 3 ] || {
   printf '%s\n' 'error: changed image-profile policy did not invalidate runtime qualification resume state' >&2
+  exit 1
+}
+
+# A changed security-profile digest must also invalidate a passing runtime result.
+sed -i 's/^SECURITY_PROFILE_SHA256=.*/SECURITY_PROFILE_SHA256=stale/' "$tmp/results/15/x86_64-standard-graphical-privileged.env"
+ROYD_QUALIFY_VERSIONS=15 \
+ROYD_QUALIFY_ARCHES=x86_64 \
+ROYD_QUALIFY_RUNNER="$tmp/runner" \
+ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
+ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
+MOCK_CALLS="$tmp/calls" \
+"$script_dir/qualification-matrix.sh" >/dev/null
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 4 ] || {
+  printf '%s\n' 'error: changed security profile did not invalidate runtime qualification resume state' >&2
   exit 1
 }
 

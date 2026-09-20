@@ -17,6 +17,8 @@ work_root=${ROYD_MATRIX_SOURCE_ROOT:-$repo_root/.work}
 results_dir=${ROYD_BUILD_RESULTS_DIR:-$work_root/build-results}
 runtime_results_dir=${ROYD_RUNTIME_RESULTS_DIR:-$work_root/runtime-results}
 runtime_security_mode=${ROYD_MATRIX_SECURITY_MODE:-privileged}
+expected_security_profile=$($repo_root/runtime/scripts/security-profile.sh "$runtime_security_mode" id)
+expected_security_profile_sha256=$($repo_root/runtime/scripts/security-profile.sh "$runtime_security_mode" digest)
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$("$script_dir/profile.sh" "$profile")
@@ -45,6 +47,8 @@ append ''
 append "Image profile: \`$profile\`"
 append "HAL profile: \`$hal_profile\`"
 append "Graphics backend: \`$graphics_backend\`"
+append "Runtime security profile: \`$expected_security_profile\`"
+append "Runtime security profile SHA-256: \`$expected_security_profile_sha256\`"
 append ''
 append '| Android | AOSP tag | Family | Builder | Arch | Source | Config | Build | Package | Runtime | Status |'
 append '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
@@ -96,11 +100,21 @@ for version in $("$script_dir/version-list.sh"); do
     fi
 
     if [ -f "$runtime_file" ]; then
-      runtime_state=$(runtime_result_get "$runtime_file" RESULT_STATUS || printf unknown)
-      if [ "$runtime_state" = pass ]; then
-        row_status=runtime-qualified
-      elif [ "$runtime_state" != not-run ]; then
-        row_status=runtime-failed
+      runtime_format=$(runtime_result_get "$runtime_file" RESULT_FORMAT || printf unknown)
+      recorded_security_profile=$(runtime_result_get "$runtime_file" SECURITY_PROFILE || printf unknown)
+      recorded_security_profile_sha256=$(runtime_result_get "$runtime_file" SECURITY_PROFILE_SHA256 || printf unknown)
+      if [ "$runtime_format" != 3 ] \
+        || [ "$recorded_security_profile" != "$expected_security_profile" ] \
+        || [ "$recorded_security_profile_sha256" != "$expected_security_profile_sha256" ]; then
+        runtime_state=stale
+        row_status=runtime-stale
+      else
+        runtime_state=$(runtime_result_get "$runtime_file" RESULT_STATUS || printf unknown)
+        if [ "$runtime_state" = pass ]; then
+          row_status=runtime-qualified
+        elif [ "$runtime_state" != not-run ]; then
+          row_status=runtime-failed
+        fi
       fi
     fi
 
@@ -128,7 +142,8 @@ append '- `present` means a source tree exists at the expected version-specific 
 append '- Config `pass` means royd installed its integration and AOSP resolved the expected product contract for that architecture.'
 append '- Build `pass` is recorded only by the clean-build matrix runner after an actual compile.'
 append '- Package `pass` is recorded only after OCI root filesystem packaging completes and its archive digest is captured.'
-append '- Runtime `pass` means the persisted runtime qualification gate passed for the selected security mode.'
+append '- Runtime `pass` means the persisted runtime qualification gate passed for the selected security mode and current security-profile digest.'
+append '- Runtime `stale` means evidence was recorded with an older result format or different security profile and must be rerun.'
 append '- Memory workload evidence and reviewed reference-host records remain separate release gates.'
 append '- `ROYD_MATRIX_REQUIRE_BUILD=1` makes missing or failed clean-build evidence fatal.'
 append '- `ROYD_MATRIX_REQUIRE_RUNTIME=1` makes missing or failed runtime qualification evidence fatal.'

@@ -154,6 +154,9 @@ grep -Fq 'sys.boot_completed' runtime/scripts/wait-for-boot.sh
 grep -Fq '[ -c /dev/binder ]' runtime/scripts/assert-runtime.sh
 grep -Fq 'runtime-smoke-test' Makefile
 grep -Fq 'SYS_ADMIN' runtime/security/experimental.env
+grep -Fq 'ROYD_CAP_DROP_ALL=1' runtime/security/experimental.env
+grep -Fq -- '--cap-drop=ALL' runtime/scripts/security-args.sh
+grep -Fq 'cap_drop:' runtime/compose.experimental.yaml
 grep -Fq 'privileged: false' runtime/compose.experimental.yaml
 grep -Fq 'security-args.sh' runtime/scripts/smoke-test.sh
 grep -Fq 'security-args.sh' runtime/scripts/multi-instance-test.sh

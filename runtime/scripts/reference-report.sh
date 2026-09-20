@@ -7,6 +7,8 @@ default_image=$("$script_dir/default-image.sh" standard x86_64)
 image=${1:-${ROYD_IMAGE:-$default_image}}
 profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 security_mode=${ROYD_SECURITY_MODE:-privileged}
+security_profile=$($script_dir/security-profile.sh "$security_mode" id)
+security_profile_sha256=$($script_dir/security-profile.sh "$security_mode" digest)
 output=${ROYD_REPORT_OUTPUT:--}
 workdir=$(mktemp -d)
 
@@ -131,7 +133,9 @@ report="$workdir/report.md"
   printf -- '- Android baseline: `%s`\n' "${android_baseline:-unknown}"
   printf -- '- image: `%s`\n' "$image"
   printf -- '- runtime profile: `%s`\n' "$profile"
-  printf -- '- security mode: `%s`\n\n' "$security_mode"
+  printf -- '- security mode: `%s`\n' "$security_mode"
+  printf -- '- security profile: `%s`\n' "$security_profile"
+  printf -- '- security profile SHA-256: `%s`\n\n' "$security_profile_sha256"
   printf '## Host\n\n'
   printf -- '- distribution: %s\n' "$os_release"
   printf -- '- kernel: `%s`\n' "$kernel"

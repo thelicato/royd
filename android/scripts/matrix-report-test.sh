@@ -2,6 +2,7 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
@@ -69,17 +70,28 @@ ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-
 grep -Fq '| 15 | `android-15.0.0_r36` | modern | modern | x86_64 | present | pass | pass | pass | not-run | package-validated |' "$report"
 
 mkdir -p "$tmp/runtime-results/15"
-cat > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env" <<'RESULT'
-RESULT_FORMAT=1
+security_profile=$($repo_root/runtime/scripts/security-profile.sh privileged id)
+security_profile_sha256=$($repo_root/runtime/scripts/security-profile.sh privileged digest)
+cat > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env" <<RESULT
+RESULT_FORMAT=3
 ANDROID_VERSION=15
 ARCH=x86_64
 IMAGE_PROFILE=standard
 HAL_PROFILE=graphical
 SECURITY_MODE=privileged
+SECURITY_PROFILE=$security_profile
+SECURITY_PROFILE_SHA256=$security_profile_sha256
 RESULT_STATUS=pass
 RESULT
 ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-report.sh" >/dev/null
 grep -Fq '| 15 | `android-15.0.0_r36` | modern | modern | x86_64 | present | pass | pass | pass | pass | runtime-qualified |' "$report"
+
+# Old or policy-mismatched runtime evidence must not remain qualified.
+sed -i 's/^SECURITY_PROFILE_SHA256=.*/SECURITY_PROFILE_SHA256=stale/' "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env"
+ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-report.sh" >/dev/null
+grep -Fq '| 15 | `android-15.0.0_r36` | modern | modern | x86_64 | present | pass | pass | pass | stale | runtime-stale |' "$report"
+
+sed -i "s/^SECURITY_PROFILE_SHA256=.*/SECURITY_PROFILE_SHA256=$security_profile_sha256/" "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env"
 
 if ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_REQUIRE_RUNTIME=1 "$script_dir/matrix-report.sh" >/dev/null 2>&1; then
   printf '%s\n' 'error: runtime-required compatibility matrix accepted missing runtime evidence' >&2

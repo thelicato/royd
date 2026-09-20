@@ -1,0 +1,20 @@
+# capability|origin|candidate rationale
+AUDIT_WRITE|docker-default|Docker compatibility baseline; remove if Android does not need audit writes.
+CHOWN|docker-default|Android init and services may need ownership changes during boot and data initialisation.
+DAC_OVERRIDE|docker-default|Android root services may need to traverse or update files before labels and ownership settle.
+FOWNER|docker-default|Android root services may need owner-bypass operations on runtime files.
+FSETID|docker-default|Preserves set-ID bits across file updates where Android userspace expects them.
+KILL|docker-default|Android init and service managers need cross-UID process signalling.
+MKNOD|docker-default|Candidate for removal after Binder and device setup are proven without in-container mknod use.
+NET_BIND_SERVICE|docker-default|Compatibility baseline for privileged-port binding; likely removable if no Android service needs it.
+NET_RAW|docker-default|Android networking diagnostics and services may open raw or packet sockets.
+SETFCAP|docker-default|Candidate for removal if Android never changes file capabilities at runtime.
+SETGID|docker-default|Android init must launch services under configured groups.
+SETPCAP|docker-default|Capability-set transitions may be required while Android init launches services.
+SETUID|docker-default|Android init must launch services under configured UIDs.
+SYS_CHROOT|docker-default|Compatibility baseline; candidate for removal if no Android service uses chroot.
+SYS_ADMIN|royd-elevated|Required candidate for mounting the private binderfs instance; validate whether any narrower runtime mechanism can replace it.
+NET_ADMIN|royd-elevated|Android netd and network namespace configuration may require network administration operations.
+SYS_NICE|royd-elevated|Android scheduling and priority setup may require privileged nice or scheduler operations.
+SYS_RESOURCE|royd-elevated|Android init and services may need privileged resource-limit changes.
+SYS_PTRACE|royd-elevated|Userdebug diagnostics may require cross-process tracing; candidate for early removal testing.
