@@ -136,7 +136,7 @@ See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the cu
 
 ## Initial roadmap
 
-The current implementation now owns its Android product definitions, Binder allocator, init integration, build profiles, local patch mechanism, software graphics baseline, experimental Android 10+ host-GPU backends, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. A runtime qualification gate now persists boot, health, graphics, ADB, logging, security, and Binder-isolation evidence for imported images. The next gate is to run clean builds and qualification on documented reference hosts, then validate memory targets and security modes with real workloads.
+The current implementation now owns its Android product definitions, Binder allocator, init integration, version-aware standard/minimal image policies, local patch mechanism, software graphics baseline, experimental Android 10+ host-GPU backends, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. A runtime qualification gate now persists boot, health, graphics, ADB, logging, security, and Binder-isolation evidence for imported images. The next gate is to run clean builds and qualification on documented reference hosts, then validate memory targets and security modes with real workloads.
 
 ## Development
 

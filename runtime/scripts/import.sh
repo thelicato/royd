@@ -25,6 +25,8 @@ hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
+profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$repo_root/android/scripts/profile-policy.sh" "$profile")
+profile_policy_sha256=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$repo_root/android/scripts/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
 graphics_suffix=
 [ "$graphics_backend" = software ] || graphics_suffix="-$graphics_backend"
 canonical=$($script_dir/image-tag.sh "$arch" "$profile")
@@ -87,6 +89,8 @@ docker import \
   -c "LABEL org.royd.android-ref=$AOSP_TAG" \
   -c "LABEL org.royd.arch=$arch" \
   -c "LABEL org.royd.image-profile=$profile" \
+  -c "LABEL org.royd.profile-policy=$profile_policy" \
+  -c "LABEL org.royd.profile-policy-sha256=$profile_policy_sha256" \
   -c "LABEL org.royd.hal-profile=$hal_profile" \
   -c "LABEL org.royd.graphics-backend=$graphics_backend" \
   "$archive" \

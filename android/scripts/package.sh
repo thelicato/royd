@@ -26,6 +26,8 @@ hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/graphics-backend.sh" "$graphics_backend" "$arch")
+profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-policy.sh" "$profile")
+profile_policy_sha256=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
 graphics_suffix=
 [ "$graphics_backend" = software ] || graphics_suffix="-$graphics_backend"
 case "$arch" in
@@ -136,6 +138,8 @@ ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
+ROYD_PROFILE_POLICY=$profile_policy
+ROYD_PROFILE_POLICY_SHA256=$profile_policy_sha256
 ROYD_HAL_PROFILE=$hal_profile
 ROYD_GRAPHICS_BACKEND=$graphics_backend
 ANDROID_PRODUCT=$product
@@ -154,6 +158,8 @@ ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
+ROYD_PROFILE_POLICY=$profile_policy
+ROYD_PROFILE_POLICY_SHA256=$profile_policy_sha256
 ROYD_HAL_PROFILE=$hal_profile
 ROYD_GRAPHICS_BACKEND=$graphics_backend
 ANDROID_PRODUCT=$product

@@ -88,12 +88,16 @@ record_result() {
   archive_sha=$9
   # shellcheck disable=SC1090
   . "$android_dir/versions/$current_version.env"
+  profile_policy=$(ROYD_ANDROID_VERSION="$current_version" "$script_dir/profile-policy.sh" "$profile")
+  profile_policy_sha256=$(ROYD_ANDROID_VERSION="$current_version" "$script_dir/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
   result_write "$result_file" \
-    "RESULT_FORMAT=1" \
+    "RESULT_FORMAT=2" \
     "ANDROID_VERSION=$ANDROID_VERSION" \
     "AOSP_TAG=$AOSP_TAG" \
     "ARCH=$current_arch" \
     "IMAGE_PROFILE=$profile" \
+    "PROFILE_POLICY=$profile_policy" \
+    "PROFILE_POLICY_SHA256=$profile_policy_sha256" \
     "HAL_PROFILE=$hal_profile" \
     "GRAPHICS_BACKEND=$current_graphics_backend" \
     "CLEAN_BUILD=$clean_build" \
@@ -168,8 +172,14 @@ for current_version in $versions; do
     log_file=${result_file%.env}.log
     mkdir -p "$(dirname -- "$result_file")"
 
-    if [ "$resume" = 1 ] && [ "$(result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ]; then
-      printf '\n==> Android %s %s: already passed, skipping\n' "$current_version" "$current_arch"
+    expected_profile_policy=$(ROYD_ANDROID_VERSION="$current_version" "$script_dir/profile-policy.sh" "$profile")
+    expected_profile_policy_sha256=$(ROYD_ANDROID_VERSION="$current_version" "$script_dir/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
+    if [ "$resume" = 1 ] \
+      && [ "$(result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 2 ] \
+      && [ "$(result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$(result_get "$result_file" PROFILE_POLICY 2>/dev/null || true)" = "$expected_profile_policy" ] \
+      && [ "$(result_get "$result_file" PROFILE_POLICY_SHA256 2>/dev/null || true)" = "$expected_profile_policy_sha256" ]; then
+      printf '\n==> Android %s %s: already passed with current profile policy, skipping\n' "$current_version" "$current_arch"
       continue
     fi
 

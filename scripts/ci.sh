@@ -14,6 +14,7 @@ run ./scripts/check-runtime.sh
 run ./android/scripts/version-test.sh
 run ./android/scripts/builder-family-test.sh
 run ./android/scripts/profile-test.sh
+run ./android/scripts/profile-policy-test.sh
 run ./android/scripts/hal-profile-test.sh
 run ./android/scripts/contract-test.sh
 run ./android/scripts/display-contract-test.sh
@@ -25,6 +26,7 @@ run ./android/scripts/hal-contract-test.sh
 run ./android/scripts/matrix-report-test.sh
 run ./android/scripts/build-matrix-test.sh
 run ./runtime/scripts/image-contract-test.sh
+run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh

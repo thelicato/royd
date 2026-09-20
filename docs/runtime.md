@@ -84,7 +84,7 @@ royd assigns canonical image tags from the pinned AOSP release, Android image pr
 
 Every packaged root filesystem contains `/royd-release`. The package step also writes a sidecar manifest with the archive SHA-256 digest. Import refuses archives whose digest no longer matches the manifest.
 
-Imported images carry OCI metadata plus royd labels for image format, Android source ref, architecture, and image profile. `runtime/scripts/image-inspect.sh` verifies this contract without booting Android.
+Imported images carry OCI metadata plus royd labels for image format, Android source ref, architecture, image profile, exact image-profile policy digest, HAL profile, and graphics backend. `runtime/scripts/image-inspect.sh` verifies this contract without booting Android.
 
 ## Host GPU runtime
 

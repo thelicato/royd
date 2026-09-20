@@ -16,10 +16,12 @@ if [ "${MOCK_FAIL_ARCH:-}" = "$ROYD_QUALIFY_ARCH" ]; then
   result=fail
 fi
 cat > "$ROYD_RUNTIME_RESULT_FILE" <<RESULT
-RESULT_FORMAT=1
+RESULT_FORMAT=2
 ANDROID_VERSION=$ROYD_ANDROID_VERSION
 ARCH=$ROYD_QUALIFY_ARCH
 IMAGE_PROFILE=$ROYD_ANDROID_PROFILE
+PROFILE_POLICY=$ROYD_EXPECTED_PROFILE_POLICY
+PROFILE_POLICY_SHA256=$ROYD_EXPECTED_PROFILE_POLICY_SHA256
 HAL_PROFILE=$ROYD_HAL_PROFILE
 SECURITY_MODE=$ROYD_SECURITY_MODE
 HOST_STATUS=$result
@@ -59,6 +61,20 @@ ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
 MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 2 ]
+
+# A changed package-policy digest must invalidate a passing runtime result.
+sed -i 's/^PROFILE_POLICY_SHA256=.*/PROFILE_POLICY_SHA256=stale/' "$tmp/results/15/x86_64-standard-graphical-privileged.env"
+ROYD_QUALIFY_VERSIONS=15 \
+ROYD_QUALIFY_ARCHES=x86_64 \
+ROYD_QUALIFY_RUNNER="$tmp/runner" \
+ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
+ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
+MOCK_CALLS="$tmp/calls" \
+"$script_dir/qualification-matrix.sh" >/dev/null
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 3 ] || {
+  printf '%s\n' 'error: changed image-profile policy did not invalidate runtime qualification resume state' >&2
+  exit 1
+}
 
 # A failing tuple must be persisted and make the matrix fail.
 if ROYD_QUALIFY_VERSIONS=15 \

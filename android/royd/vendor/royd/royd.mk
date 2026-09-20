@@ -10,7 +10,8 @@ PRODUCT_COPY_FILES += \
     vendor/royd/bin/royd-logcat:$(TARGET_COPY_OUT_VENDOR)/bin/royd-logcat \
     vendor/royd/bin/royd-hardware-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-hardware-setup \
     vendor/royd/bin/royd-graphics-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-graphics-setup \
-    vendor/royd/bin/royd-health:$(TARGET_COPY_OUT_VENDOR)/bin/royd-health
+    vendor/royd/bin/royd-health:$(TARGET_COPY_OUT_VENDOR)/bin/royd-health \
+    vendor/royd/profile-packages.txt:$(TARGET_COPY_OUT_VENDOR)/etc/royd-profile-packages.txt
 
 $(call inherit-product, vendor/royd/version.mk)
 

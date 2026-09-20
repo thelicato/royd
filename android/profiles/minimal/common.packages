@@ -1,0 +1,5 @@
+# Optional framework/user-facing packages removed from every minimal image family.
+BasicDreams
+EasterEgg
+PrintRecommendationService
+PrintSpooler

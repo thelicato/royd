@@ -28,3 +28,5 @@ Support claims must state the Android version, architecture, image profile, HAL 
 ## Evidence ownership
 
 Generated build and runtime qualification reports under `.work` are local evidence and are not source-of-truth code. A release should only be promoted in repository documentation after the underlying reports have been reviewed and the relevant test environment has been documented.
+
+Build, package, runtime, and memory evidence must refer to the exact Android image-profile policy revision. The OCI image records that policy and its SHA-256 so evidence from an older minimal package set is not silently reused after the profile changes.

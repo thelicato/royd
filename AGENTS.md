@@ -207,11 +207,11 @@ The following decisions are currently agreed:
 - Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
 - Software graphics baseline: SwiftShader plus repository-owned `gralloc.royd`, `hwcomposer.default`, and the AOSP composer service selected per Android generation. Experimental Android 10+ host GPU backends use AOSP Mesa plus minigbm and require explicit `/dev/dri` access.
-- Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.
+- Android image profiles: `standard` preserves the upstream package set; `minimal` uses repository-owned legacy/transitional/modern removal manifests plus a protected core package list. The resolved policy ID and SHA-256 are image metadata, and any policy change runs `installclean` before rebuilding.
 - Android image profile tags: standard imports as `royd:dev`; minimal imports as `royd:dev-minimal` by default.
 - Runtime display profiles: `default` (540 x 960, 240 dpi, 30 fps), `compact` (360 x 640, 160 dpi, 30 fps), and `tablet` (720 x 1280, 320 dpi, 30 fps). Profiles do not imply supported memory minimums.
 - Memory benchmarking: use disposable container sweeps with fresh `/data`, equal memory and swap limits, normal boot assertions, and Markdown reports before making RAM claims.
-- Memory claims must be based on the repository measurement workflow and a documented workload.
+- Memory claims must be based on the repository measurement workflow. Reports must identify the exact image, image-profile policy digest, HAL/graphics/display configuration, security mode, and named workload. Custom workload commands require an explicit workload name.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
 - OCI image identity: use canonical tags derived from AOSP ref, image profile, HAL profile, and architecture; keep short `royd:dev*` tags only as local aliases.

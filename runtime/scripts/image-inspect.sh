@@ -24,6 +24,8 @@ hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphics-backend.sh" "$graphics_backend" "$arch")
+profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$repo_root/android/scripts/profile-policy.sh" "$profile")
+profile_policy_sha256=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$repo_root/android/scripts/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
 image=${3:-$($script_dir/image-tag.sh "$arch" "$profile")}
 
 case "$arch" in
@@ -60,6 +62,8 @@ equal image-format "$(label org.royd.image-format)" "$ROYD_IMAGE_FORMAT"
 equal android-version "$(label org.royd.android-version)" "$ANDROID_VERSION"
 equal android-ref "$(label org.royd.android-ref)" "$AOSP_TAG"
 equal image-profile "$(label org.royd.image-profile)" "$profile"
+equal profile-policy "$(label org.royd.profile-policy)" "$profile_policy"
+equal profile-policy-sha256 "$(label org.royd.profile-policy-sha256)" "$profile_policy_sha256"
 equal hal-profile "$(label org.royd.hal-profile)" "$hal_profile"
 equal graphics-backend "$(label org.royd.graphics-backend)" "$graphics_backend"
 equal royd-arch "$(label org.royd.arch)" "$arch"
@@ -94,6 +98,8 @@ printf '%s\n' "$release" | grep -Fqx "ROYD_ANDROID_VERSION=$ANDROID_VERSION"
 printf '%s\n' "$release" | grep -Fqx "ROYD_AOSP_TAG=$AOSP_TAG"
 printf '%s\n' "$release" | grep -Fqx "ROYD_ARCH=$arch"
 printf '%s\n' "$release" | grep -Fqx "ROYD_IMAGE_PROFILE=$profile"
+printf '%s\n' "$release" | grep -Fqx "ROYD_PROFILE_POLICY=$profile_policy"
+printf '%s\n' "$release" | grep -Fqx "ROYD_PROFILE_POLICY_SHA256=$profile_policy_sha256"
 printf '%s\n' "$release" | grep -Fqx "ROYD_HAL_PROFILE=$hal_profile"
 printf '%s\n' "$release" | grep -Fqx "ROYD_GRAPHICS_BACKEND=$graphics_backend"
 printf '%s\n' "$release" | grep -Fqx 'ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint'

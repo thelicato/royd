@@ -19,6 +19,8 @@ version_env="$repo_root/android/versions/$android_version.env"
 arch=${ROYD_QUALIFY_ARCH:-x86_64}
 image_profile=${ROYD_ANDROID_PROFILE:-standard}
 image_profile=$("$repo_root/android/scripts/profile.sh" "$image_profile")
+profile_policy=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/scripts/profile-policy.sh" "$image_profile")
+profile_policy_sha256=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
@@ -170,11 +172,13 @@ else
   result_status=fail
 fi
 runtime_result_write "$result_file" \
-  'RESULT_FORMAT=1' \
+  'RESULT_FORMAT=2' \
   "ANDROID_VERSION=$android_version" \
   "AOSP_TAG=$AOSP_TAG" \
   "ARCH=$arch" \
   "IMAGE_PROFILE=$image_profile" \
+  "PROFILE_POLICY=$profile_policy" \
+  "PROFILE_POLICY_SHA256=$profile_policy_sha256" \
   "HAL_PROFILE=$hal_profile" \
   "SECURITY_MODE=$security_mode" \
   "GRAPHICS_BACKEND=$graphics_backend" \

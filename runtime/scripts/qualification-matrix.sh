@@ -56,8 +56,14 @@ for version in $versions; do
     key=$(runtime_result_key "$version" "$arch" "$image_profile" "$hal_profile" "$security_mode" "$graphics_backend")
     result_file="$results_dir/$key"
     log_file=${result_file%.env}.log
-    if [ "$resume" = 1 ] && [ "$(runtime_result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ]; then
-      printf '\n==> Android %s %s: runtime qualification already passed, skipping\n' "$version" "$arch"
+    expected_profile_policy=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-policy.sh" "$image_profile")
+    expected_profile_policy_sha256=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
+    if [ "$resume" = 1 ] \
+      && [ "$(runtime_result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 2 ] \
+      && [ "$(runtime_result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$(runtime_result_get "$result_file" PROFILE_POLICY 2>/dev/null || true)" = "$expected_profile_policy" ] \
+      && [ "$(runtime_result_get "$result_file" PROFILE_POLICY_SHA256 2>/dev/null || true)" = "$expected_profile_policy_sha256" ]; then
+      printf '\n==> Android %s %s: runtime qualification already passed with current profile policy, skipping\n' "$version" "$arch"
       continue
     fi
     printf '\n==> Android %s %s: runtime qualification\n' "$version" "$arch"
@@ -68,6 +74,8 @@ for version in $versions; do
       ROYD_SECURITY_MODE="$security_mode" \
       ROYD_GRAPHICS_BACKEND="$graphics_backend" \
       ROYD_QUALIFY_REQUIRE_ADB="$require_adb" \
+      ROYD_EXPECTED_PROFILE_POLICY="$expected_profile_policy" \
+      ROYD_EXPECTED_PROFILE_POLICY_SHA256="$expected_profile_policy_sha256" \
       ROYD_RUNTIME_RESULTS_DIR="$results_dir" \
       ROYD_RUNTIME_RESULT_FILE="$result_file" \
       ROYD_RUNTIME_LOG_FILE="$log_file" \

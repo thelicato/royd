@@ -40,8 +40,8 @@ The sweep defaults to several candidate limits between 512 MB and 1 GB. They are
 
 ## Android image profiles
 
-Build-time slimming is now isolated behind explicit `standard` and `minimal` Android image profiles. The first minimal profile removes only a small set of optional packages so its memory and image-size effects can be measured without conflating them with more aggressive framework changes. See [`image-profiles.md`](image-profiles.md).
+Build-time slimming is isolated behind explicit `standard` and `minimal` Android image profiles. The minimal profile now uses a version-family package policy with a protected core package guard. The exact removal list and its SHA-256 are embedded in each image so memory and image-size comparisons remain attributable as the policy evolves. See [`image-profiles.md`](image-profiles.md).
 
 ## Next optimisation work
 
-The minimal profile should be validated on reference hosts before additional services or packages are removed. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule.
+The expanded minimal profile should be validated on reference hosts before additional services or packages are removed. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule. The memory sweep enforces named workload provenance for any command-driven workload.

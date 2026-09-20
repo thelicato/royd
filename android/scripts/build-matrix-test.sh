@@ -78,6 +78,23 @@ after=$(wc -l < "$calls" | tr -d ' ')
   exit 1
 }
 
+# Changing the recorded package-policy digest must invalidate a passing tuple.
+sed -i 's/^PROFILE_POLICY_SHA256=.*/PROFILE_POLICY_SHA256=stale/' "$x86_result"
+ROYD_WORK_DIR="$work" \
+ROYD_BUILD_VERSIONS=15 \
+ROYD_BUILD_ARCHES=x86_64 \
+ROYD_BUILD_BUILDER="$tmp/builder" \
+ROYD_BUILD_RESULTS_DIR="$work/build-results" \
+ROYD_BUILD_REPORT_OUTPUT="$report" \
+ROYD_BUILD_CLEAN=1 \
+ROYD_BUILD_RESUME=1 \
+"$script_dir/build-matrix.sh" >/dev/null
+policy_after=$(wc -l < "$calls" | tr -d ' ')
+[ "$policy_after" -eq $((after + 3)) ] || {
+  printf '%s\n' 'error: changed image-profile policy did not invalidate build-matrix resume state' >&2
+  exit 1
+}
+
 rm -f "$work/build-results/15/arm64-standard-graphical.env"
 if ROYD_TEST_FAIL_BUILD=1 \
   ROYD_WORK_DIR="$work" \

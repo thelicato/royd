@@ -5,6 +5,8 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$script_dir/common.sh"
 
+require_command sha256sum
+
 src=${1:-$(source_dir)}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($script_dir/profile.sh "$profile")
@@ -15,6 +17,8 @@ device_dst="$src/device/royd"
 vendor_dst="$src/vendor/royd"
 profile_src="$android_dir/profiles/$profile.mk"
 profile_dst="$vendor_dst/profile.mk"
+profile_policy_dst="$vendor_dst/profile_policy.mk"
+profile_packages_dst="$vendor_dst/profile-packages.txt"
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
 hal_profile_src="$android_dir/hal-profiles/$hal_profile.mk"
@@ -46,6 +50,21 @@ mkdir -p "$device_dst" "$vendor_dst"
 cp -a "$device_src/." "$device_dst/"
 cp -a "$vendor_src/." "$vendor_dst/"
 cp "$profile_src" "$profile_dst"
+profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-policy.sh" "$profile")
+ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-packages.sh" "$profile" > "$profile_packages_dst"
+profile_policy_sha256=$(sha256sum "$profile_packages_dst" | awk '{print $1}')
+{
+  printf '# Generated from repository-owned Android image profile policy.\n'
+  printf 'ROYD_PROFILE_POLICY := %s\n' "$profile_policy"
+  printf 'ROYD_PROFILE_POLICY_SHA256 := %s\n' "$profile_policy_sha256"
+  if [ -s "$profile_packages_dst" ]; then
+    printf 'ROYD_MINIMAL_PACKAGES := %s\n' "$(tr '\n' ' ' < "$profile_packages_dst" | sed 's/[[:space:]]*$//')"
+  else
+    printf 'ROYD_MINIMAL_PACKAGES :=\n'
+  fi
+  printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.profile_policy=%s\n' "$profile_policy"
+  printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.profile_policy_sha256=%s\n' "$profile_policy_sha256"
+} > "$profile_policy_dst"
 cp "$hal_profile_src" "$hal_profile_dst"
 cp "$graphics_backend_src" "$graphics_backend_dst"
 cp "$compat_src/product.mk" "$device_dst/container_version.mk"

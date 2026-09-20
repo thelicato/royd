@@ -130,7 +130,7 @@ grep -Fq 'exec /init' runtime/rootfs/royd-entrypoint
 grep -Fq 'org.opencontainers.image.title=royd' runtime/scripts/import.sh
 grep -Fq 'org.royd.image-format' runtime/scripts/import.sh
 grep -Fq 'ARCHIVE_SHA256' android/scripts/package.sh
-grep -Fq 'ROYD_IMAGE_FORMAT=2' runtime/image.env
+grep -Fq 'ROYD_IMAGE_FORMAT=3' runtime/image.env
 grep -Fq 'royd:15.0.0-r36-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:14.0.0-r14-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:16.0.0-r4-minimal-graphical-arm64' runtime/scripts/image-contract-test.sh
@@ -195,9 +195,14 @@ grep -Fq 'memory-sweep' Makefile
 grep -Fq 'ROYD_WIDTH=540' runtime/profiles/default.env
 grep -Fq 'ROYD_MEMORY_LIMITS' runtime/scripts/memory-sweep.sh
 grep -Fq 'vendor/royd/profile.mk' android/royd/vendor/royd/royd.mk
-grep -Fq 'BasicDreams' android/profiles/minimal.mk
-grep -Fq 'PrintSpooler' android/profiles/minimal.mk
+grep -Fq 'profile_policy.mk' android/profiles/minimal.mk
+grep -Fq 'BasicDreams' android/profiles/minimal/common.packages
+grep -Fq 'PrintSpooler' android/profiles/minimal/common.packages
+grep -Fq 'Camera2' android/profiles/minimal/modern.packages
+grep -Fq 'Settings' android/profiles/protected.packages
 grep -Fq 'ro.vendor.royd.image_profile=minimal' android/profiles/minimal.mk
+grep -Fq 'org.royd.profile-policy' runtime/scripts/import.sh
+grep -Fq 'ROYD_MEMORY_WORKLOAD' runtime/scripts/memory-sweep.sh
 grep -Fq 'installclean' android/scripts/build.sh
 grep -Fq 'android-build-minimal-x86_64' Makefile
 grep -Fq 'runtime-import-minimal-x86_64' Makefile

@@ -1,0 +1,11 @@
+# Android 11+ handheld applications not required by the royd container contract.
+Browser2
+Calendar
+Camera2
+Contacts
+DeskClock
+Email
+Gallery2
+Music
+PhotoTable
+QuickSearchBox

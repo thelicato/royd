@@ -16,10 +16,12 @@ key=$(runtime_result_key 15 x86_64 standard graphical privileged)
 [ "$key" = '15/x86_64-standard-graphical-privileged.env' ]
 file="$tmp/runtime-results/$key"
 runtime_result_write "$file" \
-  'RESULT_FORMAT=1' \
+  'RESULT_FORMAT=2' \
   'ANDROID_VERSION=15' \
   'ARCH=x86_64' \
   'IMAGE_PROFILE=standard' \
+  'PROFILE_POLICY=standard-v1' \
+  'PROFILE_POLICY_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' \
   'HAL_PROFILE=graphical' \
   'SECURITY_MODE=privileged' \
   'HOST_STATUS=pass' \

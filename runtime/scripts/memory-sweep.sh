@@ -9,6 +9,8 @@ limits=${ROYD_MEMORY_LIMITS:-'512m 640m 768m 896m 1024m'}
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 settle=${ROYD_MEMORY_SETTLE:-10}
 output=${ROYD_MEMORY_SWEEP_OUTPUT:--}
+workload=${ROYD_MEMORY_WORKLOAD:-boot-idle}
+workload_command=${ROYD_MEMORY_WORKLOAD_COMMAND:-}
 workdir=$(mktemp -d)
 
 cleanup() {
@@ -25,6 +27,23 @@ docker image inspect "$image" >/dev/null 2>&1 || {
   printf 'error: image not found: %s\n' "$image" >&2
   exit 1
 }
+
+case "$workload" in
+  ''|*[!A-Za-z0-9._-]*)
+    printf 'error: ROYD_MEMORY_WORKLOAD must contain only letters, numbers, dot, underscore or dash\n' >&2
+    exit 2
+    ;;
+esac
+if [ "$workload" = boot-idle ] && [ -n "$workload_command" ]; then
+  printf '%s\n' 'error: set ROYD_MEMORY_WORKLOAD to a descriptive name when ROYD_MEMORY_WORKLOAD_COMMAND is used' >&2
+  exit 2
+fi
+if [ "$workload" != boot-idle ] && [ -z "$workload_command" ]; then
+  printf '%s\n' 'error: non-default ROYD_MEMORY_WORKLOAD requires ROYD_MEMORY_WORKLOAD_COMMAND' >&2
+  exit 2
+fi
+
+provenance=$("$script_dir/memory-provenance.sh" "$image" "$profile")
 
 profile_args=$("$script_dir/profile.sh" "$profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
@@ -61,38 +80,39 @@ run_candidate() {
   # Word splitting is intentional because profile.sh and security-args.sh emit trusted arguments.
   # shellcheck disable=SC2086
   docker run -d $security_args $gpu_args \
-
     --name "$container" \
     --memory "$limit" \
     --memory-swap "$limit" \
     -v "$volume:/data" \
     "$image" $profile_args >"$log" 2>&1
   run_status=$?
+
   if [ "$run_status" -eq 0 ]; then
     "$script_dir/assert-security.sh" "$container" "$security_mode" >>"$log" 2>&1
-    security_status=$?
-    if [ "$security_status" -ne 0 ]; then
-      run_status=$security_status
-    fi
+    run_status=$?
   fi
   if [ "$run_status" -eq 0 ]; then
     "$script_dir/wait-for-boot.sh" "$container" "$timeout" >>"$log" 2>&1
-    boot_status=$?
-    if [ "$boot_status" -eq 0 ]; then
-      "$script_dir/assert-runtime.sh" "$container" >>"$log" 2>&1
-      assert_status=$?
-      if [ "$assert_status" -eq 0 ]; then
-        [ "$settle" -eq 0 ] || sleep "$settle"
-        status='passed'
-        usage=$(docker stats --no-stream --format '{{.MemUsage}}' "$container" 2>/dev/null || printf '%s' unavailable)
-        android_ram=$(docker exec "$container" dumpsys meminfo 2>/dev/null | sed -n 's/^[[:space:]]*Total RAM:[[:space:]]*//p' | head -n 1)
-        [ -n "$android_ram" ] || android_ram='unavailable'
-        image_profile=$(docker exec "$container" getprop ro.vendor.royd.image_profile 2>/dev/null || true)
-        [ -n "$image_profile" ] || image_profile='unknown'
-        package_count=$(docker exec "$container" sh -c 'pm list packages 2>/dev/null | wc -l' 2>/dev/null | tr -d '[:space:]' || true)
-        [ -n "$package_count" ] || package_count='unavailable'
-      fi
-    fi
+    run_status=$?
+  fi
+  if [ "$run_status" -eq 0 ]; then
+    "$script_dir/assert-runtime.sh" "$container" >>"$log" 2>&1
+    run_status=$?
+  fi
+  if [ "$run_status" -eq 0 ] && [ -n "$workload_command" ]; then
+    docker exec "$container" sh -c "$workload_command" >>"$log" 2>&1
+    run_status=$?
+  fi
+  if [ "$run_status" -eq 0 ]; then
+    [ "$settle" -eq 0 ] || sleep "$settle"
+    status='passed'
+    usage=$(docker stats --no-stream --format '{{.MemUsage}}' "$container" 2>/dev/null || printf '%s' unavailable)
+    android_ram=$(docker exec "$container" dumpsys meminfo 2>/dev/null | sed -n 's/^[[:space:]]*Total RAM:[[:space:]]*//p' | head -n 1)
+    [ -n "$android_ram" ] || android_ram='unavailable'
+    image_profile=$(docker exec "$container" getprop ro.vendor.royd.image_profile 2>/dev/null || true)
+    [ -n "$image_profile" ] || image_profile='unknown'
+    package_count=$(docker exec "$container" sh -c 'pm list packages 2>/dev/null | wc -l' 2>/dev/null | tr -d '[:space:]' || true)
+    [ -n "$package_count" ] || package_count='unavailable'
   fi
   set -e
 
@@ -119,19 +139,24 @@ for limit in $limits; do
       exit 2
       ;;
   esac
-  printf 'Testing %s with profile %s\n' "$limit" "$profile" >&2
+  printf 'Testing %s with profile %s and workload %s\n' "$limit" "$profile" "$workload" >&2
   run_candidate "$limit"
 done
 
 report="$workdir/report.md"
 {
   printf '# royd memory sweep\n\n'
-  printf 'This report tests candidate container memory limits. A pass is evidence only for this exact image, host, profile, and boot workload. It is not a general minimum-RAM claim.\n\n'
-  printf -- '- image: `%s`\n' "$image"
-  printf -- '- profile: `%s`\n' "$profile"
+  printf 'This report tests candidate container memory limits. A pass is evidence only for this exact image, host, display profile, and workload. It is not a general minimum-RAM claim.\n\n'
+  printf '%s\n' "$provenance"
   printf -- '- security mode: `%s`\n' "$security_mode"
+  printf -- '- workload: `%s`\n' "$workload"
   printf -- '- boot timeout: `%s seconds`\n' "$timeout"
-  printf -- '- settle time: `%s seconds`\n\n' "$settle"
+  printf -- '- settle time: `%s seconds`\n' "$settle"
+  if [ -n "$workload_command" ]; then
+    printf -- '- workload command:\n\n```sh\n%s\n```\n\n' "$workload_command"
+  else
+    printf -- '- workload command: none (boot and idle settle only)\n\n'
+  fi
   printf '| Limit | Result | Seconds | Container usage | Android total RAM | Image profile | Packages |\n'
   printf '| --- | --- | ---: | --- | --- | --- | ---: |\n'
   while IFS="$(printf '\t')" read -r limit status elapsed usage android_ram image_profile package_count; do
@@ -153,7 +178,7 @@ report="$workdir/report.md"
     printf 'No candidate failed during this sweep.\n\n'
   fi
   printf '## Notes\n\n'
-  printf 'The sweep deliberately uses a fresh `/data` volume for every candidate and constrains memory and swap to the same value. Failed candidates may have stopped because of Android boot failure, an assertion failure, the container memory limit, or another host issue.\n'
+  printf 'The sweep deliberately uses a fresh `/data` volume for every candidate and constrains memory and swap to the same value. Failed candidates may have stopped because of Android boot failure, workload failure, an assertion failure, the container memory limit, or another host issue.\n'
 } >"$report"
 
 if [ "$output" = '-' ]; then

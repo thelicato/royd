@@ -13,6 +13,8 @@ hal_profile=${ROYD_HAL_PROFILE:-graphical}
 hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/graphics-backend.sh" "$graphics_backend" "$arch")
+profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-policy.sh" "$profile")
+profile_policy_sha256=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-packages.sh" "$profile" | sha256sum | awk '{print $1}')
 jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
@@ -41,7 +43,7 @@ stamp="$stamp_dir/$ANDROID_VERSION-$arch"
 previous_profile=
 [ -f "$stamp" ] && previous_profile=$(cat "$stamp")
 mkdir -p "$stamp_dir"
-current_profile="$profile:$hal_profile:$graphics_backend"
+current_profile="$profile:$profile_policy:$profile_policy_sha256:$hal_profile:$graphics_backend"
 printf 'Building Android %s (%s) with image profile %s, HAL profile %s, graphics backend %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$hal_profile" "$graphics_backend" "$jobs"
 
 (

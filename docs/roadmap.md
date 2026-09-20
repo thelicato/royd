@@ -74,8 +74,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add standard-versus-minimal comparison reporting.
 - [ ] Record repeatable idle and workload memory benchmarks on a reference host.
 - [ ] Tune `lmkd` and background process behaviour against container memory limits.
-- [ ] Expand package removal only after compatibility testing.
-- [ ] Publish memory figures only with the exact test profile and workload.
+- [x] Expand the minimal package policy conservatively with version-family rules, a protected core package guard, and immutable policy identity.
+- [x] Require generated memory evidence to record the exact image/profile policy, display configuration, and named workload before figures are published.
 
 ## 7. Privilege reduction
 

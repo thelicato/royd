@@ -93,3 +93,7 @@ This does not promote the tuple to supported. The support policy also requires r
 ## Disposable state
 
 Qualification containers and `/data` volumes are disposable and removed when the test exits. The runner publishes ADB on an automatically selected loopback port, so it can coexist with other local Android instances without assuming port 5555 is free.
+
+## Image-profile policy provenance
+
+Runtime qualification results use result format 2 and record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`. Resume mode accepts previous evidence only when the recorded policy still matches the repository policy for that Android version. A package-policy change therefore invalidates stale runtime qualification automatically.

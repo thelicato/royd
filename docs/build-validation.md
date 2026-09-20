@@ -115,3 +115,7 @@ Interactive debugging can force a terminal with `ROYD_BUILDER_TTY=always`.
 ## Support status
 
 Build evidence is only one release gate. A version should not be called supported until it also passes OCI import, Android boot, Binder isolation, graphics, ADB, memory, and security validation on documented hosts.
+
+## Image-profile policy provenance
+
+Build results use result format 2 and record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`. Resume mode skips a passing tuple only when those values still match the repository policy for that Android version. Changing the minimal package manifest therefore forces the tuple to run again instead of reusing stale build evidence.
