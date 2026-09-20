@@ -150,7 +150,7 @@ These rules apply to every session and every contribution:
 - Prefer capability detection over Linux distribution detection.
 - Prefer upstream Linux and Android mechanisms over distro-specific workarounds.
 - Avoid adding legacy compatibility code unless there is a demonstrated need and the maintenance cost is justified.
-- Keep changes scoped to one meaningful atomic task at a time. An atomic task should be large enough to produce a useful, reviewable change but small enough to understand and revert independently.
+- Keep changes scoped to one meaningful task at a time. Prefer a cohesive small milestone over micro-tasks that change only one trivial file, while keeping each task reviewable and independently revertible.
 - Stop after completing each atomic task. Summarise what changed and suggest one Conventional Commit message. Do not continue to the next task until the user asks to proceed.
 - Use Conventional Commits for commit suggestions, for example `docs: add project architecture guidelines`, `feat: add binderfs bootstrap`, or `test: add host capability checks`.
 - Do not commit generated artefacts, build outputs, caches, credentials, secrets, or machine-specific files unless they are intentionally part of the project.

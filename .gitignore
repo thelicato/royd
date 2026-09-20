@@ -1,0 +1,24 @@
+# Editor and operating system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Go build and test output
+/bin/
+/coverage.out
+
+# Android and general build output
+/out/
+/dist/
+/build/
+
+# Local repository delivery artefacts
+*.zip
+*.patch
