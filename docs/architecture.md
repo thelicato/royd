@@ -76,7 +76,7 @@ The runtime should eventually support at least two graphics paths:
 - Host GPU acceleration where a compatible render device is explicitly passed to the container.
 - Software rendering for hosts without usable GPU access.
 
-Low-resolution and low-refresh-rate display profiles should be available for workloads that do not need a large interactive display.
+Low-resolution and low-refresh-rate display profiles should be available for workloads that do not need a large interactive display. The `headless` HAL profile is server-oriented but still retains the minimum graphics stack Android expects for normal framework boot.
 
 ## Security direction
 

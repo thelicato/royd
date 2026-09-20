@@ -115,3 +115,15 @@ See [`acknowledgements.md`](acknowledgements.md) for projects that influenced th
 ## Upstream reference
 
 - AOSP build documentation: <https://source.android.com/docs/setup/build/building>
+
+## HAL profiles
+
+The default build uses the `graphical` HAL profile. A headless-oriented server profile is also available. It keeps the minimum software graphics stack required for normal Android framework boot, but uses explicit headless identity and conservative optional hardware package removal.
+
+```sh
+make android-build-headless-x86_64
+make android-package-headless-x86_64
+make runtime-import-headless-x86_64
+```
+
+For version-specific builds, set `ROYD_HAL_PROFILE=headless` alongside `ROYD_ANDROID_VERSION`. See [`hal-profiles.md`](hal-profiles.md).

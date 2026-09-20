@@ -2,6 +2,12 @@
 set -eu
 
 container=${1:-royd}
+hal_profile=${ROYD_HAL_PROFILE:-graphical}
+case "$hal_profile" in
+  graphical) display_mode=interactive ;;
+  headless) display_mode=headless ;;
+  *) printf 'error: unsupported HAL profile: %s\n' "$hal_profile" >&2; exit 1 ;;
+esac
 
 command -v docker >/dev/null 2>&1 || {
   printf '%s\n' 'error: docker is required for runtime validation' >&2
@@ -27,6 +33,8 @@ assert_property sys.boot_completed 1
 assert_property ro.config.low_ram true
 assert_property init.svc.royd-logcat running
 assert_property vendor.royd.graphics.mode software
+assert_property ro.vendor.royd.hal_profile "$hal_profile"
+assert_property ro.vendor.royd.display_mode "$display_mode"
 assert_property vendor.royd.graphics.allocator gralloc0-memfd
 assert_property ro.hardware.gralloc royd
 assert_property ro.hardware.hwcomposer default

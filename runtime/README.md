@@ -21,15 +21,16 @@ make android-package-minimal-x86_64
 make runtime-import-minimal-x86_64
 ```
 
-Imported images now receive canonical architecture-specific tags derived from the pinned AOSP release, for example:
+Imported images receive canonical tags derived from the pinned AOSP release, image profile, HAL profile, and architecture, for example:
 
 ```text
-royd:15.0.0-r36-standard-amd64
-royd:15.0.0-r36-minimal-amd64
-royd:15.0.0-r36-standard-arm64
+royd:15.0.0-r36-standard-graphical-amd64
+royd:15.0.0-r36-minimal-graphical-amd64
+royd:15.0.0-r36-standard-graphical-arm64
+royd:15.0.0-r36-standard-headless-amd64
 ```
 
-Convenience aliases remain available for development: `royd:dev`, `royd:dev-minimal`, `royd:dev-arm64`, and `royd:dev-minimal-arm64`.
+Convenience aliases remain available for development. Graphical images keep the short aliases such as `royd:dev`; non-default HAL profiles are explicit, for example `royd:dev-headless`.
 
 The package step extracts AOSP's generated `ramdisk.img` as the container root, preserving its recorded ownership and modes, then adds the built partition images at their normal mount points. It requires system, vendor, system_ext, and product, and includes odm when produced. The archive also contains `/royd-release` with immutable build identity fields and a sidecar manifest with the archive SHA-256 digest.
 

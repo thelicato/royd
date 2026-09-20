@@ -38,7 +38,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a repository-owned memfd gralloc module and version-matched AOSP composer bridge for the software path.
 - [ ] Validate the software graphics path with clean builds and real SurfaceFlinger boots across representative Android generations.
 - [ ] Implement optional host GPU rendering through explicit `/dev/dri` access.
-- [ ] Define the minimum HAL set required for headless and graphical profiles.
+- [x] Define initial graphical and headless-oriented HAL profiles with explicit image identity.
+- [ ] Validate the exact runtime HAL and service set for both profiles across representative Android generations.
 - [ ] Make runtime display parameters take effect without relying on emulator-specific services.
 
 ## 4. Container-native logging and diagnostics
@@ -113,7 +114,7 @@ Remaining work:
 
 Implemented:
 
-- canonical architecture-specific tags derived from the pinned AOSP ref
+- canonical tags derived from the pinned AOSP ref, image profile, HAL profile, and architecture
 - development aliases kept separate from canonical identity
 - immutable `/royd-release` metadata inside packaged root filesystems
 - archive SHA-256 manifests verified before Docker import

@@ -90,11 +90,11 @@ Canonical OCI tags include the pinned AOSP release, profile, and architecture. D
 Examples:
 
 ```text
-royd:8.0.0-r36-standard-amd64
-royd:8.1.0-r81-standard-amd64
-royd:10.0.0-r47-standard-amd64
-royd:15.0.0-r36-standard-amd64
-royd:17.0.0-r1-standard-arm64
+royd:8.0.0-r36-standard-graphical-amd64
+royd:8.1.0-r81-standard-graphical-amd64
+royd:10.0.0-r47-standard-graphical-amd64
+royd:15.0.0-r36-standard-graphical-amd64
+royd:17.0.0-r1-standard-graphical-arm64
 
 royd:dev-8.0
 royd:dev-8.1

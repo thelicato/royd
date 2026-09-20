@@ -107,7 +107,7 @@ adb -s localhost:5555 logcat
 
 Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android.
 
-The first graphics baseline is software-rendered with AOSP SwiftShader, so `/dev/dri` is not required. Host GPU acceleration remains intentionally unsupported until royd owns and validates the complete allocator/composer path. See [`docs/hardware-contract.md`](docs/hardware-contract.md).
+The first graphics baseline is software-rendered with AOSP SwiftShader, so `/dev/dri` is not required. royd now has separate `graphical` and headless-oriented HAL profiles, both retaining the minimum graphics stack required for Android framework boot. Host GPU acceleration remains intentionally unsupported until royd owns and validates the complete allocator/composer path. See [`docs/hardware-contract.md`](docs/hardware-contract.md), [`docs/graphics.md`](docs/graphics.md), and [`docs/hal-profiles.md`](docs/hal-profiles.md).
 
 ## Low-memory direction
 
@@ -150,6 +150,8 @@ make android-config-check
 make android-build-x86_64
 make android-package-x86_64
 make runtime-import-x86_64
+make android-build-headless-x86_64
+make runtime-import-headless-x86_64
 cp runtime/.env.example runtime/.env
 make runtime-up
 make runtime-logs

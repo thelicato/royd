@@ -84,7 +84,7 @@ Removing the previous external integration deliberately resets some assumptions 
 
 ## OCI image identity
 
-royd assigns canonical image tags from the pinned AOSP release, Android image profile, and CPU architecture. Development aliases are added separately so local workflows stay short while published or cached images remain unambiguous.
+royd assigns canonical image tags from the pinned AOSP release, Android image profile, HAL profile, and CPU architecture. Development aliases are added separately so local workflows stay short while published or cached images remain unambiguous.
 
 Every packaged root filesystem contains `/royd-release`. The package step also writes a sidecar manifest with the archive SHA-256 digest. Import refuses archives whose digest no longer matches the manifest.
 

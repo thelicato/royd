@@ -9,6 +9,8 @@ src=$(source_dir)
 arch=${1:-x86_64}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($script_dir/profile.sh "$profile")
+hal_profile=${ROYD_HAL_PROFILE:-graphical}
+hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
 jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
@@ -32,7 +34,8 @@ stamp="$stamp_dir/$ANDROID_VERSION-$arch"
 previous_profile=
 [ -f "$stamp" ] && previous_profile=$(cat "$stamp")
 mkdir -p "$stamp_dir"
-printf 'Building Android %s (%s) with profile %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$jobs"
+current_profile="$profile:$hal_profile"
+printf 'Building Android %s (%s) with image profile %s, HAL profile %s and %s jobs\n' "$ANDROID_VERSION" "$lunch_target" "$profile" "$hal_profile" "$jobs"
 
 (
   cd "$src"
@@ -40,10 +43,10 @@ printf 'Building Android %s (%s) with profile %s and %s jobs\n' "$ANDROID_VERSIO
   # shellcheck disable=SC1091
   . build/envsetup.sh
   lunch "$lunch_target"
-  if [ -n "$previous_profile" ] && [ "$previous_profile" != "$profile" ]; then
-    printf 'Android profile changed from %s to %s; running installclean\n' "$previous_profile" "$profile"
+  if [ -n "$previous_profile" ] && [ "$previous_profile" != "$current_profile" ]; then
+    printf 'Android build profile changed from %s to %s; running installclean\n' "$previous_profile" "$current_profile"
     m installclean
   fi
   m -j"$jobs"
 )
-printf '%s\n' "$profile" > "$stamp"
+printf '%s\n' "$current_profile" > "$stamp"

@@ -20,6 +20,8 @@ version_env="$repo_root/android/versions/$android_version.env"
 arch=${1:-x86_64}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($repo_root/android/scripts/profile.sh "$profile")
+hal_profile=${ROYD_HAL_PROFILE:-graphical}
+hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 
 case "$arch" in
   x86_64) platform_arch=amd64 ;;
@@ -32,4 +34,4 @@ esac
 
 version=${AOSP_TAG#android-}
 version=$(printf '%s' "$version" | tr '_' '-')
-printf '%s:%s-%s-%s\n' "$ROYD_IMAGE_REPOSITORY" "$version" "$profile" "$platform_arch"
+printf '%s:%s-%s-%s-%s\n' "$ROYD_IMAGE_REPOSITORY" "$version" "$profile" "$hal_profile" "$platform_arch"

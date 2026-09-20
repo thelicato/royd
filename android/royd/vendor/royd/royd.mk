@@ -1,11 +1,6 @@
 PRODUCT_PACKAGES += \
     royd-binder-alloc \
-    royd-memfd-probe \
-    gralloc.royd \
-    hwcomposer.default \
-    libEGL_swiftshader \
-    libGLESv1_CM_swiftshader \
-    libGLESv2_swiftshader
+    royd-memfd-probe
 
 PRODUCT_COPY_FILES += \
     vendor/royd/init.royd.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/init.royd.rc \
@@ -18,3 +13,5 @@ PRODUCT_COPY_FILES += \
 $(call inherit-product, vendor/royd/version.mk)
 
 $(call inherit-product, vendor/royd/profile.mk)
+
+$(call inherit-product, vendor/royd/hal_profile.mk)

@@ -1,5 +1,7 @@
 # Graphics
 
+royd has separate `graphical` and `headless` hardware profiles. Both retain the minimum software graphics path required for normal Android framework boot. See [`hal-profiles.md`](hal-profiles.md).
+
 royd uses a software-first graphics contract so Android can start without a host GPU or emulator graphics stack.
 
 ## Software path
@@ -50,6 +52,10 @@ make runtime-graphics-report
 ```
 
 to capture the selected properties, installed graphics modules, and SurfaceFlinger state from a running container.
+
+## Headless-oriented mode
+
+The `headless` HAL profile does not remove SurfaceFlinger or the allocator/composer stack. It uses the same software graphics foundation with a tiny low-refresh virtual display and removes a conservative set of optional user-facing hardware applications. This avoids claiming that Android can boot normally with its graphics core removed.
 
 ## Host GPU mode
 

@@ -21,6 +21,8 @@ arch=${1:-x86_64}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 requested_image=${3:-}
 profile=$($repo_root/android/scripts/profile.sh "$profile")
+hal_profile=${ROYD_HAL_PROFILE:-graphical}
+hal_profile=$("$repo_root/android/scripts/hal-profile.sh" "$hal_profile")
 canonical=$($script_dir/image-tag.sh "$arch" "$profile")
 alias=$($script_dir/image-alias.sh "$arch" "$profile")
 image=${requested_image:-$canonical}
@@ -34,8 +36,8 @@ case "$arch" in
     ;;
 esac
 
-archive="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile.tar"
-manifest="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile.manifest"
+archive="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile.tar"
+manifest="$repo_root/.work/runtime/android-$ANDROID_VERSION/royd-$arch-$profile-$hal_profile.manifest"
 command -v sha256sum >/dev/null 2>&1 || {
   printf '%s\n' 'error: sha256sum is required to verify the runtime archive' >&2
   exit 1
@@ -62,11 +64,15 @@ actual_sha=$(sha256sum "$archive" | awk '{print $1}')
 
 version=${AOSP_TAG#android-}
 version=$(printf '%s' "$version" | tr '_' '-')
+case "$hal_profile" in
+  graphical) default_cmd='["androidboot.royd_width=540","androidboot.royd_height=960","androidboot.royd_dpi=240","androidboot.royd_fps=30"]' ;;
+  headless) default_cmd='["androidboot.royd_width=64","androidboot.royd_height=64","androidboot.royd_dpi=72","androidboot.royd_fps=5"]' ;;
+esac
 printf 'Importing %s as %s\n' "$archive" "$image"
 docker import \
   --platform "$platform" \
   -c 'ENTRYPOINT ["/init","androidboot.hardware=royd"]' \
-  -c 'CMD ["androidboot.royd_width=540","androidboot.royd_height=960","androidboot.royd_dpi=240","androidboot.royd_fps=30"]' \
+  -c "CMD $default_cmd" \
   -c 'LABEL org.opencontainers.image.title=royd' \
   -c 'LABEL org.opencontainers.image.description=Android runtime for OCI containers' \
   -c "LABEL org.opencontainers.image.version=$version" \
@@ -75,6 +81,7 @@ docker import \
   -c "LABEL org.royd.android-ref=$AOSP_TAG" \
   -c "LABEL org.royd.arch=$arch" \
   -c "LABEL org.royd.image-profile=$profile" \
+  -c "LABEL org.royd.hal-profile=$hal_profile" \
   "$archive" \
   "$image" >/dev/null
 

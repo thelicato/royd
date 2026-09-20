@@ -20,6 +20,8 @@ src=$(source_dir)
 arch=${1:-x86_64}
 profile=${2:-${ROYD_ANDROID_PROFILE:-standard}}
 profile=$($script_dir/profile.sh "$profile")
+hal_profile=${ROYD_HAL_PROFILE:-graphical}
+hal_profile=$("$script_dir/hal-profile.sh" "$hal_profile")
 case "$arch" in
   x86_64)
     product=$ANDROID_PRODUCT_X86_64
@@ -35,8 +37,8 @@ esac
 product_out="$src/out/target/product/$product"
 host_bin="$src/out/host/linux-x86/bin"
 runtime_dir="$repo_root/.work/runtime/android-$ANDROID_VERSION"
-output="$runtime_dir/royd-$arch-$profile.tar"
-manifest="$runtime_dir/royd-$arch-$profile.manifest"
+output="$runtime_dir/royd-$arch-$profile-$hal_profile.tar"
+manifest="$runtime_dir/royd-$arch-$profile-$hal_profile.manifest"
 tmp=$(mktemp -d)
 mounts=
 
@@ -92,7 +94,7 @@ root_dir="$tmp/root"
 [ -f "$ramdisk_img" ] || fail "Android ramdisk not found at $ramdisk_img; build Android first"
 mkdir -p "$runtime_dir" "$root_dir"
 rm -f "$output"
-printf 'Extracting Android ramdisk for %s profile %s\n' "$arch" "$profile"
+printf 'Extracting Android ramdisk for %s image profile %s and HAL profile %s\n' "$arch" "$profile" "$hal_profile"
 case $(file -b "$ramdisk_img") in
   *gzip*)
     gzip -dc "$ramdisk_img" | (cd "$root_dir" && sudo cpio -idmu --quiet)
@@ -104,7 +106,7 @@ case $(file -b "$ramdisk_img") in
     fail "unsupported ramdisk compression: $(file -b "$ramdisk_img")"
     ;;
 esac
-printf 'Creating OCI root filesystem archive for %s profile %s\n' "$arch" "$profile"
+printf 'Creating OCI root filesystem archive for %s image profile %s and HAL profile %s\n' "$arch" "$profile" "$hal_profile"
 sudo tar --xattrs --numeric-owner -C "$root_dir" -cf - . > "$output"
 for partition in $ANDROID_REQUIRED_PARTITIONS; do
   append_image "$partition" "$partition" yes
@@ -121,6 +123,7 @@ ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
+ROYD_HAL_PROFILE=$hal_profile
 ANDROID_PRODUCT=$product
 ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
@@ -135,6 +138,7 @@ ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
+ROYD_HAL_PROFILE=$hal_profile
 ANDROID_PRODUCT=$product
 ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT

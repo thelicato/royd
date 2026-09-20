@@ -19,6 +19,7 @@ if [ "$1 $2" = "image inspect" ]; then
     *org.royd.android-version*) printf '%s\n' 15 ;;
     *org.royd.android-ref*) printf '%s\n' android-15.0.0_r36 ;;
     *org.royd.image-profile*) printf '%s\n' standard ;;
+    *org.royd.hal-profile*) printf '%s\n' graphical ;;
     *org.royd.arch*) printf '%s\n' x86_64 ;;
     *org.opencontainers.image.title*) printf '%s\n' royd ;;
     *) printf 'unexpected inspect format: %s\n' "$format" >&2; exit 1 ;;
@@ -37,6 +38,7 @@ ROYD_ANDROID_VERSION=15
 ROYD_AOSP_TAG=android-15.0.0_r36
 ROYD_ARCH=x86_64
 ROYD_IMAGE_PROFILE=standard
+ROYD_HAL_PROFILE=graphical
 ANDROID_PRODUCT=royd_x86_64
 REL
   tar -C "$MOCK_RELEASE_DIR" -cf - royd-release
@@ -52,16 +54,16 @@ chmod +x "$tmp/docker"
 mkdir -p "$tmp/release"
 PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh" x86_64 standard royd:test >/dev/null
 
-[ "$(ROYD_ANDROID_VERSION=8.0 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.0.0-r36-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=8.1 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.1.0-r81-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=9 $script_dir/image-tag.sh x86_64 standard)" = 'royd:9.0.0-r61-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=10 $script_dir/image-tag.sh x86_64 standard)" = 'royd:10.0.0-r47-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=13 $script_dir/image-tag.sh arm64 standard)" = 'royd:13.0.0-r75-standard-arm64' ]
-[ "$($script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=14 $script_dir/image-tag.sh x86_64 standard)" = 'royd:14.0.0-r14-standard-amd64' ]
-[ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-tag.sh arm64 minimal)" = 'royd:16.0.0-r4-minimal-arm64' ]
-[ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-tag.sh x86_64 standard)" = 'royd:17.0.0-r1-standard-amd64' ]
-[ "$($script_dir/image-tag.sh arm64 minimal)" = 'royd:15.0.0-r36-minimal-arm64' ]
+[ "$(ROYD_ANDROID_VERSION=8.0 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.0.0-r36-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=8.1 $script_dir/image-tag.sh x86_64 standard)" = 'royd:8.1.0-r81-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=9 $script_dir/image-tag.sh x86_64 standard)" = 'royd:9.0.0-r61-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=10 $script_dir/image-tag.sh x86_64 standard)" = 'royd:10.0.0-r47-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=13 $script_dir/image-tag.sh arm64 standard)" = 'royd:13.0.0-r75-standard-graphical-arm64' ]
+[ "$($script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=14 $script_dir/image-tag.sh x86_64 standard)" = 'royd:14.0.0-r14-standard-graphical-amd64' ]
+[ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-tag.sh arm64 minimal)" = 'royd:16.0.0-r4-minimal-graphical-arm64' ]
+[ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-tag.sh x86_64 standard)" = 'royd:17.0.0-r1-standard-graphical-amd64' ]
+[ "$($script_dir/image-tag.sh arm64 minimal)" = 'royd:15.0.0-r36-minimal-graphical-arm64' ]
 [ "$(ROYD_ANDROID_VERSION=8.0 $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-8.0' ]
 [ "$(ROYD_ANDROID_VERSION=8.1 $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-8.1' ]
 [ "$(ROYD_ANDROID_VERSION=10 $script_dir/image-alias.sh arm64 standard)" = 'royd:dev-10-arm64' ]
@@ -71,4 +73,7 @@ PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh"
 [ "$(ROYD_ANDROID_VERSION=16 $script_dir/image-alias.sh arm64 standard)" = 'royd:dev-16-arm64' ]
 [ "$(ROYD_ANDROID_VERSION=17 $script_dir/image-alias.sh x86_64 minimal)" = 'royd:dev-17-minimal' ]
 [ "$($script_dir/image-alias.sh arm64 minimal)" = 'royd:dev-minimal-arm64' ]
+
+[ "$(ROYD_HAL_PROFILE=headless $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-headless-amd64' ]
+[ "$(ROYD_HAL_PROFILE=headless $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-headless' ]
 printf '%s\n' 'Runtime image contract test passed'

@@ -98,12 +98,20 @@ grep -Fq 'org.opencontainers.image.title=royd' runtime/scripts/import.sh
 grep -Fq 'org.royd.image-format' runtime/scripts/import.sh
 grep -Fq 'ARCHIVE_SHA256' android/scripts/package.sh
 grep -Fq 'ROYD_IMAGE_FORMAT=1' runtime/image.env
-grep -Fq 'royd:15.0.0-r36-standard-amd64' runtime/scripts/image-contract-test.sh
-grep -Fq 'royd:14.0.0-r14-standard-amd64' runtime/scripts/image-contract-test.sh
-grep -Fq 'royd:16.0.0-r4-minimal-arm64' runtime/scripts/image-contract-test.sh
-grep -Fq 'royd:17.0.0-r1-standard-amd64' runtime/scripts/image-contract-test.sh
+grep -Fq 'royd:15.0.0-r36-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
+grep -Fq 'royd:14.0.0-r14-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
+grep -Fq 'royd:16.0.0-r4-minimal-graphical-arm64' runtime/scripts/image-contract-test.sh
+grep -Fq 'royd:17.0.0-r1-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq '/royd-release' runtime/scripts/image-inspect.sh
 grep -Fq 'runtime-image-contract-test' Makefile
+grep -Fq 'android-hal-profile-test' Makefile
+grep -Fq 'android-hal-contract-test' Makefile
+grep -Fq 'ro.vendor.royd.hal_profile=headless' android/hal-profiles/headless.mk
+grep -Fq 'ro.vendor.royd.hal_profile=graphical' android/hal-profiles/graphical.mk
+grep -Fq 'vendor/royd/hal_profile.mk' android/royd/vendor/royd/royd.mk
+grep -Fq 'ROYD_HAL_PROFILE' android/scripts/package.sh
+grep -Fq 'org.royd.hal-profile' runtime/scripts/import.sh
+grep -Fq 'runtime-smoke-test-headless' Makefile
 grep -Fq 'androidboot.royd_width' runtime/scripts/profile.sh
 grep -Fq 'androidboot.royd_width' runtime/compose.yaml
 grep -Fq 'docker stats --no-stream' runtime/scripts/memory-report.sh
