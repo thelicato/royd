@@ -40,7 +40,7 @@ get_build_var() {
 }
 MOCK
 
-for version in 14 15 16 17; do
+for version in 8.1 9 10 11 12 13 14 15 16 17; do
   output=$(ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh")
   printf '%s\n' "$output" | grep -Fq 'Android build contract checks passed'
 done
@@ -58,4 +58,4 @@ if ROYD_ANDROID_VERSION=15 ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh"
   exit 1
 fi
 
-printf '%s\n' 'Android resolved build contract test passed for versions 14, 15, 16, and 17'
+printf '%s\n' 'Android resolved build contract test passed for versions 8.1 through 17'

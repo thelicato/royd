@@ -106,11 +106,12 @@ case $(file -b "$ramdisk_img") in
 esac
 printf 'Creating OCI root filesystem archive for %s profile %s\n' "$arch" "$profile"
 sudo tar --xattrs --numeric-owner -C "$root_dir" -cf - . > "$output"
-append_image system system yes
-append_image vendor vendor yes
-append_image system_ext system_ext yes
-append_image product product yes
-append_image odm odm no
+for partition in $ANDROID_REQUIRED_PARTITIONS; do
+  append_image "$partition" "$partition" yes
+done
+for partition in ${ANDROID_OPTIONAL_PARTITIONS:-}; do
+  append_image "$partition" "$partition" no
+done
 
 release_dir="$tmp/release"
 mkdir -p "$release_dir"
@@ -121,6 +122,8 @@ ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
 ANDROID_PRODUCT=$product
+ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
+ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 EOF
 touch -t 197001010000 "$release_dir/royd-release"
 sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./royd-release
@@ -133,6 +136,8 @@ ROYD_AOSP_TAG=$AOSP_TAG
 ROYD_ARCH=$arch
 ROYD_IMAGE_PROFILE=$profile
 ANDROID_PRODUCT=$product
+ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
+ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 ARCHIVE_SHA256=$archive_sha256
 EOF
 printf 'Runtime manifest is ready: %s\n' "$manifest"

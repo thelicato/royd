@@ -1,0 +1,58 @@
+FROM ubuntu:18.04
+
+ARG UID=1000
+ARG GID=1000
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    bc \
+    bison \
+    build-essential \
+    ca-certificates \
+    ccache \
+    cpio \
+    curl \
+    file \
+    flex \
+    fontconfig \
+    g++-multilib \
+    gcc-multilib \
+    git \
+    git-lfs \
+    gnupg \
+    lib32z1-dev \
+    libc6-dev-i386 \
+    libgl1-mesa-dev \
+    liblz4-tool \
+    libx11-dev \
+    libssl-dev \
+    libxml2-utils \
+    lzop \
+    openjdk-8-jdk \
+    python \
+    python3 \
+    repo \
+    rsync \
+    sudo \
+    unzip \
+    x11proto-core-dev \
+    xsltproc \
+    zip \
+    zlib1g-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN git lfs install --system \
+  && git config --system user.name royd-builder \
+  && git config --system user.email royd-builder@localhost
+
+RUN groupadd --gid "$GID" builder \
+  && useradd --uid "$UID" --gid "$GID" --create-home --shell /bin/bash builder \
+  && printf "builder ALL=(root) NOPASSWD: /usr/bin/cpio, /bin/mount, /bin/tar, /bin/umount, /usr/bin/mount, /usr/bin/tar, /usr/bin/umount\n" > /etc/sudoers.d/royd-builder \
+  && chmod 0440 /etc/sudoers.d/royd-builder
+
+USER builder
+WORKDIR /workspace/royd
+
+CMD ["/bin/bash"]

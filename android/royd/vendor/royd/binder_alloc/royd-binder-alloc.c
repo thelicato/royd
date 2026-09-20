@@ -1,13 +1,23 @@
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/android/binderfs.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+/* Keep the binderfs userspace ABI local so this helper also builds against
+ * older Android source trees whose exported Linux headers predate binderfs. */
+#define ROYD_BINDERFS_MAX_NAME 255
+struct royd_binderfs_device {
+    char name[ROYD_BINDERFS_MAX_NAME + 1];
+    uint32_t major;
+    uint32_t minor;
+};
+#define ROYD_BINDER_CTL_ADD _IOWR('b', 1, struct royd_binderfs_device)
+
 static int add_device(int control_fd, const char *name) {
-    struct binderfs_device device = {0};
+    struct royd_binderfs_device device = {0};
     size_t length = strlen(name);
 
     if (length == 0 || length >= sizeof(device.name)) {
@@ -16,7 +26,7 @@ static int add_device(int control_fd, const char *name) {
     }
 
     memcpy(device.name, name, length + 1);
-    if (ioctl(control_fd, BINDER_CTL_ADD, &device) < 0) {
+    if (ioctl(control_fd, ROYD_BINDER_CTL_ADD, &device) < 0) {
         fprintf(stderr, "BINDER_CTL_ADD %s failed: %s\n", name, strerror(errno));
         return 1;
     }

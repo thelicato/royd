@@ -11,12 +11,6 @@ PRODUCT_COPY_FILES += \
     vendor/royd/bin/royd-display-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-display-setup \
     vendor/royd/bin/royd-hardware-setup:$(TARGET_COPY_OUT_VENDOR)/bin/royd-hardware-setup
 
-PRODUCT_VENDOR_PROPERTIES += \
-    ro.config.low_ram=true \
-    ro.lmk.use_psi=true \
-    ro.lmk.use_minfree_levels=false \
-    ro.hardware.egl=swiftshader \
-    ro.opengles.version=196610 \
-    debug.renderengine.backend=skiaglthreaded
+$(call inherit-product, vendor/royd/version.mk)
 
 $(call inherit-product, vendor/royd/profile.mk)

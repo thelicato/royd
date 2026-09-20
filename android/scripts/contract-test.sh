@@ -5,23 +5,18 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$script_dir/common.sh"
 
-contract="$android_dir/build-contract.env"
-[ -f "$contract" ] || fail "missing build contract"
-
-for board in \
-  "$android_dir/royd/device/royd/royd_x86_64/BoardConfig.mk" \
-  "$android_dir/royd/device/royd/royd_arm64/BoardConfig.mk"; do
-  [ -f "$board" ] || fail "missing board config: $board"
-  while IFS='=' read -r name expected; do
-    case "$name" in
-      ''|'#'*) continue ;;
-    esac
-    grep -Eq "^[[:space:]]*$name[[:space:]]*:=[[:space:]]*$expected([[:space:]]*)$" "$board" || {
-      printf 'error: %s does not explicitly set %s := %s\n' "$board" "$name" "$expected" >&2
-      exit 1
-    }
-  done < "$contract"
+for family in legacy transitional modern; do
+  compat="$android_dir/compat/$family"
+  [ -f "$compat/product.mk" ] || fail "missing $family product compatibility fragment"
+  [ -f "$compat/BoardConfigVersion.mk" ] || fail "missing $family board compatibility fragment"
+  [ -f "$compat/vendor.mk" ] || fail "missing $family vendor compatibility fragment"
 done
 
-grep -Fq 'PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true' "$android_dir/royd/device/royd/container_common.mk"
-printf '%s\n' 'Android static build contract checks passed'
+for version in $("$script_dir/version-list.sh"); do
+  ROYD_ANDROID_VERSION="$version" "$script_dir/contract-lines.sh" >/dev/null
+  family=$(sh -c '. "$1"; printf "%s" "$ANDROID_PRODUCT_FAMILY"' sh "$android_dir/versions/$version.env")
+  [ -d "$android_dir/compat/$family" ] || fail "Android $version references missing compatibility family $family"
+done
+
+printf '%s
+' 'Android static build contract checks passed'

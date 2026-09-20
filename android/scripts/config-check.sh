@@ -8,11 +8,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src=$(source_dir)
 profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$($script_dir/profile.sh "$profile")
-contract="$android_dir/build-contract.env"
-
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
-[ -f "$contract" ] || fail "Android build contract not found at $contract"
-
 "$script_dir/install-royd.sh" "$src" "$profile"
 
 check_product() {
@@ -67,7 +63,9 @@ check_product() {
         exit 1
       }
       printf '  %s=%s\n' "$name" "$actual"
-    done < "$contract"
+    done <<EOF_CONTRACT
+$("$script_dir/contract-lines.sh")
+EOF_CONTRACT
 
     printf '  TARGET_PRODUCT=%s\n' "$actual_product"
     printf '  TARGET_DEVICE=%s\n' "$actual_device"

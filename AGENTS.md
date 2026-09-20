@@ -177,7 +177,7 @@ When a design decision changes, update this file if the decision is important en
 
 ## Current decisions
 
-- Pinned Android versions: 14, 15, 16, and 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
+- Pinned Android versions: 8.1 through 17. Android 15 remains the default baseline until every version completes clean build and boot validation.
 
 The following decisions are currently agreed:
 
@@ -191,10 +191,13 @@ The following decisions are currently agreed:
 - Android init should remain PID 1 unless implementation evidence shows a better approach.
 - Privileged containers remain the development baseline. An experimental restricted mode is maintained for evidence-driven capability reduction and must not be described as a supported minimum until reference-host tests pass.
 - Low memory is a core engineering goal but not part of the project name or a licence to remove functionality without defined image profiles and tests.
-- Android source policy: plain AOSP only. Android 14, 15, 16, and 17 are pinned, with Android 15 as the default baseline until all versions complete clean build and boot validation.
+- Android source policy: plain AOSP only. Android 8.1 through 17 are pinned, with Android 15 as the default baseline until all versions complete clean build and boot validation.
 - Initial build architecture targets: `x86_64` and `arm64`, using repository-owned `royd_x86_64` and `royd_arm64` products with the AOSP `userdebug` variant.
 - Android dependency policy: the normal build may fetch the pinned AOSP manifest only. All royd-specific device definitions, vendor code, helper binaries, init rules, image profiles, and AOSP patches must live in this repository.
 - Android customisation strategy: copy `android/royd/device/royd` and `android/royd/vendor/royd` into the synchronised AOSP tree, then apply only repository-owned patches from `android/patches`.
+- Android compatibility families: `legacy` for 8.1/9, `transitional` for 10, and `modern` for 11+. Version metadata selects the builder, partition set, product fragment, board fragment, and vendor properties.
+- Legacy Android builder: Android 8.1 through 10 use an Ubuntu 18.04 builder with OpenJDK 8 and Python 2/3; Android 11 onward uses the modern builder.
+- Legacy memory policy: do not require the removed host `ashmem_linux` module as the final compatibility solution. Implement repository-owned ashmem-era compatibility over modern host primitives before describing Android 8.1 through 10 as supported.
 - Runtime image assembly: package AOSP `ramdisk.img` plus required `system`, `vendor`, `system_ext`, and `product` images into one OCI root filesystem, with optional `odm`, and keep Android `/init` as the OCI entrypoint.
 - Initial low-memory baseline: `ro.config.low_ram=true`, PSI-based `lmkd`, legacy minfree levels disabled, and a 540 x 960 at 240 dpi and 30 fps default display profile.
 - Android image profiles: `standard` preserves the upstream package set; `minimal` conservatively removes `BasicDreams`, `EasterEgg`, `PrintRecommendationService`, and `PrintSpooler`. Profile changes run `installclean` before rebuilding.

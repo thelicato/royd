@@ -10,16 +10,16 @@ royd is an independent AOSP-based project. Prior art and influences are document
 
 ## Android versions
 
-royd currently carries pinned build configurations for Android 14, 15, 16, and 17. Android 15 remains the default baseline while the other versions are configured but still require clean build and boot validation.
+royd carries pinned build configurations from Android 8.1 through Android 17. Android 15 remains the default baseline. Android 8.1 through 10 use an explicit legacy compatibility path, while every non-baseline version still requires clean build and boot validation before it can be called supported.
 
 ```sh
 make android-versions
-make android-sync-16
-make android-config-check-16
+make android-sync-9
+make android-config-check-13
 make android-build-x86_64-16
 ```
 
-See [`docs/android-versions.md`](docs/android-versions.md) for the support matrix and version-selection rules.
+See [`docs/android-versions.md`](docs/android-versions.md) for the support matrix and version-selection rules, and [`docs/legacy-android.md`](docs/legacy-android.md) for the Android 8.1 through 10 compatibility path.
 
 > [!IMPORTANT]
 > royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP baseline and repository-owned Android integration, but the independent container boot and graphics path are not yet broadly validated.

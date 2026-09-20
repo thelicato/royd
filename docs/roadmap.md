@@ -4,9 +4,12 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 1. Independent AOSP baseline
 
-- [x] Pin Android 14, 15, 16, and 17 AOSP releases, with Android 15 as the default baseline.
+- [x] Pin Android 8.1 through 17 AOSP releases, with Android 15 as the default baseline.
 - [x] Remove external Android container manifests, device trees, vendor trees, and patch repositories from the build path.
 - [x] Add repository-owned `royd_x86_64` and `royd_arm64` products.
+- [x] Add legacy and transitional build/product/partition families for Android 8.1 through 10.
+- [x] Add a Java 8/Python 2-capable legacy AOSP builder and version-independent binderfs allocator ABI.
+- [ ] Implement and validate the legacy ashmem compatibility path without requiring an out-of-tree host module.
 - [x] Add static and AOSP-resolved build-contract preflight checks.
 - [x] Define explicit ext4 partition and copy-out requirements for OCI assembly.
 - [x] Add repository-owned vendor integration and Binder allocation.
@@ -116,4 +119,5 @@ Implemented:
 - post-import image contract inspection without Android boot
 
 ## Next milestones
-- Validate every pinned Android version with resolved AOSP configuration, clean x86_64 and arm64 builds, OCI packaging, and boot smoke tests.
+- Validate every pinned Android version from 8.1 through 17 with resolved AOSP configuration, clean x86_64 and arm64 builds, OCI packaging, and boot smoke tests.
+- Complete ashmem-era compatibility for Android 8.1, 9, and 10 on modern host kernels.
