@@ -21,9 +21,19 @@ make android-package-minimal-x86_64
 make runtime-import-minimal-x86_64
 ```
 
-The default imported images are `royd:dev` and `royd:dev-minimal`.
+Imported images now receive canonical architecture-specific tags derived from the pinned AOSP release, for example:
 
-The package step extracts AOSP's generated `ramdisk.img` as the container root, preserving its recorded ownership and modes, then adds the built partition images at their normal mount points. It includes system and vendor, plus system_ext, product, and odm when produced by the selected AOSP product.
+```text
+royd:15.0.0-r36-standard-amd64
+royd:15.0.0-r36-minimal-amd64
+royd:15.0.0-r36-standard-arm64
+```
+
+Convenience aliases remain available for development: `royd:dev`, `royd:dev-minimal`, `royd:dev-arm64`, and `royd:dev-minimal-arm64`.
+
+The package step extracts AOSP's generated `ramdisk.img` as the container root, preserving its recorded ownership and modes, then adds the built partition images at their normal mount points. It requires system, vendor, system_ext, and product, and includes odm when produced. The archive also contains `/royd-release` with immutable build identity fields and a sidecar manifest with the archive SHA-256 digest.
+
+The importer verifies the archive digest before importing, writes OCI and royd-specific labels, then runs the image contract inspector.
 
 ## Run directly
 
@@ -125,3 +135,19 @@ ROYD_MEMORY_SWEEP_OUTPUT=memory-sweep.md make memory-sweep
 ```
 
 The current runtime remains experimental. In particular, the independent AOSP product and graphics path must be proven on real reference hosts before the repository claims a supported boot configuration.
+
+## Image contract
+
+Validate the image-contract tooling without a real image:
+
+```sh
+make runtime-image-contract-test
+```
+
+After importing an x86_64 standard image, inspect it again with:
+
+```sh
+make runtime-image-inspect-x86_64
+```
+
+The inspector checks the platform architecture, OCI labels, royd image-format labels, entrypoint, and `/royd-release` metadata without booting Android.

@@ -11,6 +11,7 @@ require_command gzip
 require_command lz4
 require_command mount
 require_command mountpoint
+require_command sha256sum
 require_command sudo
 require_command tar
 require_command umount
@@ -35,6 +36,7 @@ product_out="$src/out/target/product/$product"
 host_bin="$src/out/host/linux-x86/bin"
 runtime_dir="$repo_root/.work/runtime"
 output="$runtime_dir/royd-$arch-$profile.tar"
+manifest="$runtime_dir/royd-$arch-$profile.manifest"
 tmp=$(mktemp -d)
 mounts=
 
@@ -109,4 +111,27 @@ append_image vendor vendor yes
 append_image system_ext system_ext yes
 append_image product product yes
 append_image odm odm no
+
+release_dir="$tmp/release"
+mkdir -p "$release_dir"
+cat > "$release_dir/royd-release" <<EOF
+ROYD_IMAGE_FORMAT=1
+ROYD_AOSP_TAG=$AOSP_TAG
+ROYD_ARCH=$arch
+ROYD_IMAGE_PROFILE=$profile
+ANDROID_PRODUCT=$product
+EOF
+touch -t 197001010000 "$release_dir/royd-release"
+sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./royd-release
+
+archive_sha256=$(sha256sum "$output" | awk '{print $1}')
+cat > "$manifest" <<EOF
+ROYD_IMAGE_FORMAT=1
+ROYD_AOSP_TAG=$AOSP_TAG
+ROYD_ARCH=$arch
+ROYD_IMAGE_PROFILE=$profile
+ANDROID_PRODUCT=$product
+ARCHIVE_SHA256=$archive_sha256
+EOF
+printf 'Runtime manifest is ready: %s\n' "$manifest"
 printf 'Runtime root filesystem is ready: %s\n' "$output"

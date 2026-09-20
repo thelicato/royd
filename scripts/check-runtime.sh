@@ -71,6 +71,13 @@ grep -Fq 'ro.lmk.use_minfree_levels=false' android/royd/vendor/royd/royd.mk
 grep -Fq 'androidboot.hardware=royd' runtime/scripts/import.sh
 grep -Fq 'androidboot.royd_width=540' runtime/scripts/import.sh
 grep -Fq 'androidboot.royd_height=960' runtime/scripts/import.sh
+grep -Fq 'org.opencontainers.image.title=royd' runtime/scripts/import.sh
+grep -Fq 'org.royd.image-format' runtime/scripts/import.sh
+grep -Fq 'ARCHIVE_SHA256' android/scripts/package.sh
+grep -Fq 'ROYD_IMAGE_FORMAT=1' runtime/image.env
+grep -Fq 'royd:15.0.0-r36-standard-amd64' runtime/scripts/image-contract-test.sh
+grep -Fq '/royd-release' runtime/scripts/image-inspect.sh
+grep -Fq 'runtime-image-contract-test' Makefile
 grep -Fq 'androidboot.royd_width' runtime/scripts/profile.sh
 grep -Fq 'androidboot.royd_width' runtime/compose.yaml
 grep -Fq 'docker stats --no-stream' runtime/scripts/memory-report.sh

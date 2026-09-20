@@ -81,3 +81,11 @@ Display defaults are stored separately as the OCI image command so normal Docker
 ## Current limitation
 
 Removing the previous external integration deliberately resets some assumptions that had not been independently validated. The repository now owns its dependency boundary, Binder setup, product definitions, packaging, and runtime arguments, but a full graphical boot from this independent AOSP baseline still needs to be proven on a reference host. The roadmap treats that validation as the next gate rather than claiming compatibility inherited from another project.
+
+## OCI image identity
+
+royd assigns canonical image tags from the pinned AOSP release, Android image profile, and CPU architecture. Development aliases are added separately so local workflows stay short while published or cached images remain unambiguous.
+
+Every packaged root filesystem contains `/royd-release`. The package step also writes a sidecar manifest with the archive SHA-256 digest. Import refuses archives whose digest no longer matches the manifest.
+
+Imported images carry OCI metadata plus royd labels for image format, Android source ref, architecture, and image profile. `runtime/scripts/image-inspect.sh` verifies this contract without booting Android.

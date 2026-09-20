@@ -202,6 +202,8 @@ The following decisions are currently agreed:
 - Memory claims must be based on the repository measurement workflow and a documented workload.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
+- OCI image identity: use canonical tags derived from AOSP ref, image profile, and architecture; keep short `royd:dev*` tags only as local aliases.
+- Packaged images: include immutable `/royd-release` metadata and verify the sidecar archive digest before import.
 - Android build contract: keep no-kernel/no-bootloader mode, required ext4 partition images, and container copy-out paths explicit in `android/build-contract.env`; validate them statically and against resolved AOSP build variables before full compilation.
 - Product composition: do not inherit AOSP emulator product definitions or `emulator_vendor.mk`; compose royd products from explicit AOSP userspace building blocks and repository-owned x86_64 and arm64 board configuration.
 - Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; the first graphics baseline is AOSP SwiftShader and does not require `/dev/dri`.

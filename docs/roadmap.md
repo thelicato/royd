@@ -98,3 +98,14 @@ Remaining work:
 - provide a royd-owned graphics composer and allocator contract suitable for container display output
 - validate the first complete boot without emulator-specific vendor services
 - design and benchmark a host GPU mode only after the software path is stable
+
+## OCI image contract
+
+Implemented:
+
+- canonical architecture-specific tags derived from the pinned AOSP ref
+- development aliases kept separate from canonical identity
+- immutable `/royd-release` metadata inside packaged root filesystems
+- archive SHA-256 manifests verified before Docker import
+- OCI and royd-specific image labels
+- post-import image contract inspection without Android boot
