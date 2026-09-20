@@ -130,6 +130,8 @@ Useful development entry points include:
 ```sh
 make check
 make android-sync
+make android-contract-test
+make android-config-check
 make android-build-x86_64
 make android-package-x86_64
 make runtime-import-x86_64

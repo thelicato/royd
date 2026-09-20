@@ -1,4 +1,4 @@
-.PHONY: check runtime-host-check cli-test cli-build android-profile-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
+.PHONY: check runtime-host-check cli-test cli-build android-profile-check android-contract-test android-config-check-test android-config-check android-shell android-sync android-build-x86_64 android-build-arm64 android-build-minimal-x86_64 android-build-minimal-arm64 android-package-x86_64 android-package-arm64 android-package-minimal-x86_64 android-package-minimal-arm64 runtime-import-x86_64 runtime-import-arm64 runtime-import-minimal-x86_64 runtime-import-minimal-arm64 runtime-up runtime-down runtime-logs runtime-ps runtime-smoke-test runtime-multi-test runtime-reference-report memory-report memory-sweep image-profile-sweep
 
 check:
 	./scripts/check-repo.sh
@@ -16,6 +16,15 @@ cli-build:
 
 android-profile-check:
 	./android/scripts/profile-test.sh
+
+android-contract-test:
+	./android/scripts/contract-test.sh
+
+android-config-check-test:
+	./android/scripts/config-check-test.sh
+
+android-config-check:
+	./android/scripts/builder.sh android/scripts/config-check.sh
 
 android-shell:
 	./android/scripts/builder.sh

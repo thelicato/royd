@@ -51,6 +51,27 @@ The script:
 
 The default source tree is `.work/android-src`. Set `ROYD_ANDROID_SRC` to use a different path. Set `JOBS` to limit source synchronisation and compilation.
 
+## Preflight build contract
+
+Before a full compile, royd can validate the static repository contract and the resolved AOSP product configuration.
+
+Run the repository-only contract test at any time:
+
+```sh
+make android-contract-test
+make android-config-check-test
+```
+
+After synchronising AOSP, run:
+
+```sh
+make android-config-check
+```
+
+The AOSP-backed preflight installs the royd product definitions, selects both lunch targets, and checks the resolved product, device, architecture, no-kernel/no-bootloader settings, filesystem types, and partition copy-out paths against [`android/build-contract.env`](../android/build-contract.env). It performs product configuration but does not compile Android.
+
+The current packaging contract requires separate ext4 images for `system`, `vendor`, `system_ext`, and `product`. The board configuration overrides GSI placement defaults where necessary, and `PRODUCT_USE_DYNAMIC_PARTITION_SIZE` lets the build size those images from their contents rather than from a virtual flash layout. The packager treats all four images as required.
+
 ## Building
 
 Build the x86_64 baseline with:

@@ -106,7 +106,7 @@ printf 'Creating OCI root filesystem archive for %s profile %s\n' "$arch" "$prof
 sudo tar --xattrs --numeric-owner -C "$root_dir" -cf - . > "$output"
 append_image system system yes
 append_image vendor vendor yes
-append_image system_ext system_ext no
-append_image product product no
+append_image system_ext system_ext yes
+append_image product product yes
 append_image odm odm no
 printf 'Runtime root filesystem is ready: %s\n' "$output"

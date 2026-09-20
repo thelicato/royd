@@ -30,6 +30,27 @@ grep -Fq 'TARGET_NO_KERNEL := true' android/royd/device/royd/royd_x86_64/BoardCo
 grep -Fq 'TARGET_ARCH := x86_64' android/royd/device/royd/royd_x86_64/BoardConfig.mk
 grep -Fq 'TARGET_NO_KERNEL := true' android/royd/device/royd/royd_arm64/BoardConfig.mk
 grep -Fq 'TARGET_ARCH := arm64' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'TARGET_COPY_OUT_PRODUCT := product' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'TARGET_COPY_OUT_PRODUCT := product' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true' android/royd/device/royd/container_common.mk
+grep -Fq 'TARGET_NO_KERNEL=true' android/build-contract.env
+grep -Fq 'BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE=ext4' android/build-contract.env
+grep -Fq 'get_build_var' android/scripts/config-check.sh
+grep -Fq 'Android build contract checks passed' android/scripts/config-check.sh
+grep -Fq 'append_image system_ext system_ext yes' android/scripts/package.sh
+grep -Fq 'append_image product product yes' android/scripts/package.sh
+grep -Fq 'android-config-check' Makefile
+grep -Fq 'android-config-check-test' Makefile
+grep -Fq 'Android resolved build contract test passed' android/scripts/config-check-test.sh
+grep -Fq 'android-contract-test' Makefile
 ! grep -Fq 'aosp_x86_64.mk' android/royd/device/royd/royd_x86_64.mk
 ! grep -Fq 'aosp_arm64.mk' android/royd/device/royd/royd_arm64.mk
 ! grep -Fq 'emulator_vendor.mk' android/royd/device/royd/royd_x86_64.mk

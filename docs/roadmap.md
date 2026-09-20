@@ -7,9 +7,12 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Pin AOSP `android-15.0.0_r36` as the initial source baseline.
 - [x] Remove external Android container manifests, device trees, vendor trees, and patch repositories from the build path.
 - [x] Add repository-owned `royd_x86_64` and `royd_arm64` products.
+- [x] Add static and AOSP-resolved build-contract preflight checks.
+- [x] Define explicit ext4 partition and copy-out requirements for OCI assembly.
 - [x] Add repository-owned vendor integration and Binder allocation.
 - [x] Add a repository-owned local AOSP patch mechanism.
 - [x] Package the generated AOSP root and partition images into an OCI root filesystem.
+- [ ] Run the AOSP-resolved build-contract preflight on a clean synced checkout.
 - [ ] Build both royd products from a clean AOSP checkout.
 - [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
 - [ ] Record a known-good build and boot validation from the independent baseline.

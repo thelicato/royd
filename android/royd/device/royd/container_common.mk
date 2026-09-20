@@ -7,3 +7,7 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_product.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/base_vendor.mk)
 
 PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := relaxed
+
+# Container images do not have fixed flash partition capacities. Let the Android
+# build size filesystem images from their contents instead of a virtual disk map.
+PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true

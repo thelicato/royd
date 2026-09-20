@@ -15,3 +15,21 @@ Do not add runtime debloating scripts as a substitute for product-level Android 
 royd currently provides `standard` and `minimal` Android image profiles under [`profiles`](profiles). The standard profile preserves the inherited AOSP package set. The minimal profile removes a small, explicit set of optional packages for comparative measurement.
 
 Use the normal build targets for standard images and the `*-minimal-*` targets for the minimal image. See [`../docs/image-profiles.md`](../docs/image-profiles.md) for details.
+## Build contract
+
+royd keeps the container board assumptions explicit in [`build-contract.env`](build-contract.env). The contract requires no guest kernel or bootloader, separate ext4 `system`, `vendor`, `system_ext`, and `product` images, and stable copy-out paths for the partitions assembled into the OCI root filesystem.
+
+Run the repository-only checks with:
+
+```sh
+make android-contract-test
+make android-config-check-test
+```
+
+After `make android-sync`, resolve the products through the real AOSP build system without compiling Android:
+
+```sh
+make android-config-check
+```
+
+The configuration check selects both royd lunch targets and queries the resolved AOSP build variables. It should pass before starting a full build.
