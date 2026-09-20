@@ -34,3 +34,10 @@ grep -Fq 'runtime-smoke-test' Makefile
 grep -Fq 'runtime-multi-test' Makefile
 grep -Fq 'android-b:' runtime/compose.multi.yaml
 grep -Fq 'logo.svg' README.md
+grep -Fq 'runtime-up' Makefile
+grep -Fq 'runtime-down' Makefile
+grep -Fq 'runtime-logs' Makefile
+grep -Fq 'runtime-ps' Makefile
+grep -Fq 'ROYD_IMAGE' runtime/compose.yaml
+grep -Fq 'ROYD_ADB_PORT' runtime/compose.yaml
+grep -Fq 'exec docker compose' runtime/scripts/compose.sh

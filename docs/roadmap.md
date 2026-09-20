@@ -31,6 +31,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 - [x] Add a minimal `docker run` example.
 - [x] Add a Docker Compose example for a single instance.
+- [x] Add configurable local Compose defaults and lifecycle Make targets.
 - [x] Document persistent `/data` and ADB access.
 - [x] Add a multiple-instance Compose example and repeatable two-instance smoke test.
 - [ ] Validate the multiple-instance example on a documented reference host.

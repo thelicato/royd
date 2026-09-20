@@ -1,19 +1,23 @@
 services:
   android-a:
-    image: royd:dev
+    image: ${ROYD_IMAGE:-royd:dev}
+    container_name: ${ROYD_CONTAINER_A:-royd-a}
     privileged: true
     ports:
-      - "127.0.0.1:5555:5555"
+      - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT_A:-5555}:5555"
     volumes:
-      - android-a-data:/data
+      - royd-a-data:/data
   android-b:
-    image: royd:dev
+    image: ${ROYD_IMAGE:-royd:dev}
+    container_name: ${ROYD_CONTAINER_B:-royd-b}
     privileged: true
     ports:
-      - "127.0.0.1:5556:5555"
+      - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT_B:-5556}:5555"
     volumes:
-      - android-b-data:/data
+      - royd-b-data:/data
 
 volumes:
-  android-a-data:
-  android-b-data:
+  royd-a-data:
+    name: ${ROYD_DATA_VOLUME_A:-royd-a-data}
+  royd-b-data:
+    name: ${ROYD_DATA_VOLUME_B:-royd-b-data}

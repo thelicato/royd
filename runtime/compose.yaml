@@ -1,11 +1,13 @@
 services:
   android:
-    image: royd:dev
+    image: ${ROYD_IMAGE:-royd:dev}
+    container_name: ${ROYD_CONTAINER:-royd}
     privileged: true
     ports:
-      - "127.0.0.1:5555:5555"
+      - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT:-5555}:5555"
     volumes:
-      - android-data:/data
+      - royd-data:/data
 
 volumes:
-  android-data:
+  royd-data:
+    name: ${ROYD_DATA_VOLUME:-royd-data}

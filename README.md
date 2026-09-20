@@ -34,20 +34,21 @@ docker run --privileged \
   royd:dev
 ```
 
-The equivalent Compose configuration should be similarly direct:
+The equivalent Compose configuration is provided in `runtime/compose.yaml` and supports optional local overrides through `runtime/.env`:
 
 ```yaml
 services:
   android:
-    image: royd:dev
+    image: ${ROYD_IMAGE:-royd:dev}
     privileged: true
     ports:
-      - "127.0.0.1:5555:5555"
+      - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT:-5555}:5555"
     volumes:
-      - android-data:/data
+      - royd-data:/data
 
 volumes:
-  android-data:
+  royd-data:
+    name: ${ROYD_DATA_VOLUME:-royd-data}
 ```
 
 `--privileged` is acceptable for the first working implementation. Reducing privileges to the minimum required capabilities and devices is a later security goal.
@@ -129,6 +130,9 @@ make android-sync
 make android-build-x86_64
 make android-package-x86_64
 make runtime-import-x86_64
+cp runtime/.env.example runtime/.env
+make runtime-up
+make runtime-logs
 make runtime-smoke-test
 make cli-test
 make cli-build

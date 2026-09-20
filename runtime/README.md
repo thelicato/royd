@@ -16,7 +16,42 @@ The arm64 equivalents are `android-build-arm64`, `android-package-arm64`, and `r
 
 The package step runs inside the privileged Android builder because it mounts the generated system and vendor images read-only. It writes `.work/runtime/royd-<arch>.tar`. The import step turns that archive into `royd:dev` with `/init` as the entrypoint.
 
-## Run
+## Compose workflow
+
+The default local workflow uses `runtime/compose.yaml`. Copy the example environment file once if you want local overrides:
+
+```sh
+cp runtime/.env.example runtime/.env
+```
+
+The defaults work without editing the file:
+
+```text
+ROYD_IMAGE=royd:dev
+ROYD_CONTAINER=royd
+ROYD_DATA_VOLUME=royd-data
+ROYD_ADB_BIND=127.0.0.1
+ROYD_ADB_PORT=5555
+```
+
+Start, inspect, follow logs, and stop the instance with:
+
+```sh
+make runtime-up
+make runtime-ps
+make runtime-logs
+make runtime-down
+```
+
+These targets are thin wrappers around Docker Compose. They use `runtime/.env` automatically when it exists and otherwise rely on the defaults embedded in the Compose file. The equivalent direct command remains fully supported:
+
+```sh
+docker compose -f runtime/compose.yaml up -d
+```
+
+To use local overrides, copy `runtime/.env.example` to `runtime/.env`.
+
+## Run directly
 
 The initial development runtime remains privileged while kernel requirements are established:
 
@@ -28,12 +63,6 @@ docker run -d --privileged \
   royd:dev
 ```
 
-Or use the example Compose file:
-
-```sh
-docker compose -f runtime/compose.yaml up -d
-```
-
 No host Binder devices should be passed explicitly. royd attempts to mount a private binderfs instance inside the container and exposes its Binder devices at `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder`.
 
 ## Logs
@@ -42,6 +71,12 @@ Once Android `logd` is running, royd starts a `logcat` forwarder that writes all
 
 ```sh
 docker logs -f royd
+```
+
+or:
+
+```sh
+make runtime-logs
 ```
 
 ADB remains independent:
@@ -77,7 +112,7 @@ For manual multi-instance testing with ADB:
 docker compose -f runtime/compose.multi.yaml up -d
 ```
 
-The example exposes the two instances on `127.0.0.1:5555` and `127.0.0.1:5556`.
+The example exposes the two instances on `127.0.0.1:5555` and `127.0.0.1:5556` by default. The image, container names, data volumes, bind address, and host ports can all be overridden through environment variables.
 
 ## Host contract
 

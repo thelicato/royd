@@ -9,6 +9,7 @@
 .env
 .env.*
 !.env.example
+/runtime/.env
 
 # Go build and test output
 /bin/

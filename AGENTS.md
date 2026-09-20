@@ -197,4 +197,5 @@ The following decisions are currently agreed:
 - Memory claims must be based on the repository measurement workflow and a documented workload.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
+- Local Compose workflow: keep `runtime/compose.yaml` configurable through `runtime/.env`, with Make targets remaining thin wrappers over Docker Compose.
 
