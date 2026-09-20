@@ -60,8 +60,10 @@ vendor.royd.graphics.mode
 
 The same information is written to container logs with the `[royd]` prefix.
 
-## Remaining AOSP device dependency
+## Board configuration
 
-The current royd products still inherit AOSP's `aosp_x86_64.mk` and `aosp_arm64.mk`. These are upstream AOSP files, not ReDroid dependencies, but they are not the final hardware abstraction for royd. In particular, the x86_64 AOSP product is emulator-oriented and inherits generic emulator vendor configuration.
+royd owns its x86_64 and arm64 board configuration. Both board files explicitly declare that the container build has no bootloader and no guest kernel, define the target CPU architecture, and reuse AOSP's shared GSI board defaults for common image and platform settings.
 
-Replacing that inheritance with royd-owned board and product definitions is a required milestone before the container hardware layer can be considered independent end to end.
+The product layer likewise avoids AOSP emulator product definitions and `emulator_vendor.mk`. A shared `container_common.mk` composes the system from upstream AOSP userspace building blocks, while royd-specific runtime integration remains under `vendor/royd`.
+
+Reusing upstream AOSP build primitives is expected. The independence boundary is that royd does not import another Android-container project's product, board, vendor, manifest, image, or patch layer.

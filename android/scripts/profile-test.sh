@@ -12,6 +12,14 @@ mkdir -p "$tmp/build"
 "$script_dir/install-royd.sh" "$tmp" standard
 [ -f "$tmp/device/royd/AndroidProducts.mk" ]
 [ -f "$tmp/device/royd/royd_x86_64.mk" ]
+[ -f "$tmp/device/royd/container_common.mk" ]
+[ -f "$tmp/device/royd/royd_x86_64/BoardConfig.mk" ]
+[ -f "$tmp/device/royd/royd_arm64/BoardConfig.mk" ]
+grep -Fq 'PRODUCT_DEVICE := royd_x86_64' "$tmp/device/royd/royd_x86_64.mk"
+grep -Fq 'PRODUCT_DEVICE := royd_arm64' "$tmp/device/royd/royd_arm64.mk"
+grep -Fq 'TARGET_NO_KERNEL := true' "$tmp/device/royd/royd_x86_64/BoardConfig.mk"
+grep -Fq 'TARGET_NO_KERNEL := true' "$tmp/device/royd/royd_arm64/BoardConfig.mk"
+! grep -R -Fq 'emulator_vendor.mk' "$tmp/device/royd"
 [ -f "$tmp/vendor/royd/Android.bp" ]
 grep -Fq 'ro.vendor.royd.image_profile=standard' "$tmp/vendor/royd/profile.mk"
 grep -Fq 'royd-binder-alloc' "$tmp/vendor/royd/Android.bp"

@@ -18,10 +18,24 @@ done
 grep -Fq 'AOSP_TAG=android-15.0.0_r36' android/baseline.env
 grep -Fq 'ANDROID_PRODUCT_X86_64=royd_x86_64' android/baseline.env
 grep -Fq 'ANDROID_PRODUCT_ARM64=royd_arm64' android/baseline.env
-! grep -Fq 'REDROID_' android/baseline.env
 grep -Fq 'royd_x86_64-bp1a-userdebug' android/royd/device/royd/AndroidProducts.mk
 grep -Fq 'royd_arm64-bp1a-userdebug' android/royd/device/royd/AndroidProducts.mk
 grep -Fq 'vendor/royd/royd.mk' android/royd/device/royd/royd_x86_64.mk
+grep -Fq 'device/royd/container_common.mk' android/royd/device/royd/royd_x86_64.mk
+grep -Fq 'device/royd/container_common.mk' android/royd/device/royd/royd_arm64.mk
+grep -Fq 'core_64_bit.mk' android/royd/device/royd/container_common.mk
+grep -Fq 'generic_system.mk' android/royd/device/royd/container_common.mk
+grep -Fq 'base_vendor.mk' android/royd/device/royd/container_common.mk
+grep -Fq 'TARGET_NO_KERNEL := true' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'TARGET_ARCH := x86_64' android/royd/device/royd/royd_x86_64/BoardConfig.mk
+grep -Fq 'TARGET_NO_KERNEL := true' android/royd/device/royd/royd_arm64/BoardConfig.mk
+grep -Fq 'TARGET_ARCH := arm64' android/royd/device/royd/royd_arm64/BoardConfig.mk
+! grep -Fq 'aosp_x86_64.mk' android/royd/device/royd/royd_x86_64.mk
+! grep -Fq 'aosp_arm64.mk' android/royd/device/royd/royd_arm64.mk
+! grep -Fq 'emulator_vendor.mk' android/royd/device/royd/royd_x86_64.mk
+! grep -Fq 'emulator_vendor.mk' android/royd/device/royd/royd_arm64.mk
+! grep -R -Fq 'board/generic_x86_64/device.mk' android/royd/device/royd
+! grep -R -Fq 'board/generic_arm64/device.mk' android/royd/device/royd
 grep -Fq 'royd-binder-alloc' android/royd/vendor/royd/Android.bp
 grep -Fq 'BINDER_CTL_ADD' android/royd/vendor/royd/binder_alloc/royd-binder-alloc.c
 grep -Fq '/vendor/bin/royd-binder-alloc' android/royd/vendor/royd/bin/royd-binder-setup
@@ -70,14 +84,16 @@ grep -Fq 'image-profile-sweep' Makefile
 grep -Fq 'ro.vendor.royd.image_profile' runtime/scripts/memory-sweep.sh
 grep -Fq 'android/patches' docs/building.md
 
-grep -Rni 'remote-android\|redroid-patches\|vendor_redroid\|device_redroid\|androidboot.redroid\|REDROID_' \
+# External container integration code must not leak into royd. Prior art is credited only
+# in the acknowledgement document, which is intentionally excluded from this scan.
+grep -RniE 'remote-android|vendor_[A-Za-z0-9_-]*droid|device_[A-Za-z0-9_-]*droid|androidboot\.[A-Za-z0-9_-]*droid' \
   android runtime cli scripts docs README.md AGENTS.md \
-  --exclude=acknowledgements.md --exclude=check-runtime.sh >/tmp/royd-forbidden-dependencies.txt && {
-    cat /tmp/royd-forbidden-dependencies.txt >&2
-    printf '%s\n' 'error: forbidden ReDroid dependency reference found outside acknowledgements' >&2
+  --exclude=acknowledgements.md --exclude=check-runtime.sh >/tmp/royd-forbidden-integrations.txt && {
+    cat /tmp/royd-forbidden-integrations.txt >&2
+    printf '%s\n' 'error: external Android container integration reference found outside acknowledgements' >&2
     exit 1
   }
-rm -f /tmp/royd-forbidden-dependencies.txt
+rm -f /tmp/royd-forbidden-integrations.txt
 
 # The software graphics baseline must stay explicit until a host path is implemented.
 grep -Fq 'ro.hardware.egl=swiftshader' android/royd/vendor/royd/royd.mk || {

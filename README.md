@@ -6,7 +6,7 @@
 
 royd is an experimental Android runtime designed for OCI containers. The goal is to run Android directly on the host Linux kernel without QEMU or a guest kernel, while keeping the normal user experience as close as possible to running any other container.
 
-royd is an independent AOSP-based project. ReDroid is credited as architectural inspiration for demonstrating native Android containers, but royd does not depend on or fetch ReDroid code, manifests, patches, device trees, vendor trees, or images. Android-side low-memory work such as avdslim also influenced the project's optimisation goals.
+royd is an independent AOSP-based project. Prior art and influences are documented in [`docs/acknowledgements.md`](docs/acknowledgements.md). The project carries its own Android integration, product definitions, runtime helpers, patches, and container tooling.
 
 > [!IMPORTANT]
 > royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP baseline and repository-owned Android integration, but the independent container boot and graphics path are not yet broadly validated.

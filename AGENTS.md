@@ -13,7 +13,7 @@ royd is an Android runtime designed specifically for OCI containers. Its main go
 - Keep Android container images usable without any royd-specific host binary.
 - Offer an optional Go CLI for convenience, diagnostics, and instance management without making it a runtime requirement.
 
-royd is an independent AOSP-based implementation. ReDroid is credited as architectural inspiration for native Android containers, and avdslim influenced the Android-side low-memory direction. ReDroid must not be a build, source, runtime, image, manifest, patch, device-tree, or vendor-tree dependency. royd should not depend on QEMU-based optimisation techniques.
+royd is an independent AOSP-based implementation. Prior art is credited in `docs/acknowledgements.md`. External Android container integrations must not be build, source, runtime, image, manifest, patch, device-tree, or vendor-tree dependencies. royd should not depend on QEMU-based optimisation techniques.
 
 ## Core architecture
 
@@ -202,6 +202,7 @@ The following decisions are currently agreed:
 - Memory claims must be based on the repository measurement workflow and a documented workload.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
+- Product composition: do not inherit AOSP emulator product definitions or `emulator_vendor.mk`; compose royd products from explicit AOSP userspace building blocks and repository-owned x86_64 and arm64 board configuration.
 - Host hardware contract: Linux plus binderfs are hard runtime requirements; cgroup v2 and memory PSI are preferred; the first graphics baseline is AOSP SwiftShader and does not require `/dev/dri`.
 - Graphics direction: do not claim host GPU acceleration until royd owns and validates the full allocator, composer, device exposure, permissions, and fallback path.
 - AOSP generic product inheritance is transitional. Replace emulator-oriented upstream board/product inheritance with royd-owned definitions before calling the container hardware layer independent end to end.

@@ -25,7 +25,9 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## 3. Container-native Android hardware surface
 
-- [ ] Remove unnecessary generic-emulator hardware assumptions inherited from AOSP products.
+- [x] Stop inheriting AOSP emulator product definitions and `emulator_vendor.mk`.
+- [x] Add royd-owned x86_64 and arm64 board configuration.
+- [ ] Build both royd-owned board configurations from a clean AOSP checkout and resolve any missing HAL or image requirements.
 - [ ] Implement and validate a royd graphics path for software rendering.
 - [ ] Implement optional host GPU rendering through explicit `/dev/dri` access.
 - [ ] Define the minimum HAL set required for headless and graphical profiles.
@@ -89,7 +91,7 @@ Completed in the current baseline:
 
 Remaining work:
 
-- replace upstream AOSP emulator-oriented product and board inheritance with royd-owned board configuration
+- validate the royd-owned board configurations with clean AOSP builds and remove any unnecessary GSI defaults revealed by those builds
 - provide a royd-owned graphics composer and allocator contract suitable for container display output
 - validate the first complete boot without emulator-specific vendor services
 - design and benchmark a host GPU mode only after the software path is stable
