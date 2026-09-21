@@ -28,6 +28,10 @@ graphics_arch=${ROYD_GRAPHICS_ARCH:-}
 graphics_backend=$(ROYD_GRAPHICS_ARCH="$graphics_arch" "$script_dir/graphics-backend.sh" "$graphics_backend" "$graphics_arch")
 graphics_backend_src="$android_dir/graphics/$graphics_backend.mk"
 graphics_backend_dst="$vendor_dst/graphics_backend.mk"
+graphics_allocator=$ANDROID_GRAPHICS_ALLOCATOR
+graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
+modern_graphics_src="$android_dir/graphics/allocator-aidl2"
+modern_graphics_dst="$vendor_dst/graphics_allocator"
 compat_src="$android_dir/compat/$ANDROID_PRODUCT_FAMILY"
 device_manifest=${ANDROID_DEVICE_MANIFEST:-}
 if [ -n "$device_manifest" ]; then
@@ -45,6 +49,16 @@ fi
 [ -f "$profile_src" ] || fail "Android image profile not found at $profile_src"
 [ -f "$hal_profile_src" ] || fail "Android HAL profile not found at $hal_profile_src"
 [ -f "$graphics_backend_src" ] || fail "Android graphics backend not found at $graphics_backend_src"
+case "$graphics_allocator" in
+  gralloc0-memfd)
+    [ -z "$graphics_mapper" ] || fail "legacy allocator unexpectedly declares a stable-C mapper: $graphics_mapper"
+    ;;
+  aidl2-stablec5-memfd)
+    [ "$graphics_mapper" = stablec5-royd ] || fail "modern allocator requires ANDROID_GRAPHICS_MAPPER=stablec5-royd"
+    [ -d "$modern_graphics_src" ] || fail "modern graphics allocator source not found at $modern_graphics_src"
+    ;;
+  *) fail "unsupported Android graphics allocator contract: $graphics_allocator" ;;
+esac
 [ -d "$compat_src" ] || fail "Android compatibility family not found at $compat_src"
 [ -z "$device_manifest_src" ] || [ -f "$device_manifest_src" ] || fail "Android device manifest not found at $device_manifest_src"
 case "$graphics_backend" in
@@ -59,6 +73,9 @@ rm -rf "$device_dst" "$vendor_dst"
 mkdir -p "$device_dst" "$vendor_dst"
 cp -a "$device_src/." "$device_dst/"
 cp -a "$vendor_src/." "$vendor_dst/"
+if [ "$graphics_allocator" = aidl2-stablec5-memfd ]; then
+  cp -a "$modern_graphics_src" "$modern_graphics_dst"
+fi
 cp "$profile_src" "$profile_dst"
 profile_policy=$(ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-policy.sh" "$profile")
 ROYD_ANDROID_VERSION="$ANDROID_VERSION" "$script_dir/profile-packages.sh" "$profile" > "$profile_packages_dst"
@@ -82,7 +99,16 @@ cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
 if [ -n "$device_manifest" ]; then
   printf 'DEVICE_MANIFEST_FILE := device/royd/%s\n' "$device_manifest" >> "$device_dst/BoardConfigVersion.mk"
 fi
+if [ "$graphics_allocator" = aidl2-stablec5-memfd ]; then
+  printf 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/private\n' >> "$device_dst/BoardConfigVersion.mk"
+fi
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
+printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"
+printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_allocator=%s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"
+if [ -n "$graphics_mapper" ]; then
+  printf 'ROYD_GRAPHICS_MAPPER := %s\n' "$graphics_mapper" >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_mapper=%s\n' "$graphics_mapper" >> "$vendor_dst/version.mk"
+fi
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.memory_compat=%s\n' "$ANDROID_MEMORY_COMPAT" >> "$vendor_dst/version.mk"
 printf 'PRODUCT_PACKAGES += android.hardware.graphics.composer@%s-service\n' "$ANDROID_GRAPHICS_COMPOSER" >> "$vendor_dst/version.mk"
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_composer=%s\n' "$ANDROID_GRAPHICS_COMPOSER" >> "$vendor_dst/version.mk"

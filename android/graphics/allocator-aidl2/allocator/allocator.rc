@@ -1,0 +1,5 @@
+service vendor.graphics.allocator /vendor/bin/hw/android.hardware.graphics.allocator-service
+    class hal animation
+    user system
+    group graphics
+    interface aidl android.hardware.graphics.allocator.IAllocator/default

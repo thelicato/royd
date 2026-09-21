@@ -32,15 +32,27 @@ for key, value in expected.items():
         raise SystemExit(
             f"error: {path} {key}={root.get(key)!r}, expected {value!r}"
         )
-if list(root):
-    raise SystemExit(
-        f"error: {path} must remain a foundation manifest until real HAL declarations are implemented"
-    )
+hals = []
+for hal in root.findall("hal"):
+    name = hal.findtext("name")
+    version = hal.findtext("version")
+    interface = hal.find("interface")
+    interface_name = interface.findtext("name") if interface is not None else None
+    instance = interface.findtext("instance") if interface is not None else None
+    hals.append((hal.get("format"), name, version, interface_name, instance))
+expected_hals = [
+    ("aidl", "android.hardware.graphics.allocator", "2", "IAllocator", "default"),
+    ("native", "mapper", "5.0", None, "royd"),
+]
+if hals != expected_hals:
+    raise SystemExit(f"error: {path} HAL declarations mismatch: {hals!r}")
 PY
 
-# Android 15 must not pretend the known-incompatible legacy composer satisfies
-# the 202404 framework matrix. The modern graphics task owns future HAL entries.
-! grep -Fq 'android.hardware.graphics.composer' "$manifest" || fail 'Android 15 foundation manifest declares a graphics composer prematurely'
+# The allocator/mapper family is now truthful for Android 15, but composer3 is
+# deliberately deferred to the next graphics milestone.
+! grep -Fq 'android.hardware.graphics.composer' "$manifest" || fail 'Android 15 manifest declares a graphics composer before composer3 exists'
+grep -Fq '<name>android.hardware.graphics.allocator</name>' "$manifest" || fail 'Android 15 manifest lacks allocator AIDL declaration'
+grep -Fq '<name>mapper</name>' "$manifest" || fail 'Android 15 manifest lacks mapper native declaration'
 
 grep -Fq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$android_dir/compat/modern/product.mk" || \
   fail 'modern product family does not disable OTA kernel metadata enforcement'
@@ -56,6 +68,10 @@ grep -Fxq 'DEVICE_MANIFEST_FILE := device/royd/vintf/manifest-15.xml' "$work/dev
   fail 'Android 15 installed board fragment does not select the repository-owned device manifest'
 grep -Fxq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$work/device/royd/container_version.mk" || \
   fail 'Android 15 installed product does not retain the kernel-less OTA VINTF setting'
+grep -Fxq 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/private' "$work/device/royd/BoardConfigVersion.mk" || \
+  fail 'Android 15 installed board fragment does not include stable-C mapper service policy'
+grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$work/device/royd/sepolicy/system_ext/private/service_contexts" || \
+  fail 'Android 15 mapper service context is missing'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"

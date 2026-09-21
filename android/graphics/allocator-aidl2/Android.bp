@@ -1,0 +1,45 @@
+cc_library_headers {
+    name: "royd_graphics_buffer_headers",
+    export_include_dirs: ["common"],
+    vendor: true,
+}
+
+cc_binary {
+    name: "android.hardware.graphics.allocator-service.royd",
+    stem: "android.hardware.graphics.allocator-service",
+    relative_install_path: "hw",
+    vendor: true,
+    defaults: ["android.hardware.graphics.allocator-ndk_shared"],
+    srcs: [
+        "allocator/Allocator.cpp",
+        "allocator/main.cpp",
+    ],
+    init_rc: ["allocator/allocator.rc"],
+    header_libs: ["royd_graphics_buffer_headers"],
+    static_libs: ["libaidlcommonsupport"],
+    shared_libs: [
+        "libbinder_ndk",
+        "libcutils",
+        "liblog",
+    ],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+}
+
+cc_library_shared {
+    name: "mapper.royd",
+    relative_install_path: "hw",
+    vendor: true,
+    defaults: ["android.hardware.graphics.common-ndk_shared"],
+    srcs: ["mapper/Mapper.cpp"],
+    header_libs: [
+        "libimapper_providerutils",
+        "royd_graphics_buffer_headers",
+    ],
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libsync",
+    ],
+    cpp_std: "c++20",
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+}
