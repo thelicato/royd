@@ -19,8 +19,7 @@ if [ ! -d "$src/.repo" ]; then
     repo init \
       -u "$AOSP_MANIFEST_URL" \
       -b "$AOSP_TAG" \
-      --depth=1 \
-      --git-lfs
+      --depth=1
   )
 fi
 

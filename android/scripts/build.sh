@@ -1,9 +1,10 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -e
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$script_dir/common.sh"
+set +u
 
 src=$(source_dir)
 arch=${1:-x86_64}

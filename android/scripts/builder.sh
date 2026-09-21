@@ -33,13 +33,31 @@ case "$family" in
 esac
 work_dir=${ROYD_WORK_DIR:-$repo_root/.work}
 
+host_uid=$(id -u)
+host_gid=$(id -g)
+build_uid=$host_uid
+build_gid=$host_gid
+if [ "$host_uid" -eq 0 ]; then
+  build_uid=${ROYD_BUILD_UID:-1000}
+  build_gid=${ROYD_BUILD_GID:-1000}
+  case "$build_uid:$build_gid" in
+    *[!0-9:]*|0:*|*:0|:)
+      printf '%s\n' 'error: ROYD_BUILD_UID and ROYD_BUILD_GID must be non-zero numeric IDs when the host user is root' >&2
+      exit 1
+      ;;
+  esac
+fi
+
 command -v docker >/dev/null 2>&1 || {
   printf '%s\n' 'error: docker is required to run the Android builder container' >&2
   exit 1
 }
 
 mkdir -p "$work_dir"
-printf 'Using %s Android builder for Android %s\n' "$family" "$android_version"
+if [ "$host_uid" -eq 0 ]; then
+  chown "$build_uid:$build_gid" "$work_dir"
+fi
+printf 'Using %s Android builder for Android %s as UID/GID %s:%s\n' "$family" "$android_version" "$build_uid" "$build_gid"
 
 tty_mode=${ROYD_BUILDER_TTY:-auto}
 case "$tty_mode" in
@@ -63,14 +81,19 @@ case "$tty_mode" in
 esac
 docker build \
   -f "$dockerfile" \
-  --build-arg UID="$(id -u)" \
-  --build-arg GID="$(id -g)" \
+  --build-arg UID="$build_uid" \
+  --build-arg GID="$build_gid" \
   -t "$image" \
   "$android_dir/builder"
 
 docker run --rm $tty_args \
   --privileged \
+  -e JOBS="${JOBS:-}" \
+  -e ROYD_CLEAN_BUILD="${ROYD_CLEAN_BUILD:-0}" \
   -e ROYD_ANDROID_VERSION="$android_version" \
+  -e ROYD_ANDROID_PROFILE="${ROYD_ANDROID_PROFILE:-standard}" \
+  -e ROYD_HAL_PROFILE="${ROYD_HAL_PROFILE:-graphical}" \
+  -e ROYD_GRAPHICS_BACKEND="${ROYD_GRAPHICS_BACKEND:-software}" \
   -v "$repo_root:/workspace/royd" \
   -v "$work_dir:/workspace/royd/.work" \
   -w /workspace/royd \

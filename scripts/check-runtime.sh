@@ -37,7 +37,7 @@ test -f android/builder/Dockerfile.legacy
 test -f android/compat/legacy/product.mk
 test -f android/compat/transitional/product.mk
 test -f android/compat/modern/product.mk
-grep -Fq 'Android builder family and TTY tests passed' android/scripts/builder-family-test.sh
+grep -Fq 'Android builder family, identity, environment and TTY tests passed' android/scripts/builder-family-test.sh
 grep -Fq 'ANDROID_PRODUCT_X86_64=royd_x86_64' android/baseline.env
 grep -Fq 'ANDROID_PRODUCT_ARM64=royd_arm64' android/baseline.env
 grep -Fq 'royd_x86_64.mk' android/royd/device/royd/AndroidProducts.mk
@@ -84,6 +84,13 @@ grep -Fq 'RESULT_STATUS' android/scripts/build-matrix.sh
 grep -Fq 'ROYD_BUILD_RESUME' android/scripts/build-matrix.sh
 grep -Fq 'ROYD_CLEAN_BUILD' android/scripts/build.sh
 grep -Fq 'ROYD_BUILDER_TTY' android/scripts/builder.sh
+grep -Fq 'ROYD_BUILD_UID' android/scripts/builder.sh
+grep -Fq 'ROYD_BUILD_GID' android/scripts/builder.sh
+grep -Fq 'ROYD_ANDROID_PROFILE' android/scripts/builder.sh
+grep -Fq 'repo forall -c '"'"'git lfs pull'"'"'' android/scripts/sync.sh
+! grep -Fq -- '--git-lfs' android/scripts/sync.sh
+grep -Fq '#!/usr/bin/env bash' android/scripts/config-check.sh
+grep -Fq '#!/usr/bin/env bash' android/scripts/build.sh
 grep -Fq 'Build `pass` is recorded only by the clean-build matrix runner' android/scripts/matrix-report.sh
 grep -Fq 'android-contract-test' Makefile
 ! grep -Fq 'aosp_x86_64.mk' android/royd/device/royd/royd_x86_64.mk

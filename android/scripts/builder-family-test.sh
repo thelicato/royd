@@ -43,4 +43,50 @@ if grep -Fq -- 'run --rm -it' "$tmp/docker.log"; then
   exit 1
 fi
 
-printf '%s\n' 'Android builder family and TTY tests passed'
+: > "$tmp/docker.log"
+PATH="$tmp/bin:$PATH" \
+ROYD_DOCKER_LOG="$tmp/docker.log" \
+ROYD_WORK_DIR="$tmp/work" \
+ROYD_ANDROID_VERSION=15 \
+ROYD_BUILDER_TTY=never \
+JOBS=7 \
+ROYD_CLEAN_BUILD=1 \
+ROYD_ANDROID_PROFILE=minimal \
+ROYD_HAL_PROFILE=headless \
+ROYD_GRAPHICS_BACKEND=software \
+  "$script_dir/builder.sh" true
+for expected in \
+  '-e JOBS=7' \
+  '-e ROYD_CLEAN_BUILD=1' \
+  '-e ROYD_ANDROID_VERSION=15' \
+  '-e ROYD_ANDROID_PROFILE=minimal' \
+  '-e ROYD_HAL_PROFILE=headless' \
+  '-e ROYD_GRAPHICS_BACKEND=software'
+do
+  grep -Fq -- "$expected" "$tmp/docker.log" || {
+    printf 'error: builder did not forward %s\n' "$expected" >&2
+    exit 1
+  }
+done
+
+if [ "$(id -u)" -eq 0 ]; then
+  : > "$tmp/docker.log"
+  PATH="$tmp/bin:$PATH" \
+  ROYD_DOCKER_LOG="$tmp/docker.log" \
+  ROYD_WORK_DIR="$tmp/work" \
+  ROYD_BUILD_UID=1234 \
+  ROYD_BUILD_GID=2345 \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_BUILDER_TTY=never \
+    "$script_dir/builder.sh" true
+  grep -Fq -- '--build-arg UID=1234 --build-arg GID=2345' "$tmp/docker.log" || {
+    printf '%s\n' 'error: root builder invocation did not use the requested non-root UID/GID' >&2
+    exit 1
+  }
+  if PATH="$tmp/bin:$PATH" ROYD_DOCKER_LOG="$tmp/docker.log" ROYD_WORK_DIR="$tmp/work" ROYD_BUILD_UID=0 ROYD_BUILD_GID=0 ROYD_ANDROID_VERSION=15 ROYD_BUILDER_TTY=never "$script_dir/builder.sh" true >/dev/null 2>&1; then
+    printf '%s\n' 'error: root builder invocation accepted UID/GID 0' >&2
+    exit 1
+  fi
+fi
+
+printf '%s\n' 'Android builder family, identity, environment and TTY tests passed'

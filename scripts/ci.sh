@@ -13,6 +13,8 @@ run ./scripts/check-repo.sh
 run ./scripts/check-runtime.sh
 run ./android/scripts/version-test.sh
 run ./android/scripts/builder-family-test.sh
+run ./android/scripts/sync-contract-test.sh
+run ./android/scripts/aosp-shell-test.sh
 run ./android/scripts/profile-test.sh
 run ./android/scripts/profile-policy-test.sh
 run ./android/scripts/hal-profile-test.sh
