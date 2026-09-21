@@ -1,5 +1,17 @@
 # Building Android
 
+## Convenience build helper
+
+For a fresh build host, `./build.sh` is the repository-owned convenience entry point. It checks Docker access, validates the selected Android/profile/HAL/graphics combination with the existing repository scripts, retries conservative source synchronisation, runs the resolved configuration check, builds, packages, imports the OCI image, and reports the resulting artefacts and log.
+
+The default is Android 15, x86_64, the standard graphical image, software graphics, one sync job, and a clean build. For example:
+
+```sh
+./build.sh --android 15 --arch x86_64 --sync-jobs 1 --jobs "$(nproc)"
+```
+
+Use `--incremental` to keep Android build output or `--skip-sync` to reuse an existing `.work/android-src-<version>` checkout. Run `./build.sh --help` for all controls. The helper is orchestration only: the Android scripts and compatibility metadata remain authoritative, and the helper does not patch source or weaken validation.
+
 ## Android version selection
 
 Android 15 is the default build baseline. Pinned configurations span Android 8.0 through 17. Use `ROYD_ANDROID_VERSION=<version>` or the version-suffixed Make targets. Each version has a separate source tree under `.work`, and Android 8.0 through 10 select the legacy builder automatically.

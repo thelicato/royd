@@ -143,6 +143,7 @@ The current implementation now owns its Android product definitions, Binder allo
 Useful development entry points include:
 
 ```sh
+./build.sh --android 15 --arch x86_64 --sync-jobs 1 --jobs "$(nproc)"
 make ci
 make android-matrix-report
 make android-build-matrix-test
@@ -176,6 +177,6 @@ make cli-test
 make cli-build
 ```
 
-ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Runtime engine portability and the current Docker versus Podman boundary are documented in [`docs/runtime-engines.md`](docs/runtime-engines.md), with rootless feasibility covered separately in [`docs/rootless.md`](docs/rootless.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
+The root-level `build.sh` is the convenience path for a fresh build host; [`docs/building.md`](docs/building.md) documents its controls and the lower-level build stages. ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Runtime engine portability and the current Docker versus Podman boundary are documented in [`docs/runtime-engines.md`](docs/runtime-engines.md), with rootless feasibility covered separately in [`docs/rootless.md`](docs/rootless.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
 
 See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.

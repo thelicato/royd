@@ -11,6 +11,7 @@ run() {
 
 run ./scripts/check-repo.sh
 run ./scripts/check-runtime.sh
+run ./scripts/build-helper-test.sh
 run ./android/scripts/version-test.sh
 run ./android/scripts/builder-family-test.sh
 run ./android/scripts/sync-contract-test.sh
