@@ -1,42 +1,64 @@
 # Development handoff notes
 
-## Task 040 complete
+## Task 041 complete
 
-Problem addressed: replace the temporary remote bring-up wrapper with a repository-owned root-level build convenience entry point, while keeping all build policy and implementation in the existing royd scripts and avoiding source mutation or validation bypasses.
+Problem addressed: establish the Android 15 kernel-less product/VINTF foundation discovered by the first real AOSP build, without weakening normal VINTF validation or starting the modern graphics HAL migration.
 
 Important evidence and changes:
 
-- Added executable `./build.sh` for fresh-host Android build orchestration. It validates Android version, architecture, image profile, HAL profile, and graphics backend through repository-owned metadata and validator scripts.
-- The helper checks required host commands and Docker access, defaults AOSP sync concurrency to one job, separates sync and build job counts, retries whole sync attempts while preserving partial `.work/android-src-<version>` state, supports `--skip-sync`, and supports explicit clean or incremental builds.
-- A clean build is the helper default. Existing lower-level scripts keep their own defaults and remain authoritative.
-- The helper runs repository-owned sync, resolved configuration check, build, package, import, image-tag, and image-alias stages. It writes `.work/logs/android<version>-<arch>-<profile>-<hal>-<graphics>.log` and reports the archive, manifest, canonical image tag, development alias, checksums, and Docker image summary.
-- Root-operated hosts rely on the task 039 `android/scripts/builder.sh` non-zero builder identity handling. `build.sh` defaults builder TTY handling to `never` for reliable remote/logged execution and does not spoof `id` or other host commands.
-- The helper contains no AOSP patching, royd source rewriting, VINTF enforcement changes, emergency manifest generation, or compatibility matrix duplication.
-- Added `scripts/build-helper-test.sh`, `make build-helper-test`, CI integration, and concise build-helper documentation in `README.md` and `docs/building.md`.
+- AOSP `android-15.0.0_r36` defaults `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS` to true for sufficiently new shipping API levels when the product leaves it empty. Its build rules warn when that setting is true but neither an installed kernel nor boot image exists. royd intentionally has `TARGET_NO_KERNEL := true` and no guest boot image, so the modern product family now resolves `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false` explicitly.
+- This OTA kernel metadata setting is separate from normal framework/vendor VINTF compatibility. Task 041 does not set `PRODUCT_ENFORCE_VINTF_MANIFEST := false`, lower a framework compatibility level, patch AOSP, or invent a kernel/boot image.
+- Android V uses FCM level `202404`. Android 15 now selects a committed repository-owned `device/royd/vintf/manifest-15.xml` through `DEVICE_MANIFEST_FILE`. The foundation manifest has `target-level="202404"` and deliberately contains no HAL declarations yet.
+- The Android 15 manifest does not claim legacy HIDL graphics composer 2.4 compatibility. The previous real build already showed that composer contract is rejected by the Android 15 framework matrix. Modern graphics declarations must be added only with their actual implementations in later tasks.
+- `android/scripts/install-royd.sh` now validates the optional version-owned manifest path and wires it into the installed version-specific board fragment. Android 14 is covered by a regression check proving it does not silently inherit the Android 15 manifest.
+- `android/scripts/contract-lines.sh` and the resolved config preflight now require `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS=false` for the modern product family.
+- Added `android/scripts/vintf-contract-test.sh`, `make android-vintf-contract-test`, and CI integration. The test parses the committed XML, verifies the exact Android 15 target level, checks installation/wiring, rejects a premature graphics declaration, and guards against repository-owned disabling of normal VINTF validation.
+- AOSP Android 15 can emit a separate warning when `PRODUCT_ENABLE_UFFD_GC` remains `default` but no packaged kernel version is available. Task 041 does not choose a userfaultfd GC policy because royd uses the host kernel and that policy requires separate runtime/host validation.
+
+Files/interfaces changed:
+
+- `android/compat/modern/product.mk`
+- `android/versions/15.env`
+- `android/royd/device/royd/vintf/manifest-15.xml`
+- `android/scripts/install-royd.sh`
+- `android/scripts/contract-lines.sh`
+- `android/scripts/config-check-test.sh`
+- `android/scripts/aosp-shell-test.sh`
+- `android/scripts/matrix-report-test.sh`
+- `android/scripts/vintf-contract-test.sh`
+- `Makefile`
+- `scripts/ci.sh`
+- `docs/development-notes.md`
 
 Validation actually performed:
 
-- `bash -n build.sh` and `sh -n scripts/build-helper-test.sh` passed.
-- `scripts/build-helper-test.sh` passed. It covers help and argument validation, conservative sync retry, preservation/reuse through `--skip-sync`, separate sync/build job forwarding, clean/incremental selection, Android/profile/HAL/graphics forwarding, logging, package/import sequencing, and final artefact paths with mocked external operations.
-- The helper regression test also rejects source/VINTF mutation tokens associated with the temporary bring-up wrapper.
-- Full `make ci` completed with exit code 0 on 2026-09-21, including all existing Android, runtime, reference-host bundle, and Go tests.
-- Roadmap remains 63 checked and 24 open. Task 040 closes no roadmap checkbox because the remaining build-related checkboxes require real AOSP or runtime evidence.
+- Shell syntax checks passed for the changed shell scripts.
+- `android/scripts/vintf-contract-test.sh` passed.
+- `android/scripts/config-check-test.sh` passed, including a negative Android 15 case with kernel OTA VINTF enforcement resolved to true.
+- `android/scripts/contract-test.sh`, `android/scripts/version-test.sh`, and `android/scripts/graphics-contract-test.sh` passed.
+- Full `make ci` completed with exit code 0 on 2026-09-21 after the final task 041 repository changes.
+- Repository policy scans found no em dash characters and no prohibited prior-art name references outside `docs/acknowledgements.md`.
+- Roadmap remains 63 checked and 24 open. Task 041 closes no roadmap checkbox because the relevant build/VINTF items require a real resolved AOSP build or runtime evidence.
 
 External validation still required:
 
-- Run `./build.sh` on a fresh root-operated Docker build host and confirm Docker builder creation, AOSP sync retry/resume, resolved config check, Android compilation, packaging, and import work without temporary wrapper changes.
-- Confirm task 039 fixes remain effective in the real build: no GID 0 builder failure, no unsupported `repo init --git-lfs`, no AOSP envsetup shell/nounset failure, and no const `framebuffer_device_t` assignment failure.
-- Normal framework/vendor VINTF validation must remain enabled throughout.
+- A real Android 15 config check must confirm AOSP resolves `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS=false` for both royd products.
+- A real Android 15 build must confirm the repository-owned manifest is assembled into the vendor image and removes the previous missing-manifest failure without disabling normal VINTF checks.
+- Normal VINTF is expected to continue failing until the Android 15 graphics family is migrated away from the currently configured HIDL composer 2.4 and gralloc0-era allocation path.
 
 Unresolved failures or questions:
 
-- Android 15 still lacks the permanent kernel-less product/VINTF foundation discovered during the previous real build, including an appropriate device manifest and correct handling of kernel OTA VINTF requirements without inventing a guest kernel or boot image.
-- The current Android 15 graphical stack still declares legacy HIDL composer 2.4 and gralloc0-era allocation. Its compatibility with the Android 15 framework matrix is unresolved and must not be bypassed by lowering FCM or disabling VINTF.
-- The exact Android-version boundary for the modern allocator/mapper/composer family still requires validation against pinned AOSP contracts.
+- Android 15 still configures `ANDROID_GRAPHICS_COMPOSER=2.4` and `ANDROID_GRAPHICS_ALLOCATOR=gralloc0-memfd`; those are not claimed to satisfy FCM `202404`.
+- The exact Android-version boundary and AOSP contracts for the repository-owned modern allocator/mapper family still need to be pinned before implementation.
+- The composer3 service design and its client-composition behaviour remain unimplemented.
+- Android 10 and legacy-family kernel/VINTF behaviour has not been changed by task 041; this task deliberately targets the modern family containing the Android 15 baseline.
+- Userfaultfd GC selection on a host-kernel runtime remains an explicit research/runtime-validation question rather than a build-time assumption.
 
-Recommended next task: task 041 should address only the kernel-less Android product/VINTF foundation and permanent device-manifest wiring, with exact Android 15 contract research as needed. Keep allocator/mapper and composer3 implementation for later bounded tasks unless the pinned contract proves a smaller prerequisite is inseparable.
+Recommended next task: task 042 should pin the Android 15 allocator/mapper requirements from `android-15.0.0_r36` and implement the smallest repository-owned modern software allocator/mapper foundation. Do not add composer3 in the same task unless exact AOSP build contracts make it inseparable.
 
-Exact fresh-host Android 15 command:
+Paid external build recommendation: keep the build host off for now. The legacy Android 15 graphics mismatch is already known, so another full build after task 041 is likely to stop at normal VINTF graphics requirements rather than provide enough new evidence to justify the cost.
+
+Exact Android 15 command when external validation becomes useful again:
 
 ```sh
 cd /root/royd
@@ -50,4 +72,4 @@ cd /root/royd
   --jobs "$(nproc)"
 ```
 
-Expected evidence to return: the `.work/logs/android15-x86_64-standard-graphical-software.log` file or its first real failure with approximately 100 surrounding lines. Success through task 039 defects means a non-zero builder UID/GID, accepted Repo initialisation, successful AOSP envsetup/config-check, and gralloc compilation past the legacy framebuffer assignments. A later missing VINTF manifest, kernel OTA VINTF warning/failure, or graphics composer compatibility failure is expected to remain possible and belongs to task 041 or later.
+Expected evidence to return: `.work/logs/android15-x86_64-standard-graphical-software.log`, or the first genuine failure with approximately 100 surrounding lines. For task 041 specifically, useful evidence is `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS=false`, successful assembly of `device/royd/vintf/manifest-15.xml` into vendor VINTF metadata, absence of the old missing `vendor/manifest.xml` failure, and normal VINTF remaining enabled. A graphics compatibility failure is expected until later graphics tasks are complete and must not be bypassed.

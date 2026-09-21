@@ -32,6 +32,7 @@ get_build_var() {
     TARGET_PRODUCT|TARGET_DEVICE) printf '%s\n' "$MOCK_PRODUCT" ;;
     TARGET_ARCH) printf '%s\n' "$MOCK_ARCH" ;;
     TARGET_NO_BOOTLOADER|TARGET_NO_KERNEL) printf '%s\n' true ;;
+    PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS) printf '%s\n' false ;;
     BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE|BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE|BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE|BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE) printf '%s\n' ext4 ;;
     TARGET_COPY_OUT_VENDOR) printf '%s\n' vendor ;;
     TARGET_COPY_OUT_SYSTEM_EXT) printf '%s\n' system_ext ;;
@@ -45,6 +46,33 @@ for version in 8.0 8.1 9 10 11 12 13 14 15 16 17; do
   output=$(ROYD_ANDROID_VERSION="$version" ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh")
   printf '%s\n' "$output" | grep -Fq 'Android build contract checks passed'
 done
+
+# Prove that Android 15 rejects the kernel OTA metadata setting that AOSP
+# otherwise defaults to true for modern shipping API levels.
+python3 - "$tmp/build/envsetup.sh" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text().replace(
+    "PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS) printf '%s\\n' false ;;",
+    "PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS) printf '%s\\n' true ;;",
+)
+p.write_text(s)
+PY
+if ROYD_ANDROID_VERSION=15 ROYD_ANDROID_SRC="$tmp" "$script_dir/config-check.sh" >/dev/null 2>&1; then
+  printf '%s\n' 'error: config check accepted kernel OTA VINTF enforcement for the kernel-less product' >&2
+  exit 1
+fi
+python3 - "$tmp/build/envsetup.sh" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text().replace(
+    "PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS) printf '%s\\n' true ;;",
+    "PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS) printf '%s\\n' false ;;",
+)
+p.write_text(s)
+PY
 
 # Prove that a resolved AOSP value which violates the contract is rejected.
 python3 - "$tmp/build/envsetup.sh" <<'PY'

@@ -6,3 +6,5 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/base_vendor.mk)
 
 PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := relaxed
 PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true
+# royd uses the host kernel and does not package a guest kernel or boot image.
+PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false

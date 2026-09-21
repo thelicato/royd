@@ -20,6 +20,7 @@ run ./android/scripts/profile-test.sh
 run ./android/scripts/profile-policy-test.sh
 run ./android/scripts/hal-profile-test.sh
 run ./android/scripts/contract-test.sh
+run ./android/scripts/vintf-contract-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh

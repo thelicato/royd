@@ -14,3 +14,8 @@ case " $ANDROID_REQUIRED_PARTITIONS " in
     printf '%s\n' 'BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE=ext4' 'TARGET_COPY_OUT_PRODUCT=product'
     ;;
 esac
+case "$ANDROID_PRODUCT_FAMILY" in
+  modern)
+    printf '%s\n' 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS=false'
+    ;;
+esac

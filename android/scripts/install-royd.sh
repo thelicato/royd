@@ -29,6 +29,15 @@ graphics_backend=$(ROYD_GRAPHICS_ARCH="$graphics_arch" "$script_dir/graphics-bac
 graphics_backend_src="$android_dir/graphics/$graphics_backend.mk"
 graphics_backend_dst="$vendor_dst/graphics_backend.mk"
 compat_src="$android_dir/compat/$ANDROID_PRODUCT_FAMILY"
+device_manifest=${ANDROID_DEVICE_MANIFEST:-}
+if [ -n "$device_manifest" ]; then
+  case "$device_manifest" in
+    /*|..|../*|*/../*|*/..) fail "invalid Android device manifest path: $device_manifest" ;;
+  esac
+  device_manifest_src="$device_src/$device_manifest"
+else
+  device_manifest_src=
+fi
 
 [ -d "$src/build" ] || fail "AOSP source tree not found at $src"
 [ -d "$device_src" ] || fail "royd device source not found at $device_src"
@@ -37,6 +46,7 @@ compat_src="$android_dir/compat/$ANDROID_PRODUCT_FAMILY"
 [ -f "$hal_profile_src" ] || fail "Android HAL profile not found at $hal_profile_src"
 [ -f "$graphics_backend_src" ] || fail "Android graphics backend not found at $graphics_backend_src"
 [ -d "$compat_src" ] || fail "Android compatibility family not found at $compat_src"
+[ -z "$device_manifest_src" ] || [ -f "$device_manifest_src" ] || fail "Android device manifest not found at $device_manifest_src"
 case "$graphics_backend" in
   host-gpu-*)
     [ -d "$src/external/minigbm" ] || fail "host GPU backend requires AOSP external/minigbm"
@@ -69,6 +79,9 @@ cp "$hal_profile_src" "$hal_profile_dst"
 cp "$graphics_backend_src" "$graphics_backend_dst"
 cp "$compat_src/product.mk" "$device_dst/container_version.mk"
 cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
+if [ -n "$device_manifest" ]; then
+  printf 'DEVICE_MANIFEST_FILE := device/royd/%s\n' "$device_manifest" >> "$device_dst/BoardConfigVersion.mk"
+fi
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.memory_compat=%s\n' "$ANDROID_MEMORY_COMPAT" >> "$vendor_dst/version.mk"
 printf 'PRODUCT_PACKAGES += android.hardware.graphics.composer@%s-service\n' "$ANDROID_GRAPHICS_COMPOSER" >> "$vendor_dst/version.mk"
