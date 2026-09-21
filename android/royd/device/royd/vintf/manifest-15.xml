@@ -15,4 +15,12 @@
             <instance>royd</instance>
         </interface>
     </hal>
+    <hal format="aidl">
+        <name>android.hardware.graphics.composer3</name>
+        <version>3</version>
+        <interface>
+            <name>IComposer</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
 </manifest>

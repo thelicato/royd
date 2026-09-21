@@ -52,7 +52,7 @@ check_version 11 android-11.0.0_r48 royd_x86_64-userdebug royd_arm64-userdebug c
 check_version 12 android-12.0.0_r34 royd_x86_64-userdebug royd_arm64-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd ''
 check_version 13 android-13.0.0_r75 royd_x86_64-userdebug royd_arm64-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd ''
 check_version 14 android-14.0.0_r14 royd_x86_64-userdebug royd_arm64-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd ''
-check_version 15 android-15.0.0_r36 royd_x86_64-bp1a-userdebug royd_arm64-bp1a-userdebug baseline modern "system vendor system_ext product" native-memfd 2.4 1 aidl2-stablec5-memfd stablec5-royd
+check_version 15 android-15.0.0_r36 royd_x86_64-bp1a-userdebug royd_arm64-bp1a-userdebug baseline modern "system vendor system_ext product" native-memfd aidl3-client 1 aidl2-stablec5-memfd stablec5-royd
 check_version 16 android-16.0.0_r4 royd_x86_64-bp4a-userdebug royd_arm64-bp4a-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd ''
 check_version 17 android-17.0.0_r1 royd_x86_64-cp2a-userdebug royd_arm64-cp2a-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd ''
 

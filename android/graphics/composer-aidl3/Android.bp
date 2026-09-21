@@ -1,0 +1,19 @@
+cc_binary {
+    name: "android.hardware.graphics.composer3-service.royd",
+    relative_install_path: "hw",
+    vendor: true,
+    defaults: ["android.hardware.graphics.composer3-ndk_shared"],
+    srcs: [
+        "composer/Composer.cpp",
+        "composer/main.cpp",
+    ],
+    init_rc: ["composer/composer.rc"],
+    header_libs: ["android.hardware.graphics.composer3-command-buffer"],
+    shared_libs: [
+        "libbase",
+        "libbinder_ndk",
+        "libcutils",
+        "liblog",
+    ],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+}

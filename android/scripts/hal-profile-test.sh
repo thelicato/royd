@@ -11,5 +11,6 @@ grep -Fq 'ro.vendor.royd.hal_profile=graphical' "$android_dir/hal-profiles/graph
 grep -Fq 'ro.vendor.royd.hal_profile=headless' "$android_dir/hal-profiles/headless.mk"
 grep -Fq 'gralloc.royd' "$android_dir/graphics/software.mk"
 grep -Fq 'hwcomposer.default' "$android_dir/graphics/software.mk"
+grep -Fq 'android.hardware.graphics.composer3-service.royd' "$android_dir/graphics/software.mk"
 grep -Fq 'Camera2' "$android_dir/hal-profiles/headless.mk"
 printf '%s\n' 'Android HAL profile test passed'

@@ -65,7 +65,7 @@ royd run --graphics host-gpu-generic
 
 The host GPU images use AOSP's Mesa Android EGL/GLES implementation and minigbm allocator modules. AOSP itself carries `libGLES_mesa`, and minigbm provides gralloc modules backed by DRM buffer allocation. The royd runtime maps `/dev/dri` into the container and verifies that at least one render node is available.
 
-The current HWC bridge remains `hwcomposer.default`. Host GPU mode accelerates rendering and buffer allocation, but does not claim physical display scan-out from the host. royd remains a virtual-display/container runtime.
+The composer follows the Android-version contract: Android 15 selects royd's composer3 V3 client-composition service, while versions not yet migrated retain `hwcomposer.default`. Host GPU mode does not claim physical display scan-out from the host. royd remains a virtual-display/container runtime. The Android 15 host-GPU allocator path is not yet qualified against its modern allocator/mapper contract, so that combination remains an implementation and validation gap.
 
 ## Status
 

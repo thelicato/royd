@@ -43,14 +43,15 @@ for hal in root.findall("hal"):
 expected_hals = [
     ("aidl", "android.hardware.graphics.allocator", "2", "IAllocator", "default"),
     ("native", "mapper", "5.0", None, "royd"),
+    ("aidl", "android.hardware.graphics.composer3", "3", "IComposer", "default"),
 ]
 if hals != expected_hals:
     raise SystemExit(f"error: {path} HAL declarations mismatch: {hals!r}")
 PY
 
-# The allocator/mapper family is now truthful for Android 15, but composer3 is
-# deliberately deferred to the next graphics milestone.
-! grep -Fq 'android.hardware.graphics.composer' "$manifest" || fail 'Android 15 manifest declares a graphics composer before composer3 exists'
+# Android 15 declares the modern graphics family it actually installs.
+grep -Fq '<name>android.hardware.graphics.composer3</name>' "$manifest" || fail 'Android 15 manifest lacks composer3 AIDL declaration'
+! grep -Fq '<name>android.hardware.graphics.composer</name>' "$manifest" || fail 'Android 15 manifest still declares legacy HIDL composer'
 grep -Fq '<name>android.hardware.graphics.allocator</name>' "$manifest" || fail 'Android 15 manifest lacks allocator AIDL declaration'
 grep -Fq '<name>mapper</name>' "$manifest" || fail 'Android 15 manifest lacks mapper native declaration'
 
@@ -72,6 +73,10 @@ grep -Fxq 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/p
   fail 'Android 15 installed board fragment does not include stable-C mapper service policy'
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$work/device/royd/sepolicy/system_ext/private/service_contexts" || \
   fail 'Android 15 mapper service context is missing'
+grep -Fxq 'BOARD_VENDOR_SEPOLICY_DIRS += device/royd/sepolicy/vendor' "$work/device/royd/BoardConfigVersion.mk" || \
+  fail 'Android 15 board fragment does not include composer3 vendor policy'
+grep -Fq 'hal_graphics_composer_default_exec:s0' "$work/device/royd/sepolicy/vendor/file_contexts" || \
+  fail 'Android 15 composer3 executable label is missing'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"

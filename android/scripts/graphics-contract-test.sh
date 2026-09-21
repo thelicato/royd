@@ -30,7 +30,7 @@ check_version 10 2.3 gralloc0-memfd ''
 for version in 11 12 13 14; do
   check_version "$version" 2.4 gralloc0-memfd ''
 done
-check_version 15 2.4 aidl2-stablec5-memfd stablec5-royd
+check_version 15 aidl3-client aidl2-stablec5-memfd stablec5-royd
 for version in 16 17; do
   check_version "$version" 2.4 gralloc0-memfd ''
 done
@@ -41,6 +41,9 @@ modern="$android_dir/graphics/allocator-aidl2"
 allocator="$modern/allocator/Allocator.cpp"
 mapper="$modern/mapper/Mapper.cpp"
 modern_bp="$modern/Android.bp"
+composer="$android_dir/graphics/composer-aidl3"
+composer_bp="$composer/Android.bp"
+composer_cpp="$composer/composer/Composer.cpp"
 
 # Legacy contract remains available for Android versions that still select it.
 grep -Fq 'name: "gralloc.royd"' "$legacy_bp"
@@ -82,10 +85,29 @@ for type in DATASPACE BLEND_MODE SMPTE2086 CTA861_3; do
 done
 ! grep -ERiq 'cuttlefish|goldfish|ranchu|qemu' "$modern" || fail 'modern software allocator contains a prohibited runtime dependency/reference'
 
+# Android 15's composer is repository-owned AIDL composer3 V3 and requests
+# client composition rather than implementing device-side scanout.
+grep -Fq 'name: "android.hardware.graphics.composer3-service.royd"' "$composer_bp"
+grep -Fq 'defaults: ["android.hardware.graphics.composer3-ndk_shared"]' "$composer_bp"
+grep -Fq 'android.hardware.graphics.composer3-command-buffer' "$composer_bp"
+grep -Fq 'c3::Composition::CLIENT' "$composer_cpp" || fail 'composer3 does not request client composition'
+grep -Fq 'setChangedCompositionTypes' "$composer_cpp" || fail 'composer3 does not report composition changes'
+grep -Fq 'getMaxVirtualDisplayCount' "$composer_cpp" || fail 'composer3 virtual-display boundary missing'
+grep -Fq '*count = 0;' "$composer_cpp" || fail 'composer3 must not advertise virtual displays'
+grep -Fq 'callback->onHotplug(kDisplayId, true)' "$composer_cpp" || fail 'composer3 does not announce the physical display'
+grep -Fq 'callback->onVsync' "$composer_cpp" || fail 'composer3 does not provide vsync callbacks'
+grep -Fq 'command.brightness.has_value()' "$composer_cpp" || fail 'composer3 must reject unsupported display brightness commands'
+grep -Fq 'case c3::PowerMode::DOZE:' "$composer_cpp" || fail 'composer3 must explicitly reject unsupported doze power modes'
+grep -Fq 'case c3::PowerMode::ON_SUSPEND:' "$composer_cpp" || fail 'composer3 must explicitly reject unsupported suspend power mode'
+grep -Fq 'dataspace != common::Dataspace::SRGB_LINEAR' "$composer_cpp" || fail 'composer3 must reject unsupported saturation-matrix dataspaces'
+! grep -ERiq 'cuttlefish|goldfish|ranchu|qemu' "$composer" || fail 'modern composer contains a prohibited runtime dependency/reference'
+
 grep -Fq 'ifeq ($(ROYD_GRAPHICS_ALLOCATOR),aidl2-stablec5-memfd)' "$android_dir/graphics/software.mk"
 grep -Fq 'android.hardware.graphics.allocator-service.royd' "$android_dir/graphics/software.mk"
 grep -Fq 'mapper.royd' "$android_dir/graphics/software.mk"
-grep -Fq 'ro.hardware.hwcomposer=default' "$android_dir/graphics/software.mk"
+grep -Fq 'ifeq ($(ROYD_GRAPHICS_COMPOSER),aidl3-client)' "$android_dir/graphics/software.mk"
+grep -Fq 'android.hardware.graphics.composer3-service.royd' "$android_dir/graphics/software.mk"
+grep -Fq 'hwcomposer.default' "$android_dir/graphics/software.mk"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT INT TERM
@@ -96,15 +118,19 @@ grep -Fxq 'ROYD_GRAPHICS_ALLOCATOR := aidl2-stablec5-memfd' "$work/vendor/royd/v
 grep -Fxq 'ROYD_GRAPHICS_MAPPER := stablec5-royd' "$work/vendor/royd/version.mk"
 grep -Fq 'ro.vendor.royd.graphics_allocator=aidl2-stablec5-memfd' "$work/vendor/royd/version.mk"
 grep -Fq 'ro.vendor.royd.graphics_mapper=stablec5-royd' "$work/vendor/royd/version.mk"
-grep -Fq 'PRODUCT_PACKAGES += android.hardware.graphics.composer@2.4-service' "$work/vendor/royd/version.mk"
+grep -Fxq 'ROYD_GRAPHICS_COMPOSER := aidl3-client' "$work/vendor/royd/version.mk"
+! grep -Fq 'android.hardware.graphics.composer@' "$work/vendor/royd/version.mk" || fail 'Android 15 unexpectedly installs legacy HIDL composer service'
 grep -Fq 'ro.vendor.royd.graphics_backend=software' "$work/vendor/royd/graphics_backend.mk"
 grep -Fq 'android.hardware.graphics.allocator-service.royd' "$work/vendor/royd/graphics_backend.mk"
 test -f "$work/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
 test -f "$work/vendor/royd/graphics_allocator/mapper/Mapper.cpp"
+test -f "$work/vendor/royd/graphics_composer/composer/Composer.cpp"
 grep -Fq 'case PixelFormat::YV12:' "$work/vendor/royd/graphics_allocator/allocator/Allocator.cpp" || fail 'installed allocator lost YV12 support'
 grep -Fq 'ANDROID_HAL_MAPPER_VERSION = AIMAPPER_VERSION_5' "$work/vendor/royd/graphics_allocator/mapper/Mapper.cpp" || fail 'installed mapper lost Android 15 VTS version symbol'
 grep -Fxq 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/private' "$work/device/royd/BoardConfigVersion.mk"
+grep -Fxq 'BOARD_VENDOR_SEPOLICY_DIRS += device/royd/sepolicy/vendor' "$work/device/royd/BoardConfigVersion.mk"
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$work/device/royd/sepolicy/system_ext/private/service_contexts"
+grep -Fq 'android\.hardware\.graphics\.composer3-service\.royd' "$work/device/royd/sepolicy/vendor/file_contexts"
 
 # Android 14 remains on the legacy allocator until its exact graphics-family
 # boundary is researched separately.
@@ -113,6 +139,9 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
 grep -Fxq 'ROYD_GRAPHICS_ALLOCATOR := gralloc0-memfd' "$work/vendor/royd/version.mk"
 ! grep -Fq 'ROYD_GRAPHICS_MAPPER :=' "$work/vendor/royd/version.mk" || fail 'Android 14 unexpectedly selects stable-C mapper'
 test ! -e "$work/vendor/royd/graphics_allocator"
+test ! -e "$work/vendor/royd/graphics_composer"
 ! grep -Fq 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS' "$work/device/royd/BoardConfigVersion.mk" || fail 'Android 14 unexpectedly selects mapper service policy'
+! grep -Fq 'BOARD_VENDOR_SEPOLICY_DIRS' "$work/device/royd/BoardConfigVersion.mk" || fail 'Android 14 unexpectedly selects composer3 vendor policy'
+grep -Fq 'PRODUCT_PACKAGES += android.hardware.graphics.composer@2.4-service' "$work/vendor/royd/version.mk"
 
 printf '%s\n' 'Android graphics contract test passed'

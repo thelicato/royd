@@ -7,23 +7,54 @@ warn() { printf '[royd] warning: %s\n' "$*" > "$stderr"; }
 
 backend=$(getprop ro.vendor.royd.graphics_backend)
 composer=$(getprop ro.vendor.royd.graphics_composer)
+declared_allocator=$(getprop ro.vendor.royd.graphics_allocator)
+mapper=$(getprop ro.vendor.royd.graphics_mapper)
 gralloc=$(getprop ro.hardware.gralloc)
-case "$backend" in
-  software) allocator=gralloc0-memfd ;;
-  host-gpu-generic) allocator=minigbm ;;
-  host-gpu-intel) allocator=minigbm-intel ;;
-  *) allocator=unknown ;;
+
+case "$declared_allocator" in
+  aidl2-stablec5-memfd)
+    if [ -x /vendor/bin/hw/android.hardware.graphics.allocator-service ] && \
+       { [ -f /vendor/lib64/hw/mapper.royd.so ] || [ -f /vendor/lib/hw/mapper.royd.so ]; }; then
+      setprop vendor.royd.graphics.allocator "$declared_allocator"
+      setprop vendor.royd.graphics.mapper "$mapper"
+      log "graphics: allocator $declared_allocator and mapper $mapper ready"
+    else
+      setprop vendor.royd.graphics.allocator unavailable
+      warn "graphics: modern allocator or mapper is missing"
+    fi
+    ;;
+  *)
+    case "$backend" in
+      software) allocator=gralloc0-memfd ;;
+      host-gpu-generic) allocator=minigbm ;;
+      host-gpu-intel) allocator=minigbm-intel ;;
+      *) allocator=unknown ;;
+    esac
+    found_allocator=false
+    for path in /vendor/lib64/hw/gralloc."$gralloc".so /vendor/lib/hw/gralloc."$gralloc".so; do
+      if [ -f "$path" ]; then found_allocator=true; break; fi
+    done
+    if [ "$found_allocator" = true ]; then
+      setprop vendor.royd.graphics.allocator "$allocator"
+      log "graphics: allocator $allocator ready"
+    else
+      setprop vendor.royd.graphics.allocator unavailable
+      warn "graphics: gralloc.$gralloc module is missing"
+    fi
+    ;;
 esac
 
-found_allocator=false
-for path in /vendor/lib64/hw/gralloc."$gralloc".so /vendor/lib/hw/gralloc."$gralloc".so; do
-  if [ -f "$path" ]; then found_allocator=true; break; fi
-done
-if [ "$found_allocator" = true ]; then
-  setprop vendor.royd.graphics.allocator "$allocator"
-  log "graphics: allocator $allocator ready"
-else
-  setprop vendor.royd.graphics.allocator unavailable
-  warn "graphics: gralloc.$gralloc module is missing"
-fi
-if [ -n "$composer" ]; then setprop vendor.royd.graphics.composer "$composer"; log "graphics: composer HIDL $composer configured"; else setprop vendor.royd.graphics.composer unavailable; warn "graphics: composer bridge version is missing"; fi
+case "$composer" in
+  aidl3-client)
+    setprop vendor.royd.graphics.composer "$composer"
+    log "graphics: composer AIDL v3 client composition configured"
+    ;;
+  '')
+    setprop vendor.royd.graphics.composer unavailable
+    warn "graphics: composer contract is missing"
+    ;;
+  *)
+    setprop vendor.royd.graphics.composer "$composer"
+    log "graphics: composer HIDL $composer configured"
+    ;;
+esac

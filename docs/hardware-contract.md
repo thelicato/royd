@@ -42,26 +42,13 @@ No host-side Binder device naming convention is part of the royd contract.
 
 ## Graphics baseline
 
-The software-first graphics baseline uses SwiftShader for EGL and OpenGL ES together with the repository-owned `gralloc.royd` allocator. AOSP supplies the version-matched composer service and conventional `hwcomposer.default` bridge. The royd product sets:
+The software-first graphics baseline uses SwiftShader for EGL and OpenGL ES. Android 15 selects the repository-owned AIDL allocator V2, stable-C mapper V5, and composer3 V3 client-composition service. Other pinned versions retain the legacy `gralloc.royd` and `hwcomposer.default` family until their branch contracts are migrated separately.
 
-```text
-ro.hardware.egl=swiftshader
-ro.hardware.gralloc=royd
-ro.hardware.hwcomposer=default
-ro.opengles.version=196610
-```
+The software path does not require `/dev/dri`. The runtime records the selected backend and the version-selected allocator/composer identities through `vendor.royd.graphics.*` properties.
 
-This means `/dev/dri` is not required for the software-rendering baseline.
+See [`graphics.md`](graphics.md) for the cross-version graphics-family mapping and capability boundaries.
 
-The runtime records the selected path as:
-
-```text
-vendor.royd.graphics.mode=software
-```
-
-See [`graphics.md`](graphics.md) for the cross-version composer mapping and allocator contract.
-
-Experimental host-GPU backends are implemented for Android 10 and newer. They combine AOSP Mesa, minigbm, the existing composer bridge, explicit `/dev/dri` passthrough, render-node diagnostics, backend-specific image identity, and software-rendered fallback images. They remain experimental until qualified on real DRM drivers and hosts.
+Experimental host-GPU backends are configured for Android 10 and newer. They combine AOSP Mesa, minigbm, explicit `/dev/dri` passthrough, render-node diagnostics, backend-specific image identity, and software-rendered fallback images. Android 15 uses the modern composer3 service, but its host-GPU allocator path still requires separate build and runtime qualification.
 
 ## Runtime diagnostics
 
