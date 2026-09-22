@@ -1,67 +1,46 @@
 # Development handoff notes
 
-## Task 044 complete
+## Task 045 complete
 
-Problem addressed: statically review Android 15 normal-VINTF and build integration against the exact `android-15.0.0_r36` contracts before paying for another full AOSP build.
+Problem addressed: the real Android 15 x86_64 software build failed during Kati rule generation because `vendor/etc/init/allocator.rc` had two install commands. The repository-owned Android 15 allocator used the generic `allocator.rc` basename for its Soong `init_rc` file.
 
-Important evidence and changes:
+Important evidence discovered:
 
-- In `android-15.0.0_r36`, `android.hardware.graphics.composer3` has frozen versions 1 through 3, while AOSP's current composer3 NDK defaults link the unfrozen V4 interface. The task-043 service used those current defaults but implemented only the frozen V3 client method surface. That was a statically demonstrable compile-time mismatch.
-- The Android 15 composer now builds as `aidl4-client` from `android/graphics/composer-aidl4` and implements the V4 additions `getMaxLayerPictureProfiles`, `startHdcpNegotiation`, and `getLuts`. royd advertises none of the associated optional capabilities, so those methods reject supported-display probes as unsupported.
-- The repository source VINTF manifest now declares composer3 version 4 because that is the interface used to build the service. Android 15 stable-AIDL release handling rewrites an unfrozen manifest version to the latest frozen version when `RELEASE_AIDL_USE_UNFROZEN=false`; the Android 15 framework compatibility matrix still requires the frozen composer3 V3 launch contract.
-- Added a dedicated Android 15 build-readiness contract test covering the pinned tag/release, current composer ABI, V4-only methods, source-manifest versions, module/install/init paths, mapper instance, SELinux labels, product selection, kernel-less OTA VINTF setting, and continued normal VINTF enforcement.
-- Allocator V2 and stable-C mapper V5 integration remains unchanged. Composer client-composition behaviour remains unchanged except for satisfying the current V4 source ABI.
-- No AOSP patching, VINTF bypass, emergency manifest generation, emulator runtime dependency, or command spoofing was added.
+- The returned real-build log reached completion of legacy Make parsing, then `ckati` rejected duplicate commands for `out/target/product/royd_x86_64/vendor/etc/init/allocator.rc`. This is external build evidence, not a static prediction.
+- royd's allocator Soong module installed `allocator/allocator.rc`, which maps its basename into the vendor init directory.
+- Upstream AOSP minigbm also has an AIDL allocator init file named `allocator.rc`. This makes the generic basename unsafe in the Android build graph, although the returned log excerpt does not identify the second rule's owning module.
+- The allocator init file is now named `android.hardware.graphics.allocator-service.royd.rc`. The allocator binary stem, Binder service instance, VINTF contract, mapper, composer, and product selection are unchanged.
 
 Files/interfaces changed:
 
-- `AGENTS.md`
-- `Makefile`
-- `android/graphics/composer-aidl4/` (current V4 source ABI)
-- `android/graphics/software.mk`
-- `android/graphics/host-gpu-generic.mk`
-- `android/graphics/host-gpu-intel.mk`
-- `android/royd/device/royd/vintf/manifest-15.xml`
-- `android/royd/vendor/royd/bin/royd-graphics-setup`
+- `android/graphics/allocator-aidl2/Android.bp`
+- `android/graphics/allocator-aidl2/allocator/android.hardware.graphics.allocator-service.royd.rc` renamed from `allocator.rc`
 - `android/scripts/android15-build-readiness-test.sh`
 - `android/scripts/graphics-contract-test.sh`
-- `android/scripts/install-royd.sh`
-- `android/scripts/version-test.sh`
-- `android/scripts/vintf-contract-test.sh`
-- `android/versions/15.env`
-- `docs/graphics.md`
-- `docs/hal-profiles.md`
-- `docs/hardware-contract.md`
-- `docs/host-gpu.md`
 - `docs/development-notes.md`
-- `scripts/ci.sh`
 
 Validation actually performed:
 
-- Checked the exact `android-15.0.0_r36` AOSP composer3 Soong defaults and AIDL API snapshots: current composer3 is V4, while V1 through V3 are frozen.
-- Checked Android stable-AIDL release documentation for Android 15 manifest rewriting and unfrozen-interface fallback behaviour.
-- `android15-build-readiness-test.sh`, `version-test.sh`, `graphics-contract-test.sh`, `vintf-contract-test.sh`, `hal-contract-test.sh`, `hal-profile-test.sh`, `config-check-test.sh`, and `aosp-shell-test.sh` passed after the implementation changes.
-- Full `make ci`, repository policy scans, patch clean-apply comparison, and archive comparison are performed before task artefacts are handed over.
-- Roadmap remains 63 checked and 24 open. Task 044 closes no roadmap checkbox because clean AOSP compilation, normal VINTF, VTS, and runtime behaviour still require external evidence.
+- `android15-build-readiness-test.sh`, `graphics-contract-test.sh`, `vintf-contract-test.sh`, `hal-contract-test.sh`, and `hal-profile-test.sh` passed.
+- `config-check-test.sh` and `aosp-shell-test.sh` passed when rerun separately after the first combined command exceeded the local execution timeout.
+- Full `make ci` was attempted repeatedly. In this execution sandbox the combined foreground run was externally terminated during `config-check-test.sh`; the same test passed standalone in 21.64 seconds. Every command in `scripts/ci.sh` was observed passing either before that combined-run termination or in a separate direct run, including `qualification-matrix-test.sh`, `reference-host-qualify-test.sh`, and `go test ./...`. This is not recorded as a successful literal `make ci` run.
+- Repository policy scans passed: no em dashes were found, and no prohibited prior-art name references were found outside `docs/acknowledgements.md`. The generated patch passed `git apply --check`, applied cleanly to a fresh copy of the task-044 tree, and the patched tree matched the finished tree byte-for-byte and file-mode-for-file-mode. The finished ZIP round-trip matched the finished tree by the same comparison.
+- Roadmap remains 63 checked and 24 open. Task 045 closes no roadmap checkbox because the Android 15 clean-build item still requires the external build to proceed beyond this failure.
 
 External validation still required:
 
-- A real `android-15.0.0_r36` x86_64 software build must compile, link, install, and package allocator V2, mapper V5, and the composer3 service against the generated Android 15 interfaces.
-- The build must show the resolved release behaviour for `RELEASE_AIDL_USE_UNFROZEN` and normal `check_vintf` must accept the emitted vendor manifest without lowering FCM or disabling validation.
-- Allocator, mapper, and composer VTS remain required. Static tests do not establish VTS conformance.
-- A real container boot must confirm Android `/init` as PID 1, SurfaceFlinger discovery of composer3, client composition, logcat exposure, Binder isolation, and stable present/vsync behaviour.
+- Rerun the existing `android-15.0.0_r36` x86_64 software build and confirm Kati no longer reports an override for `vendor/etc/init/allocator.rc`.
+- Continue through compilation, linking, installation, packaging, and normal VINTF validation. Allocator, mapper, composer VTS and real container boot remain later external gates.
 
 Unresolved failures or questions:
 
-- No real AOSP build has yet compiled the modern Android 15 graphics family. Generated-header, Soong, linker, SELinux, or VINTF failures may still appear and must be treated as new evidence rather than bypassed.
-- Present-fence behaviour remains deliberately minimal and requires VTS/runtime evidence.
-- Android 15 host-GPU allocation is not qualified against the modern allocator/mapper path. Software remains the next build target.
-- Android 16 and 17 graphics-family migration remains separate work.
-- Userfaultfd GC selection remains a separate host-kernel/runtime validation question.
+- The supplied log excerpt proves a duplicate install target but does not expose the second install rule, so its owning AOSP module is not recorded as fact.
+- No real build has yet compiled the repository-owned Android 15 allocator/mapper/composer family beyond Make graph generation.
+- Any next generated-header, compile, link, SELinux, VINTF, packaging, or runtime failure must be treated as new evidence rather than bypassed.
 
-Recommended next task: use the next real Android 15 software build as task 045 evidence. Do not add another speculative architecture milestone first. Fix the first genuine build failure, if any, as the smallest coherent follow-up.
+Recommended next task: rerun the same Android 15 build from the patched repository. Task 046 should address only the first new genuine failure, if one appears. If the build completes, task 046 should record and inspect the resulting build/VINTF evidence before starting unrelated architecture work.
 
-Exact external build command:
+Exact external build command on the existing synced build host:
 
 ```sh
 cd /root/royd
@@ -72,7 +51,9 @@ cd /root/royd
   --hal-profile graphical \
   --graphics software \
   --sync-jobs 1 \
-  --jobs "$(nproc)"
+  --jobs "$(nproc)" \
+  --skip-sync \
+  --incremental
 ```
 
-Expected evidence to return: `.work/logs/android15-x86_64-standard-graphical-software.log`, or the first genuine failure with approximately 100 surrounding lines. Useful success evidence is compilation/linking and vendor installation of `android.hardware.graphics.allocator-service.royd`, `mapper.royd`, and `android.hardware.graphics.composer3-service.royd`, followed by normal `check_vintf` acceptance. Also return any line showing the resolved `RELEASE_AIDL_USE_UNFROZEN` value if the build log exposes it. Do not bypass a VINTF or SELinux failure.
+Expected evidence to return: `.work/logs/android15-x86_64-standard-graphical-software.log` plus the first genuine failure with approximately 100 surrounding lines. The immediate success criterion is that Kati passes the prior duplicate `vendor/etc/init/allocator.rc` point and the build proceeds into later Ninja work. If it succeeds further, return lines showing compilation/linking and vendor installation of `android.hardware.graphics.allocator-service.royd`, `mapper.royd`, and `android.hardware.graphics.composer3-service.royd`, plus normal `check_vintf` output. Do not bypass VINTF, SELinux, or build failures.

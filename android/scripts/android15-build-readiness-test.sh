@@ -16,6 +16,7 @@ composer_h="$composer/composer/Composer.h"
 composer_cpp="$composer/composer/Composer.cpp"
 composer_rc="$composer/composer/composer.rc"
 allocator="$android_dir/graphics/allocator-aidl2"
+allocator_rc="$allocator/allocator/android.hardware.graphics.allocator-service.royd.rc"
 manifest="$android_dir/royd/device/royd/vintf/manifest-15.xml"
 file_contexts="$android_dir/royd/device/royd/sepolicy/vendor/file_contexts"
 mapper_contexts="$android_dir/royd/device/royd/sepolicy/system_ext/private/service_contexts"
@@ -80,7 +81,8 @@ grep -Fq 'hal_graphics_composer_default_exec:s0' "$file_contexts" || fail 'compo
 
 grep -Fq 'name: "android.hardware.graphics.allocator-service.royd"' "$allocator/Android.bp" || fail 'allocator Soong module name mismatch'
 grep -Fq 'stem: "android.hardware.graphics.allocator-service"' "$allocator/Android.bp" || fail 'allocator stem does not match canonical service path'
-grep -Fq '/vendor/bin/hw/android.hardware.graphics.allocator-service' "$allocator/allocator/allocator.rc" || fail 'allocator init path does not match Soong stem'
+grep -Fq 'init_rc: ["allocator/android.hardware.graphics.allocator-service.royd.rc"]' "$allocator/Android.bp" || fail 'allocator init rc must have a royd-specific install basename'
+grep -Fq '/vendor/bin/hw/android.hardware.graphics.allocator-service' "$allocator_rc" || fail 'allocator init path does not match Soong stem'
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$mapper_contexts" || fail 'mapper service-context instance mismatch'
 
 # Exercise the installer against a mock AOSP root and verify package selection
@@ -92,6 +94,8 @@ ROYD_ANDROID_VERSION=15 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
 [ -d "$work/vendor/royd/graphics_composer" ] || fail 'installer omitted the current composer source project'
 grep -Fxq 'ROYD_GRAPHICS_COMPOSER := aidl4-client' "$work/vendor/royd/version.mk" || fail 'installed Android 15 composer selector mismatch'
 grep -Fq 'android.hardware.graphics.composer3-service.royd' "$work/vendor/royd/graphics_backend.mk" || fail 'installed software product omits composer3 service'
+[ -f "$work/vendor/royd/graphics_allocator/allocator/android.hardware.graphics.allocator-service.royd.rc" ] || fail 'installer lost the royd-specific allocator init rc'
+[ ! -e "$work/vendor/royd/graphics_allocator/allocator/allocator.rc" ] || fail 'installer retained the colliding generic allocator.rc basename'
 ! grep -Fq 'android.hardware.graphics.composer@' "$work/vendor/royd/version.mk" || fail 'installed Android 15 version fragment still packages HIDL composer'
 grep -Fxq 'DEVICE_MANIFEST_FILE := device/royd/vintf/manifest-15.xml' "$work/device/royd/BoardConfigVersion.mk" || fail 'installed board fragment does not select Android 15 manifest'
 grep -Fxq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$work/device/royd/container_version.mk" || fail 'kernel-less OTA VINTF setting was lost'

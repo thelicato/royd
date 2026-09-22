@@ -14,7 +14,7 @@ cc_binary {
         "allocator/Allocator.cpp",
         "allocator/main.cpp",
     ],
-    init_rc: ["allocator/allocator.rc"],
+    init_rc: ["allocator/android.hardware.graphics.allocator-service.royd.rc"],
     header_libs: ["royd_graphics_buffer_headers"],
     static_libs: ["libaidlcommonsupport"],
     shared_libs: [

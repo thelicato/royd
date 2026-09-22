@@ -54,6 +54,7 @@ grep -Fq 'const_cast<uint32_t&>(device->flags) = 0;' "$legacy_gralloc"
 # allocator V2 plus stable-C mapper V5 boundary without emulator dependencies.
 grep -Fq 'name: "android.hardware.graphics.allocator-service.royd"' "$modern_bp"
 grep -Fq 'stem: "android.hardware.graphics.allocator-service"' "$modern_bp"
+grep -Fq 'init_rc: ["allocator/android.hardware.graphics.allocator-service.royd.rc"]' "$modern_bp" || fail 'modern allocator init rc basename is not repository-specific'
 grep -Fq 'defaults: ["android.hardware.graphics.allocator-ndk_shared"]' "$modern_bp"
 grep -Fq 'name: "mapper.royd"' "$modern_bp"
 grep -Fq 'libimapper_providerutils' "$modern_bp"
@@ -127,6 +128,8 @@ grep -Fxq 'ROYD_GRAPHICS_COMPOSER := aidl4-client' "$work/vendor/royd/version.mk
 grep -Fq 'ro.vendor.royd.graphics_backend=software' "$work/vendor/royd/graphics_backend.mk"
 grep -Fq 'android.hardware.graphics.allocator-service.royd' "$work/vendor/royd/graphics_backend.mk"
 test -f "$work/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
+test -f "$work/vendor/royd/graphics_allocator/allocator/android.hardware.graphics.allocator-service.royd.rc"
+test ! -e "$work/vendor/royd/graphics_allocator/allocator/allocator.rc"
 test -f "$work/vendor/royd/graphics_allocator/mapper/Mapper.cpp"
 test -f "$work/vendor/royd/graphics_composer/composer/Composer.cpp"
 grep -Fq 'case PixelFormat::YV12:' "$work/vendor/royd/graphics_allocator/allocator/Allocator.cpp" || fail 'installed allocator lost YV12 support'
