@@ -54,8 +54,8 @@ cleanup() {
   for mount_dir in $mounts; do
     mountpoint -q "$mount_dir" 2>/dev/null && sudo umount "$mount_dir" || true
   done
-  # Ramdisk extraction preserves root ownership and device nodes. The supported
-  # builder runs in a disposable --rm container, so this local cleanup is best effort.
+  # Legacy ramdisk extraction preserves root ownership and device nodes. The
+  # supported builder is disposable, so deletion of its temporary tree is best effort.
   rm -rf "$tmp" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
@@ -94,36 +94,53 @@ append_image() {
   mounts="$mount_dir $mounts"
 
   if [ -z "$destination" ]; then
-    sudo tar --xattrs --numeric-owner -C "$mount_dir" -cf "$output" .
+    sudo tar --xattrs --numeric-owner -C "$mount_dir" -cf - . > "$output"
   else
     sudo tar --xattrs --numeric-owner --transform="s#^\./#./$destination/#" -C "$mount_dir" -rf "$output" .
   fi
   sudo umount "$mount_dir"
 }
 
-ramdisk_img="$product_out/ramdisk.img"
-root_dir="$tmp/root"
-[ -f "$ramdisk_img" ] || fail "Android ramdisk not found at $ramdisk_img; build Android first"
-mkdir -p "$runtime_dir" "$root_dir"
+mkdir -p "$runtime_dir"
 rm -f "$output"
-printf 'Extracting Android ramdisk for %s image profile %s, HAL profile %s and graphics backend %s\n' "$arch" "$profile" "$hal_profile" "$graphics_backend"
-case $(file -b "$ramdisk_img") in
-  *gzip*)
-    gzip -dc "$ramdisk_img" | (cd "$root_dir" && sudo cpio -idmu --quiet)
+root_partition=
+case "$ANDROID_ROOTFS_SOURCE" in
+  ramdisk)
+    ramdisk_img="$product_out/ramdisk.img"
+    root_dir="$tmp/root"
+    [ -f "$ramdisk_img" ] || fail "Android ramdisk not found at $ramdisk_img; build Android first"
+    mkdir -p "$root_dir"
+    printf 'Extracting Android ramdisk for %s image profile %s, HAL profile %s and graphics backend %s\n' "$arch" "$profile" "$hal_profile" "$graphics_backend"
+    case $(file -b "$ramdisk_img") in
+      *gzip*)
+        gzip -dc "$ramdisk_img" | (cd "$root_dir" && sudo cpio -idmu --quiet)
+        ;;
+      *LZ4*|*lz4*)
+        lz4 -dc "$ramdisk_img" | (cd "$root_dir" && sudo cpio -idmu --quiet)
+        ;;
+      *)
+        fail "unsupported ramdisk compression: $(file -b "$ramdisk_img")"
+        ;;
+    esac
+    printf 'Creating OCI root filesystem archive for %s image profile %s, HAL profile %s and graphics backend %s\n' "$arch" "$profile" "$hal_profile" "$graphics_backend"
+    sudo tar --xattrs --numeric-owner -C "$root_dir" -cf - . > "$output"
     ;;
-  *LZ4*|*lz4*)
-    lz4 -dc "$ramdisk_img" | (cd "$root_dir" && sudo cpio -idmu --quiet)
+  system)
+    printf 'Creating OCI root filesystem archive from Android system image for %s image profile %s, HAL profile %s and graphics backend %s\n' "$arch" "$profile" "$hal_profile" "$graphics_backend"
+    append_image system "" yes
+    root_partition=system
     ;;
   *)
-    fail "unsupported ramdisk compression: $(file -b "$ramdisk_img")"
+    fail "unsupported Android rootfs source: $ANDROID_ROOTFS_SOURCE; expected ramdisk or system"
     ;;
 esac
-printf 'Creating OCI root filesystem archive for %s image profile %s, HAL profile %s and graphics backend %s\n' "$arch" "$profile" "$hal_profile" "$graphics_backend"
-sudo tar --xattrs --numeric-owner -C "$root_dir" -cf - . > "$output"
+
 for partition in $ANDROID_REQUIRED_PARTITIONS; do
+  [ "$partition" = "$root_partition" ] && continue
   append_image "$partition" "$partition" yes
 done
 for partition in ${ANDROID_OPTIONAL_PARTITIONS:-}; do
+  [ "$partition" = "$root_partition" ] && continue
   append_image "$partition" "$partition" no
 done
 
@@ -136,7 +153,7 @@ sudo tar --numeric-owner --owner=0 --group=0 -C "$entry_dir" -rf "$output" ./roy
 
 release_dir="$tmp/release"
 mkdir -p "$release_dir"
-cat > "$release_dir/royd-release" <<EOF
+cat > "$release_dir/royd-release" <<EOF2
 ROYD_IMAGE_FORMAT=$ROYD_IMAGE_FORMAT
 ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
@@ -151,12 +168,12 @@ ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
 ROYD_RUNTIME_CONFIG=/royd-runtime.conf
-EOF
+EOF2
 touch -t 197001010000 "$release_dir/royd-release"
 sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./royd-release
 
 archive_sha256=$(sha256sum "$output" | awk '{print $1}')
-cat > "$manifest" <<EOF
+cat > "$manifest" <<EOF2
 ROYD_IMAGE_FORMAT=$ROYD_IMAGE_FORMAT
 ROYD_ANDROID_VERSION=$ANDROID_VERSION
 ROYD_AOSP_TAG=$AOSP_TAG
@@ -172,6 +189,6 @@ ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
 ROYD_RUNTIME_CONFIG=/royd-runtime.conf
 ARCHIVE_SHA256=$archive_sha256
-EOF
+EOF2
 printf 'Runtime manifest is ready: %s\n' "$manifest"
 printf 'Runtime root filesystem is ready: %s\n' "$output"

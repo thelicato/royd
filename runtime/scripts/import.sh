@@ -82,7 +82,7 @@ docker import \
   -c 'EXPOSE 5555/tcp' \
   -c 'HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=6 CMD ["/vendor/bin/royd-health"]' \
   -c 'LABEL org.opencontainers.image.title=royd' \
-  -c 'LABEL org.opencontainers.image.description=Android runtime for OCI containers' \
+  -c 'LABEL org.opencontainers.image.description="Android runtime for OCI containers"' \
   -c "LABEL org.opencontainers.image.version=$version" \
   -c "LABEL org.royd.image-format=$ROYD_IMAGE_FORMAT" \
   -c "LABEL org.royd.android-version=$ANDROID_VERSION" \

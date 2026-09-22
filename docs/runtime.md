@@ -57,18 +57,17 @@ This removes the previous post-boot `wm` and settings mutation path. Display siz
 
 ## Root filesystem packaging
 
-The runtime archive is produced from royd's AOSP build output rather than from a conventional Dockerfile. The package step extracts AOSP's generated ramdisk as the OCI root, then mounts Android partition images read-only and merges their contents into one OCI root filesystem:
+The runtime archive is produced from royd's AOSP build output rather than from a conventional Dockerfile. Root assembly follows the selected Android version's AOSP layout. Android 10 and newer use `system.img` as the OCI root, then merge the remaining partition images at their normal mount points:
 
 ```text
-ramdisk.img      -> /
-system.img       -> /system
+system.img       -> /
 vendor.img       -> /vendor
 system_ext.img   -> /system_ext, when present
 product.img      -> /product, when present
 odm.img          -> /odm, when present
 ```
 
-Sparse Android images are converted with AOSP's `simg2img` before mounting.
+Android 8 and 9 retain the older ramdisk-root layout, with `ramdisk.img` at `/` and `system.img` at `/system`. Sparse Android images are converted with AOSP's `simg2img` before mounting.
 
 The imported image uses `/royd-entrypoint` as the OCI entrypoint. It consumes only royd runtime arguments, writes the validated runtime configuration, then replaces itself with `/init` using `exec`. This keeps Android init as PID 1 while avoiding reliance on kernel-style `androidboot.*` command-line transport inside a container.
 

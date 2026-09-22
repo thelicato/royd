@@ -32,7 +32,7 @@ royd:15.0.0-r36-standard-headless-amd64
 
 Convenience aliases remain available for development. Graphical images keep the short aliases such as `royd:dev`; non-default HAL profiles are explicit, for example `royd:dev-headless`.
 
-The package step extracts AOSP's generated `ramdisk.img` as the container root, preserving its recorded ownership and modes, then adds the built partition images at their normal mount points. It requires system, vendor, system_ext, and product, and includes odm when produced. The archive also contains `/royd-release` with immutable build identity fields and a sidecar manifest with the archive SHA-256 digest.
+The package step follows the selected Android version's rootfs contract. Android 10 and newer use `system.img` as the container root, while Android 8 and 9 retain ramdisk-root assembly. It then adds the remaining required partition images at their normal mount points and includes optional partitions when produced. The archive also contains `/royd-release` with immutable build identity fields and a sidecar manifest with the archive SHA-256 digest.
 
 The importer verifies the archive digest before importing, writes OCI and royd-specific labels, then runs the image contract inspector.
 

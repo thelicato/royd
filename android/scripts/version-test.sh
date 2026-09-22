@@ -71,6 +71,15 @@ expected=$(
 17
 EOF2
 )
+for version in 8.0 8.1 9; do
+  rootfs_source=$(sh -c '. "$1"; printf "%s" "$ANDROID_ROOTFS_SOURCE"' sh "$android_dir/versions/$version.env")
+  [ "$rootfs_source" = ramdisk ] || { printf 'error: Android %s rootfs source mismatch: %s\n' "$version" "$rootfs_source" >&2; exit 1; }
+done
+for version in 10 11 12 13 14 15 16 17; do
+  rootfs_source=$(sh -c '. "$1"; printf "%s" "$ANDROID_ROOTFS_SOURCE"' sh "$android_dir/versions/$version.env")
+  [ "$rootfs_source" = system ] || { printf 'error: Android %s rootfs source mismatch: %s\n' "$version" "$rootfs_source" >&2; exit 1; }
+done
+
 actual=$("$script_dir/version-list.sh")
 [ "$actual" = "$expected" ] || {
   printf 'error: Android version list mismatch\nexpected:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2

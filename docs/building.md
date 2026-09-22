@@ -116,7 +116,7 @@ make android-package-x86_64
 make runtime-import-x86_64
 ```
 
-The package step extracts the generated Android ramdisk with its recorded ownership and modes, then adds the exact partition set declared by the selected Android version plus optional partitions when present. Android sparse images are converted using the AOSP-built `simg2img` tool before read-only mounting. The result is `.work/runtime/royd-<arch>-<profile>.tar`.
+The package step uses the rootfs source declared by the selected Android version. Android 10 and newer use `system.img` as the OCI root; Android 8 and 9 retain ramdisk-root assembly. Required and optional partition images are then merged at their normal mount points. Android sparse images are converted using the AOSP-built `simg2img` tool before read-only mounting. The result is `.work/runtime/royd-<arch>-<profile>.tar`.
 
 ## Dependency policy
 

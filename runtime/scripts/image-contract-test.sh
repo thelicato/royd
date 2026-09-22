@@ -92,4 +92,9 @@ PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh"
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-generic $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-generic' ]
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-graphical-host-gpu-intel-amd64' ]
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-intel' ]
+grep -Fq 'LABEL org.opencontainers.image.description="Android runtime for OCI containers"' "$script_dir/import.sh" || {
+  printf '%s\n' 'error: runtime importer does not quote the OCI description label value' >&2
+  exit 1
+}
+
 printf '%s\n' 'Runtime image contract test passed'
