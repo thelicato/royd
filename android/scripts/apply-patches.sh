@@ -25,15 +25,37 @@ fi
 require_command sha256sum
 require_command patch
 digest=$(cat $patches | sha256sum | awk '{print $1}')
+applied_prefix=
 if [ -f "$marker" ]; then
   applied=$(cat "$marker")
-  [ "$applied" = "$digest" ] || fail 'local patch set changed after application; use a fresh Android source tree'
-  printf 'Local AOSP patches already applied: %s\n' "$digest"
-  exit 0
+  if [ "$applied" = "$digest" ]; then
+    printf 'Local AOSP patches already applied: %s\n' "$digest"
+    exit 0
+  fi
+
+  seen=
+  for patch in $patches; do
+    seen="$seen $patch"
+    prefix_digest=$(cat $seen | sha256sum | awk '{print $1}')
+    if [ "$prefix_digest" = "$applied" ]; then
+      applied_prefix=$patch
+      break
+    fi
+  done
+  [ -n "$applied_prefix" ] || fail 'local patch set changed after application; use a fresh Android source tree'
+  printf 'Extending repository-owned AOSP patch set for %s\n' "$AOSP_TAG"
+else
+  printf 'Applying repository-owned AOSP patches for %s\n' "$AOSP_TAG"
 fi
 
-printf 'Applying repository-owned AOSP patches for %s\n' "$AOSP_TAG"
+skip_applied=${applied_prefix:+yes}
 for patch in $patches; do
+  if [ -n "$skip_applied" ]; then
+    if [ "$patch" = "$applied_prefix" ]; then
+      skip_applied=
+    fi
+    continue
+  fi
   printf 'Applying %s\n' "${patch##*/}"
   (
     cd "$src"

@@ -33,7 +33,7 @@ The intended ownership split is:
 
 ## Binder model
 
-royd should prefer a private binderfs instance for each Android container. The container should allocate the Binder devices it needs and expose them at the conventional paths expected by Android:
+royd should prefer a private binderfs instance for each Android container. The royd-owned instance is mounted at `/dev/royd-binderfs` so Android's own `/dev/binderfs` mount cannot hide it. The container should allocate the Binder devices it needs and expose them at the conventional paths expected by Android:
 
 ```text
 /dev/binder

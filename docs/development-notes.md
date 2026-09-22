@@ -1,5 +1,50 @@
 # Development handoff notes
 
+## Task 052 complete
+
+Problem addressed: real Android 15 runtime evidence after task 051 showed that royd allocated Binder devices successfully during `early-init`, but Android later mounted its own binderfs instance over `/dev/binderfs`. The conventional `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder` symlinks then pointed at missing targets. A live diagnostic proved that allocating into the later visible binderfs created working devices, and a second live override proved that keeping royd's private instance at `/dev/royd-binderfs` preserved working Binder devices across Android init. `servicemanager` then advanced past Binder open and exposed the next blocker: unconditional SELinux status initialisation on a kernel with SELinux disabled.
+
+Important evidence discovered:
+
+- Task 051 is externally validated for its intended blocker. `apexd-bootstrap` mounted and activated the bootstrap APEX packages and exited successfully, so the previous `Could not get process context` shutdown path is cleared.
+- Before task 052, Android mounted a second binderfs instance at `/dev/binderfs`. royd's early allocations disappeared behind that mount while the conventional symlinks remained, leaving dangling Binder paths.
+- Manually allocating `binder`, `hwbinder`, and `vndbinder` into the visible binderfs produced working character devices. The default dynamic-node mode was `0600`, and a later `servicemanager` restart failed with `Permission denied`, proving that royd must set Android-compatible permissions explicitly.
+- A live override using `/dev/royd-binderfs` plus mode `0666` produced working `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder` character devices while Android's own `/dev/binderfs` mount remained separate. `servicemanager` then opened Binder successfully and failed later at `selinux_status_open(true)`.
+- Exact `android-15.0.0_r36` `frameworks/native` source at commit `cdca1e2000347ce2f2b25ab5d0f2dffa81f30e01` shows `Access::Access()` unconditionally opens SELinux status and gets its process context, while service-manager access paths call SELinux lookup and access-check APIs.
+- Android init service launch inherits the PID 1 environment and adds service-specific variables without clearing it, so the existing explicit `ROYD_CONTAINER=1` marker is available to Android services.
+- Cgroup/task-profile warnings remain observable, but they were not the first new blocker and are not changed in task 052.
+
+Files/interfaces changed:
+
+- `android/royd/vendor/royd/bin/royd-binder-setup`: mount royd's private Binder instance at `/dev/royd-binderfs` and set allocated Binder nodes to `0666` before exposing the conventional paths.
+- Binder diagnostics, runtime assertions, identity helpers, qualification fixtures and documentation now use the royd-owned private binderfs mountpoint while still reporting Android's own `/dev/binderfs` where useful.
+- `android/patches/android-15.0.0_r36/0002-servicemanager-support-royd-container-selinux-disabled.patch`: only when `ROYD_CONTAINER=1` and kernel SELinux is disabled, skip `servicemanager` SELinux status/context initialisation and allow service-manager operations without SELinux policy lookups. Normal Android behaviour is unchanged otherwise.
+- `android/scripts/apply-patches.sh`: permit append-only extension of an already-applied local patch set when the existing marker matches an exact prefix digest. Changed, reordered, or removed prior patches still require a fresh source tree.
+- `android/scripts/android15-servicemanager-container-test.sh`, `runtime/scripts/binder-contract-test.sh`, `android/scripts/sync-contract-test.sh`, and `scripts/ci.sh`: cover the new Binder mountpoint, node permissions, SELinux-disabled service-manager gate, clean patch application and append-only patch-set extension.
+- `AGENTS.md`, `runtime/README.md`, `docs/architecture.md`, `docs/hardware-contract.md`, `docs/runtime.md`, `docs/validation.md`, and these notes.
+
+Validation actually performed:
+
+- Focused shell syntax, Binder contract, Android 15 container-init, Android 15 servicemanager and sync/patch-application regressions passed.
+- The sync regression applies both Android 15 patches to Android-15-shaped fixtures, verifies the normal SELinux code remains present behind the new gate, then appends and applies a new patch without requiring a fresh source tree.
+- Full `make ci` must pass before this task is handed off. Static tests are not evidence that the new `frameworks/native` patch compiles in AOSP or that Android completes boot.
+- Roadmap remains unchanged. No checkbox closes in task 052 because the new Android patch still needs a real incremental build and runtime validation.
+
+External validation still required:
+
+- Apply task 052 to the existing Android 15 source tree. The updated patch helper should recognise the already-applied task-051 patch as an exact prefix and apply only the new task-052 patch.
+- Run an incremental Android 15 x86_64 standard/graphical/software build, package and import the image, then rerun the privileged smoke test.
+- Confirm `/dev/royd-binderfs/{binder,hwbinder,vndbinder}` are `0666` character devices, conventional Binder paths resolve to them, and `servicemanager` no longer aborts at either Binder open or `selinux_status_open(true)`.
+- Treat the first later fatal blocker as new evidence. Do not infer that cgroups, `vold`, zygote, graphics, ADB or boot completion are fixed until separately observed.
+
+Unresolved failures or questions:
+
+- The new Android 15 `frameworks/native` patch has exact-source-shape and patch-application regression coverage but has not yet compiled on the real AOSP tree.
+- The runtime has not yet demonstrated a stable `servicemanager.ready`, successful `vold` startup, surviving zygotes, SurfaceFlinger startup or `sys.boot_completed=1`.
+- Cgroup/task-profile configuration remains noisy and may become a later task only if it is the first evidenced blocker after task 052.
+
+Recommended next task: validate task 052 on the existing rented host with an incremental Android build and privileged runtime smoke test. If the image reaches a new boot failure, task 053 should address only that first evidenced blocker.
+
 ## Task 051 external-validation correction
 
 Real `android-15.0.0_r36` validation found that the repository-owned `system/core/init` patch did not apply to the pinned source tree. The patch had been authored against a different init source shape: `Service::SetProcessAttributesAndCaps()` lacked the Android 15 FIFO parameter in the fixture, and the subcontext fixture used the older `InitializeSubcontexts()` vector API instead of Android 15's `InitializeSubcontext()` single-subcontext API. No patched init binary was therefore built, so the repeated `Could not get process context` and vendor-init `setexeccon` failures were still stock-AOSP behaviour rather than evidence of a new blocker.
@@ -35,13 +80,12 @@ Validation actually performed:
 
 External validation still required:
 
-- A real Android 15 incremental rebuild is required because task 051 patches `system/core/init`. The existing synced source tree can be reused because tasks 045 through 050 carried no Android 15 local source patch. Apply the repository patch explicitly before a `--skip-sync` build. If `apply-patches.sh` reports that a local patch set changed after application, stop and return that evidence rather than deleting patch state blindly.
-- After build and packaging, import the image and rerun the privileged smoke test. Confirm `apexd-bootstrap` gets past the previous SELinux process-context failure.
+- Subsequent real-host validation rebuilt and imported the task-051 image. `apexd-bootstrap` mounted and activated the bootstrap APEX packages and exited successfully, clearing the task-051 SELinux process-context blocker.
 
 Unresolved failures or questions:
 
-- The Android 15 init patch has static and patch-application contract coverage but has not yet compiled against the real `android-15.0.0_r36` tree.
-- Cgroup setup currently reports missing `/etc/cgroups.json`, `/etc/task_profiles.json`, and uninitialised processgroup controllers during the second-stage diagnostic. Those warnings were not the task-051 fatal blocker and remain task-052 evidence if they persist after `apexd-bootstrap` starts.
+- The Android 15 init patch compiled in the real `android-15.0.0_r36` tree and cleared its intended runtime blocker.
+- Cgroup setup currently reports missing `/etc/cgroups.json`, `/etc/task_profiles.json`, and uninitialised processgroup controllers during the second-stage diagnostic. Those warnings were not the task-051 fatal blocker and remain later evidence if they persist after `apexd-bootstrap` starts.
 - Successful APEX activation, Binder setup, framework boot, log forwarding, ADB, SurfaceFlinger and graphics remain unproven.
 
 Recommended next task: rebuild Android 15 with the task-051 `system/core/init` patch and rerun packaging/import/smoke validation. Task 052 should address only the first new evidenced failure.

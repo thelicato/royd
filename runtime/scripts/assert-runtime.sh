@@ -68,8 +68,8 @@ docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ 
   exit 1
 }
 
-docker exec "$container" sh -c "grep -q ' /dev/binderfs binder ' /proc/mounts" || {
-  printf 'error: binderfs is not mounted at /dev/binderfs in %s\n' "$container" >&2
+docker exec "$container" sh -c "grep -q ' /dev/royd-binderfs binder ' /proc/mounts" || {
+  printf 'error: private binderfs is not mounted at /dev/royd-binderfs in %s\n' "$container" >&2
   exit 1
 }
 

@@ -124,7 +124,7 @@ The image also carries a Docker health check covering Android boot completion, `
 
 ## Binder
 
-Each container attempts to mount its own binderfs instance and allocate `binder`, `hwbinder`, and `vndbinder` with the repository-owned `royd-binder-alloc` helper. The devices are exposed at the conventional Android paths under `/dev`.
+Each container mounts its private binderfs instance at `/dev/royd-binderfs` and allocates `binder`, `hwbinder`, and `vndbinder` with the repository-owned `royd-binder-alloc` helper. Keeping this separate from Android's own `/dev/binderfs` mount prevents Android init from hiding royd's devices. The devices are exposed at the conventional Android paths under `/dev`.
 
 The host kernel must provide Android Binder IPC and binderfs. royd does not install kernel modules or change the host distribution. Capture image-independent kernel evidence before the first build or boot attempt with:
 

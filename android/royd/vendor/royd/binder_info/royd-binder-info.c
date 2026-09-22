@@ -19,7 +19,7 @@ static int print_identity(const char *path) {
 
 int main(int argc, char **argv) {
     static const char *const defaults[] = {
-        "/dev/binderfs/binder-control",
+        "/dev/royd-binderfs/binder-control",
         "/dev/binder",
         "/dev/hwbinder",
         "/dev/vndbinder",

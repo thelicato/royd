@@ -36,7 +36,7 @@ The versioned contract in `runtime/kernel/config-contract.tsv` classifies Binder
 
 ## Binder
 
-Each royd container mounts a private binderfs instance and dynamically allocates `binder`, `hwbinder`, and `vndbinder`. Android sees them at the conventional paths under `/dev`.
+Each royd container mounts a private binderfs instance at `/dev/royd-binderfs` and dynamically allocates `binder`, `hwbinder`, and `vndbinder`. Android sees them at the conventional paths under `/dev`, while Android's separate `/dev/binderfs` mount remains free to follow normal init behaviour.
 
 No host-side Binder device naming convention is part of the royd contract.
 

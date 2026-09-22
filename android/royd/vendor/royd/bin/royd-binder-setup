@@ -2,7 +2,7 @@
 
 stdout=/proc/1/fd/1
 stderr=/proc/1/fd/2
-binderfs=/dev/binderfs
+binderfs=/dev/royd-binderfs
 control=$binderfs/binder-control
 
 log() {
@@ -36,6 +36,7 @@ for name in binder hwbinder vndbinder; do
   target=$binderfs/$name
   path=/dev/$name
   [ -c "$target" ] || fail "$target is not a character device"
+  chmod 0666 "$target" || fail "cannot set permissions on $target"
   if [ -L "$path" ] && [ "$(readlink "$path")" = "$target" ]; then
     continue
   fi

@@ -23,6 +23,7 @@ run ./android/scripts/contract-test.sh
 run ./android/scripts/vintf-contract-test.sh
 run ./android/scripts/android15-build-readiness-test.sh
 run ./android/scripts/android15-container-init-test.sh
+run ./android/scripts/android15-servicemanager-container-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh
@@ -44,6 +45,7 @@ run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/security-capability-sweep-test.sh
 run ./runtime/scripts/security-evidence-test.sh
 run ./runtime/scripts/adb-contract-test.sh
+run ./runtime/scripts/binder-contract-test.sh
 run ./runtime/scripts/qualification-contract-test.sh
 run ./runtime/scripts/qualification-matrix-test.sh
 run ./runtime/scripts/reference-host-qualify-test.sh

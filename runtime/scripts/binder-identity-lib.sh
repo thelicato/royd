@@ -10,7 +10,7 @@ binder_identity_get() {
 binder_identities_isolated() {
   first=$1
   second=$2
-  for path in /dev/binderfs/binder-control /dev/binder /dev/hwbinder /dev/vndbinder; do
+  for path in /dev/royd-binderfs/binder-control /dev/binder /dev/hwbinder /dev/vndbinder; do
     a=$(binder_identity_get "$first" "$path")
     b=$(binder_identity_get "$second" "$path")
     [ -n "$a" ] && [ -n "$b" ] || return 1

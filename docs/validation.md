@@ -14,7 +14,7 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 - Android completed boot.
 - `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder` are character devices.
-- binderfs is mounted at `/dev/binderfs`.
+- royd private binderfs is mounted at `/dev/royd-binderfs`.
 - the royd binderfs readiness message reached container logs.
 - `ro.config.low_ram` is enabled.
 - the royd logcat forwarding service is running.

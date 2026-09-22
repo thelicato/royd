@@ -24,11 +24,12 @@ royd includes its own small `royd-binder-alloc` binary. It uses the Linux binder
 
 During Android `early-init`, `royd-binder-setup`:
 
-1. Creates `/dev/binderfs` if necessary.
+1. Creates `/dev/royd-binderfs` if necessary, keeping the private royd Binder instance separate from Android's own `/dev/binderfs` mount.
 2. Mounts a private binderfs instance if `binder-control` is not already available.
 3. Allocates `binder`, `hwbinder`, and `vndbinder` when they are missing.
-4. Exposes those devices through `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder`.
-5. Prints basic cgroup and graphics diagnostics to container output.
+4. Sets the allocated Binder device nodes to mode `0666`, matching Android's normal Binder device access contract.
+5. Exposes those devices through `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder`.
+6. Prints basic cgroup and graphics diagnostics to container output.
 
 A missing binderfs implementation is considered a host compatibility failure. royd does not attempt DKMS, kernel module installation, or distribution-specific repair.
 

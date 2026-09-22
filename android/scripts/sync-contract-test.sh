@@ -17,8 +17,9 @@ case "$1" in
     mkdir -p .repo
     ;;
   sync)
-    mkdir -p build system/core/init
-    cat > system/core/init/service.cpp <<'SRC'
+    mkdir -p build system/core/init frameworks/native/cmds/servicemanager
+    if [ ! -f system/core/init/service.cpp ]; then
+      cat > system/core/init/service.cpp <<'SRC'
 #include <inttypes.h>
 #include <linux/securebits.h>
 #include <sched.h>
@@ -62,7 +63,9 @@ Result<void> Service::Start() {
     } else {
         auto result = ComputeContextFromExecutable(args_[0]);
 SRC
-    cat > system/core/init/subcontext.cpp <<'SRC'
+    fi
+    if [ ! -f system/core/init/subcontext.cpp ]; then
+      cat > system/core/init/subcontext.cpp <<'SRC'
 
 #include <fcntl.h>
 #include <poll.h>
@@ -123,6 +126,172 @@ void InitializeSubcontext() {
     }
 }
 SRC
+    fi
+    if [ ! -f frameworks/native/cmds/servicemanager/Access.cpp ]; then
+      cat > frameworks/native/cmds/servicemanager/Access.cpp <<'SRC'
+#include "Access.h"
+
+#include <android-base/logging.h>
+#include <binder/IPCThreadState.h>
+#include <log/log_safetynet.h>
+#include <selinux/android.h>
+#include <selinux/avc.h>
+
+#include <sstream>
+
+namespace android {
+
+#ifdef VENDORSERVICEMANAGER
+constexpr bool kIsVendor = true;
+#else
+constexpr bool kIsVendor = false;
+#endif
+
+#ifdef __ANDROID__
+static std::string getPidcon(pid_t pid) {
+    android_errorWriteLog(0x534e4554, "121035042");
+    return "";
+}
+
+static struct selabel_handle* getSehandle() {
+    return nullptr;
+}
+
+struct AuditCallbackData {
+    const Access::CallingContext* context;
+    const std::string* tname;
+};
+
+static int auditCallback(void *data, security_class_t /*cls*/, char *buf, size_t len) {
+    const AuditCallbackData* ad = reinterpret_cast<AuditCallbackData*>(data);
+    if (!ad) {
+        return 0;
+    }
+    snprintf(buf, len, "pid=%d uid=%d name=%s", ad->context->debugPid, ad->context->uid,
+        ad->tname->c_str());
+    return 0;
+}
+#endif
+
+std::string Access::CallingContext::toDebugString() const {
+    std::stringstream ss;
+    ss << "Caller(pid=" << debugPid << ",uid=" << uid << ",sid=" << sid << ")";
+    return ss.str();
+}
+
+Access::Access() {
+#ifdef __ANDROID__
+    union selinux_callback cb;
+
+    cb.func_audit = auditCallback;
+    selinux_set_callback(SELINUX_CB_AUDIT, cb);
+
+    cb.func_log = kIsVendor ? selinux_vendor_log_callback : selinux_log_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
+
+    CHECK(selinux_status_open(true /*fallback*/) >= 0);
+
+    CHECK(getcon(&mThisProcessContext) == 0);
+#endif
+}
+
+Access::~Access() {
+    freecon(mThisProcessContext);
+}
+
+Access::CallingContext Access::getCallingContext() {
+#ifdef __ANDROID__
+    IPCThreadState* ipc = IPCThreadState::self();
+
+    const char* callingSid = ipc->getCallingSid();
+    pid_t callingPid = ipc->getCallingPid();
+
+    return CallingContext {
+        .debugPid = callingPid,
+        .uid = ipc->getCallingUid(),
+        .sid = callingSid ? std::string(callingSid) : getPidcon(callingPid),
+    };
+#else
+    return CallingContext();
+#endif
+}
+
+bool Access::canList(const CallingContext& ctx) {
+    return actionAllowed(ctx, mThisProcessContext, "list", "service_manager");
+}
+
+bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+        const std::string& tname) {
+#ifdef __ANDROID__
+    const char* tclass = "service_manager";
+
+    AuditCallbackData data = {
+        .context = &sctx,
+        .tname = &tname,
+    };
+
+    return 0 == selinux_check_access(sctx.sid.c_str(), tctx, tclass, perm,
+        reinterpret_cast<void*>(&data));
+#else
+    return true;
+#endif
+}
+
+bool Access::actionAllowedFromLookup(const CallingContext& sctx, const std::string& name, const char *perm) {
+#ifdef __ANDROID__
+    char *tctx = nullptr;
+    if (selabel_lookup(getSehandle(), &tctx, name.c_str(), SELABEL_CTX_ANDROID_SERVICE) != 0) {
+        LOG(ERROR) << "SELinux: No match for " << name << " in service_contexts.\n";
+        return false;
+    }
+
+    bool allowed = actionAllowed(sctx, tctx, perm, name);
+    freecon(tctx);
+    return allowed;
+#else
+    return true;
+#endif
+}
+
+}  // android
+SRC
+    fi
+    if [ ! -f frameworks/native/cmds/servicemanager/Access.h ]; then
+      cat > frameworks/native/cmds/servicemanager/Access.h <<'SRC'
+#pragma once
+
+#include <string>
+#include <sys/types.h>
+
+namespace android {
+
+class Access {
+public:
+    Access();
+    virtual ~Access();
+
+    struct CallingContext {
+        pid_t debugPid;
+        uid_t uid;
+        std::string sid;
+        std::string toDebugString() const;
+    };
+
+    virtual CallingContext getCallingContext();
+    virtual bool canList(const CallingContext& ctx);
+
+private:
+    bool actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+            const std::string& tname);
+    bool actionAllowedFromLookup(const CallingContext& sctx, const std::string& name,
+            const char *perm);
+
+    char* mThisProcessContext = nullptr;
+};
+
+};
+SRC
+    fi
     ;;
   forall)
     ;;
@@ -164,7 +333,6 @@ for pass in 1 2; do
   ROYD_ANDROID_SRC="$tmp/src" \
   JOBS=1 \
     "$tmp/repo/android/scripts/sync.sh" >/dev/null
-
 done
 
 [ "$(grep -c '^init ' "$tmp/repo.log")" -eq 1 ] || {
@@ -183,6 +351,25 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   printf '%s\n' 'error: explicit Git LFS pull step is missing' >&2
   exit 1
 }
+grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
+grep -Fq 'mSkipSelinux = IsRoydContainerWithoutSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
+grep -Fq 'CHECK(selinux_status_open(true /*fallback*/) >= 0);' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
+grep -Fq 'selinux_check_access' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
+grep -Fq 'selabel_lookup' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
-printf '%s\n' 'Android Repo and Git LFS sync contract test passed'
+# Adding a new patch at the end of an already applied set must not require a
+# fresh multi-gigabyte AOSP checkout. Changed or reordered existing patches
+# still fail because their prefix digest no longer matches the marker.
+cat > "$tmp/repo/android/patches/android-15.0.0_r36/9999-append-only-probe.patch" <<'PATCH'
+diff --git a/royd-append-only-probe b/royd-append-only-probe
+new file mode 100644
+--- /dev/null
++++ b/royd-append-only-probe
+@@ -0,0 +1 @@
++ok
+PATCH
+ROYD_ANDROID_VERSION=15 "$tmp/repo/android/scripts/apply-patches.sh" "$tmp/src" >/dev/null
+grep -Fx 'ok' "$tmp/src/royd-append-only-probe" >/dev/null
+
+printf '%s\n' 'Android Repo, Git LFS and local patch sync contract test passed'

@@ -9,7 +9,7 @@ log "graphics=$(getprop vendor.royd.graphics.mode) display_ready=$(getprop vendo
 section royd-properties
 getprop 2>/dev/null | grep -E '(^\[royd\.|^\[vendor\.royd\.|^\[ro\.vendor\.royd\.|^\[sys\.boot_completed\]|^\[init\.svc\.)' >> "$stdout" 2>&1 || true
 section binder
-run ls -l /dev/binder /dev/hwbinder /dev/vndbinder /dev/binderfs
+run ls -l /dev/binder /dev/hwbinder /dev/vndbinder /dev/royd-binderfs /dev/binderfs
 section mounts
 grep -E 'binder|cgroup|tmpfs' /proc/mounts >> "$stdout" 2>&1 || true
 section pid1

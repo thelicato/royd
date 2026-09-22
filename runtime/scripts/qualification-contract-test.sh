@@ -48,11 +48,11 @@ grep -Fq '| 15 | x86_64 | pass | pass | pass | pass | pass | pass | pass | pass 
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/Android.bp"
 grep -Fq 'royd-binder-info' "$repo_root/android/royd/vendor/royd/royd.mk"
 
-identity_a='/dev/binderfs/binder-control=100
+identity_a='/dev/royd-binderfs/binder-control=100
 /dev/binder=101
 /dev/hwbinder=102
 /dev/vndbinder=103'
-identity_b='/dev/binderfs/binder-control=200
+identity_b='/dev/royd-binderfs/binder-control=200
 /dev/binder=201
 /dev/hwbinder=202
 /dev/vndbinder=203'

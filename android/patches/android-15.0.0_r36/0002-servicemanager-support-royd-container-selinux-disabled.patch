@@ -1,0 +1,101 @@
+diff --git a/frameworks/native/cmds/servicemanager/Access.cpp b/frameworks/native/cmds/servicemanager/Access.cpp
+index fd76d80..eab83f9 100644
+--- a/frameworks/native/cmds/servicemanager/Access.cpp
++++ b/frameworks/native/cmds/servicemanager/Access.cpp
+@@ -1,10 +1,14 @@
+ #include "Access.h"
+
++#include <stdlib.h>
++#include <string.h>
++
+ #include <android-base/logging.h>
+ #include <binder/IPCThreadState.h>
+ #include <log/log_safetynet.h>
+ #include <selinux/android.h>
+ #include <selinux/avc.h>
++#include <selinux/selinux.h>
+
+ #include <sstream>
+
+@@ -17,6 +21,12 @@ constexpr bool kIsVendor = false;
+ #endif
+
+ #ifdef __ANDROID__
++static bool IsRoydContainerWithoutSelinux() {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++           is_selinux_enabled() <= 0;
++}
++
+ static std::string getPidcon(pid_t pid) {
+     android_errorWriteLog(0x534e4554, "121035042");
+     return "";
+@@ -50,6 +60,11 @@ std::string Access::CallingContext::toDebugString() const {
+
+ Access::Access() {
+ #ifdef __ANDROID__
++    mSkipSelinux = IsRoydContainerWithoutSelinux();
++    if (mSkipSelinux) {
++        LOG(INFO) << "SELinux disabled for royd container; servicemanager access checks are disabled";
++        return;
++    }
+     union selinux_callback cb;
+
+     cb.func_audit = auditCallback;
+@@ -65,7 +80,9 @@ Access::Access() {
+ }
+
+ Access::~Access() {
+-    freecon(mThisProcessContext);
++    if (mThisProcessContext != nullptr) {
++        freecon(mThisProcessContext);
++    }
+ }
+
+ Access::CallingContext Access::getCallingContext() {
+@@ -75,6 +92,14 @@ Access::CallingContext Access::getCallingContext() {
+     const char* callingSid = ipc->getCallingSid();
+     pid_t callingPid = ipc->getCallingPid();
+
++    if (mSkipSelinux) {
++        return CallingContext{
++                .debugPid = callingPid,
++                .uid = ipc->getCallingUid(),
++                .sid = "",
++        };
++    }
++
+     return CallingContext {
+         .debugPid = callingPid,
+         .uid = ipc->getCallingUid(),
+@@ -92,6 +117,9 @@ bool Access::canList(const CallingContext& ctx) {
+ bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+         const std::string& tname) {
+ #ifdef __ANDROID__
++    if (mSkipSelinux) {
++        return true;
++    }
+     const char* tclass = "service_manager";
+
+     AuditCallbackData data = {
+@@ -108,6 +136,9 @@ bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const c
+
+ bool Access::actionAllowedFromLookup(const CallingContext& sctx, const std::string& name, const char *perm) {
+ #ifdef __ANDROID__
++    if (mSkipSelinux) {
++        return true;
++    }
+     char *tctx = nullptr;
+     if (selabel_lookup(getSehandle(), &tctx, name.c_str(), SELABEL_CTX_ANDROID_SERVICE) != 0) {
+         LOG(ERROR) << "SELinux: No match for " << name << " in service_contexts.\n";
+diff --git a/frameworks/native/cmds/servicemanager/Access.h b/frameworks/native/cmds/servicemanager/Access.h
+index 5a8cb9c..b4ed244 100644
+--- a/frameworks/native/cmds/servicemanager/Access.h
++++ b/frameworks/native/cmds/servicemanager/Access.h
+@@ -26,6 +26,7 @@ private:
+     bool actionAllowedFromLookup(const CallingContext& sctx, const std::string& name,
+             const char *perm);
+
++    bool mSkipSelinux = false;
+     char* mThisProcessContext = nullptr;
+ };
