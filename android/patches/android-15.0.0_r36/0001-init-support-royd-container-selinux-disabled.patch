@@ -1,18 +1,19 @@
 diff --git a/system/core/init/service.cpp b/system/core/init/service.cpp
 --- a/system/core/init/service.cpp
 +++ b/system/core/init/service.cpp
-@@ -24,6 +24,7 @@
+@@ -24,6 +24,8 @@
  #include <inttypes.h>
  #include <linux/securebits.h>
  #include <sched.h>
++#include <stdlib.h>
 +#include <string.h>
  #include <sys/prctl.h>
  #include <sys/stat.h>
  #include <sys/time.h>
-@@ -61,6 +62,12 @@ using android::base::WriteStringToFile;
+@@ -75,6 +77,12 @@ using android::base::WriteStringToFile;
  namespace android {
  namespace init {
-
+ 
 +static bool IsRoydContainerWithoutSelinux() {
 +    const char* royd_container = getenv("ROYD_CONTAINER");
 +    return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
@@ -21,19 +22,19 @@ diff --git a/system/core/init/service.cpp b/system/core/init/service.cpp
 +
  static Result<std::string> ComputeContextFromExecutable(const std::string& service_path) {
      std::string computed_context;
-
-@@ -215,7 +223,7 @@ void Service::SetProcessAttributesAndCaps() {
-     if (auto result = SetProcessAttributes(proc_attr_); !result.ok()) {
+ 
+@@ -239,7 +247,7 @@ void Service::SetProcessAttributesAndCaps(InterprocessFifo setsid_finished) {
          LOG(FATAL) << "cannot set attribute for " << name_ << ": " << result.error();
      }
+ 
 -    if (!seclabel_.empty()) {
 +    if (!seclabel_.empty() && !IsRoydContainerWithoutSelinux()) {
          if (setexeccon(seclabel_.c_str()) < 0) {
              PLOG(FATAL) << "cannot setexeccon('" << seclabel_ << "') for " << name_;
          }
-@@ -398,7 +406,9 @@ Result<void> Service::Start() {
+@@ -638,7 +646,9 @@ Result<void> Service::Start() {
      }
-
+ 
      std::string scon;
 -    if (!seclabel_.empty()) {
 +    if (IsRoydContainerWithoutSelinux()) {
@@ -45,31 +46,32 @@ diff --git a/system/core/init/service.cpp b/system/core/init/service.cpp
 diff --git a/system/core/init/subcontext.cpp b/system/core/init/subcontext.cpp
 --- a/system/core/init/subcontext.cpp
 +++ b/system/core/init/subcontext.cpp
-@@ -18,6 +18,7 @@
-
+@@ -18,6 +18,8 @@
+ 
  #include <fcntl.h>
  #include <poll.h>
++#include <stdlib.h>
 +#include <string.h>
+ #include <sys/time.h>
+ #include <sys/resource.h>
  #include <unistd.h>
-
- #include <android-base/file.h>
-@@ -25,6 +26,7 @@
+@@ -27,6 +29,7 @@
  #include <android-base/properties.h>
  #include <android-base/strings.h>
  #include <selinux/android.h>
 +#include <selinux/selinux.h>
-
+ 
  #include "action.h"
  #include "builtins.h"
-@@ -270,6 +272,11 @@ static bool shutting_down;
- static bool shutting_down;
-
- std::vector<Subcontext>* InitializeSubcontexts() {
+@@ -350,6 +353,11 @@ Result<std::vector<std::string>> Subcontext::ExpandArgs(const std::vector<std::s
+ }
+ 
+ void InitializeSubcontext() {
 +    const char* royd_container = getenv("ROYD_CONTAINER");
 +    if (royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
 +        is_selinux_enabled() <= 0) {
-+        return &subcontexts;
++        return;
 +    }
-     if (SelinuxGetVendorAndroidVersion() >= __ANDROID_API_P__) {
-         for (const auto& [path_prefix, secontext] : paths_and_secontexts) {
-             subcontexts.emplace_back(path_prefix, secontext);
+     if (IsMicrodroid()) {
+         LOG(INFO) << "Not using subcontext for microdroid";
+         return;

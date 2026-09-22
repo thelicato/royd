@@ -31,18 +31,29 @@ namespace init {
 
 static Result<std::string> ComputeContextFromExecutable(const std::string& service_path) {
     std::string computed_context;
+}
 
-void Service::SetProcessAttributesAndCaps() {
-    if (auto result = SetProcessAttributes(proc_attr_); !result.ok()) {
+void Service::SetProcessAttributesAndCaps(InterprocessFifo setsid_finished) {
+    if (auto result = SetProcessAttributes(proc_attr_, std::move(setsid_finished)); !result.ok()) {
         LOG(FATAL) << "cannot set attribute for " << name_ << ": " << result.error();
     }
+
     if (!seclabel_.empty()) {
         if (setexeccon(seclabel_.c_str()) < 0) {
             PLOG(FATAL) << "cannot setexeccon('" << seclabel_ << "') for " << name_;
         }
     }
 }
+
 Result<void> Service::Start() {
+    if (Result<void> result = CheckConsole(); !result.ok()) {
+        return result;
+    }
+
+    struct stat sb;
+    if (stat(args_[0].c_str(), &sb) == -1) {
+        flags_ |= SVC_DISABLED;
+        return ErrnoError() << "Cannot find '" << args_[0] << "'";
     }
 
     std::string scon;
@@ -55,22 +66,62 @@ SRC
 
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include <android-base/file.h>
+#include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <selinux/android.h>
 
 #include "action.h"
 #include "builtins.h"
-static std::vector<Subcontext> subcontexts;
-static bool shutting_down;
+#include "mount_namespace.h"
+#include "proto_utils.h"
+#include "util.h"
 
-std::vector<Subcontext>* InitializeSubcontexts() {
+#ifdef INIT_FULL_SOURCES
+#include <android/api-level.h>
+#include "property_service.h"
+#include "selabel.h"
+#include "selinux.h"
+#else
+#include "host_init_stubs.h"
+#endif
+
+using android::base::GetExecutablePath;
+using android::base::GetProperty;
+using android::base::Join;
+using android::base::Socketpair;
+using android::base::Split;
+using android::base::StartsWith;
+using android::base::unique_fd;
+
+namespace android {
+namespace init {
+namespace {
+
+std::string shutdown_command;
+static bool subcontext_terminated_by_shutdown;
+static std::unique_ptr<Subcontext> subcontext;
+
+Result<std::vector<std::string>> Subcontext::ExpandArgs(const std::vector<std::string>& args) {
+    return args;
+}
+
+void InitializeSubcontext() {
+    if (IsMicrodroid()) {
+        LOG(INFO) << "Not using subcontext for microdroid";
+        return;
+    }
+
     if (SelinuxGetVendorAndroidVersion() >= __ANDROID_API_P__) {
-        for (const auto& [path_prefix, secontext] : paths_and_secontexts) {
-            subcontexts.emplace_back(path_prefix, secontext);
+        subcontext.reset(new Subcontext(std::vector<std::string>{"/vendor", "/odm"},
+                                        std::vector<std::string>{"VENDOR", "ODM"}, kVendorContext));
+    }
+}
 SRC
     ;;
   forall)

@@ -9,7 +9,8 @@ args="$root/runtime/scripts/container-args.sh"
 grep -F 'IsRoydContainerWithoutSelinux' "$patch" >/dev/null
 grep -F 'is_selinux_enabled() <= 0' "$patch" >/dev/null
 grep -F 'scon.clear();' "$patch" >/dev/null
-grep -F 'return &subcontexts;' "$patch" >/dev/null
+grep -F 'void InitializeSubcontext() {' "$patch" >/dev/null
+grep -F 'return;' "$patch" >/dev/null
 grep -F 'export ROYD_CONTAINER=1' "$entrypoint" >/dev/null
 grep -F 'exec /init second_stage' "$entrypoint" >/dev/null
 [ "$("$args")" = '--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755' ] || {

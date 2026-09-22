@@ -1,5 +1,11 @@
 # Development handoff notes
 
+## Task 051 external-validation correction
+
+Real `android-15.0.0_r36` validation found that the repository-owned `system/core/init` patch did not apply to the pinned source tree. The patch had been authored against a different init source shape: `Service::SetProcessAttributesAndCaps()` lacked the Android 15 FIFO parameter in the fixture, and the subcontext fixture used the older `InitializeSubcontexts()` vector API instead of Android 15's `InitializeSubcontext()` single-subcontext API. No patched init binary was therefore built, so the repeated `Could not get process context` and vendor-init `setexeccon` failures were still stock-AOSP behaviour rather than evidence of a new blocker.
+
+The task-051 patch is now rebased onto the exact `android-15.0.0_r36` init call sites while preserving the original narrow gate: only `ROYD_CONTAINER=1` with kernel SELinux disabled bypasses service process-context selection/application and vendor-init subcontext creation. The sync fixture and container-init contract test now reflect the pinned Android 15 source shape. Real AOSP compile and runtime validation are still required before task 051 can be considered externally validated.
+
 ## Task 051 complete
 
 Problem addressed: real Android 15 runtime validation proved that royd can reach Android second-stage init, but stock first-stage init is incompatible with an OCI environment that already provides `/sys`, and second-stage startup then failed because `/dev/socket` was absent and SELinux-labelled service/subcontext startup was attempted on a host kernel with SELinux disabled. Task 051 formalises the second-stage container entry contract and adds a narrowly gated Android 15 init adaptation for the SELinux-disabled royd container case.
