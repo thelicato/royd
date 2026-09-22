@@ -24,3 +24,6 @@
 # Local repository delivery artefacts
 *.zip
 *.patch
+
+# Repository-owned AOSP source patches are source inputs, not generated artefacts.
+!android/patches/**/*.patch
