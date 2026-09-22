@@ -14,7 +14,7 @@ if [ "$1 $2" = "image inspect" ]; then
   format=$4
   case "$format" in
     '{{.Architecture}}') printf '%s\n' amd64 ;;
-    '{{json .Config.Entrypoint}}') printf '%s\n' '["/royd-entrypoint"]' ;;
+    '{{json .Config.Entrypoint}}') printf '%s\n' '["/system/bin/bootstrap/linker64","/system/bin/sh","/royd-entrypoint"]' ;;
     '{{json .Config.Cmd}}') printf '%s\n' '["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
     '{{json .Config.Healthcheck.Test}}') printf '%s\n' '["CMD","/vendor/bin/royd-health"]' ;;
     '{{json .Config.ExposedPorts}}') printf '%s\n' '{"5555/tcp":{}}' ;;
@@ -92,6 +92,17 @@ PATH="$tmp:$PATH" MOCK_RELEASE_DIR="$tmp/release" "$script_dir/image-inspect.sh"
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-generic $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-generic' ]
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-tag.sh x86_64 standard)" = 'royd:15.0.0-r36-standard-graphical-host-gpu-intel-amd64' ]
 [ "$(ROYD_GRAPHICS_BACKEND=host-gpu-intel $script_dir/image-alias.sh x86_64 standard)" = 'royd:dev-host-gpu-intel' ]
+
+[ "$($script_dir/image-entrypoint.sh ramdisk)" = '["/royd-entrypoint"]' ]
+[ "$($script_dir/image-entrypoint.sh system)" = '["/system/bin/bootstrap/linker64","/system/bin/sh","/royd-entrypoint"]' ]
+if $script_dir/image-entrypoint.sh unknown >/dev/null 2>&1; then
+  printf '%s\n' 'error: image entrypoint helper accepted an unsupported rootfs source' >&2
+  exit 1
+fi
+grep -Fq 'runtime_entrypoint=$("$script_dir/image-entrypoint.sh" "$ANDROID_ROOTFS_SOURCE")' "$script_dir/import.sh" || {
+  printf '%s\n' 'error: runtime importer does not use the version-aware entrypoint contract' >&2
+  exit 1
+}
 grep -Fq 'LABEL org.opencontainers.image.description="Android runtime for OCI containers"' "$script_dir/import.sh" || {
   printf '%s\n' 'error: runtime importer does not quote the OCI description label value' >&2
   exit 1

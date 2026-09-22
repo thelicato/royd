@@ -53,6 +53,7 @@ A royd boot is expected to follow this sequence:
 
 ```text
 container start
+  -> system-root images use the Android bootstrap linker to load the entrypoint shell
   -> royd entrypoint validates runtime arguments
   -> exec /init, preserving PID 1
   -> Android early-init

@@ -70,7 +70,8 @@ equal royd-arch "$(label org.royd.arch)" "$arch"
 equal title "$(label org.opencontainers.image.title)" royd
 
 entrypoint=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")
-equal entrypoint "$entrypoint" '["/royd-entrypoint"]'
+expected_entrypoint=$("$script_dir/image-entrypoint.sh" "$ANDROID_ROOTFS_SOURCE")
+equal entrypoint "$entrypoint" "$expected_entrypoint"
 
 cmd=$(docker image inspect --format '{{json .Config.Cmd}}' "$image")
 case "$hal_profile" in

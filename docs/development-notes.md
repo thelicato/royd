@@ -1,5 +1,75 @@
 # Development handoff notes
 
+## Task 048 complete
+
+Problem addressed: after task 047 corrected Android 15 rootfs assembly, the imported image still exited before the royd shell entrypoint could run. Docker reported `exec /royd-entrypoint: no such file or directory`, and directly selecting `/system/bin/sh` produced the same error. The real Android 15 image showed that normal `sh` depends on the Runtime APEX linker, which is not available before Android init activates APEXes. Task 048 makes the OCI bootstrap use Android's existing bootstrap linker for system-root images before running the royd shell script.
+
+Important evidence discovered:
+
+- The task-047 smoke test passed the repository security check, then the container stopped before Android boot completed. A persistent reproduction exited with code 255, was not OOM-killed, and Docker logged `exec /royd-entrypoint: no such file or directory`. Direct `/system/bin/sh` execution returned the same error.
+- Mounting the exact Android 15 `system.img` showed a real `/system/bin/sh`, a real `/system/bin/init`, `/system/bin/linker64 -> /apex/com.android.runtime/bin/linker64`, and a real `/system/bin/bootstrap/linker64`. `readelf` showed `sh` requests `/system/bin/linker64`, while `init` requests `/system/bin/bootstrap/linker64`. The image also contains `com.android.runtime.apex` and `com.android.art.capex` payloads.
+- This evidence is consistent with the normal shell's ELF interpreter being unavailable before Runtime APEX activation. It does not prove any later Android init, APEX, SELinux, Binder, graphics, or framework behaviour.
+- Upstream Bionic linker source documents direct invocation as `linker program [arguments...]`. It also documents that the bootstrap linker prefers `/system/${LIB}/bootstrap` ahead of the normal system library path. Task 048 uses that upstream bootstrap mechanism rather than copying or rewriting linker/APEX contents.
+- Android 10 through 17 use the system-root path in repository metadata, so their OCI entrypoint is now `/system/bin/bootstrap/linker64`, `/system/bin/sh`, `/royd-entrypoint`. Android 8.0 through 9 retain direct `/royd-entrypoint`. Only Android 15 has external evidence for the linker layout so far.
+
+Files/interfaces changed:
+
+- `runtime/scripts/image-entrypoint.sh`: new version-family entrypoint contract for ramdisk-root and system-root images.
+- `runtime/scripts/import.sh`: inject the version-aware OCI entrypoint instead of always executing `/royd-entrypoint` directly.
+- `runtime/scripts/image-inspect.sh`: verify the expected version-aware entrypoint metadata.
+- `runtime/scripts/image-contract-test.sh` and `scripts/check-runtime.sh`: focused regressions for the bootstrap entrypoint and legacy direct path.
+- `docs/runtime.md`, `docs/architecture.md`, `runtime/README.md`: concise bootstrap-path documentation.
+- `docs/development-notes.md`.
+
+Validation actually performed:
+
+- Shell syntax checks passed for the changed shell scripts.
+- `android/scripts/version-test.sh`, `android/scripts/package-contract-test.sh`, `runtime/scripts/image-contract-test.sh`, `runtime/scripts/entrypoint-contract-test.sh`, `scripts/check-runtime.sh`, and `scripts/check-repo.sh` passed.
+- Full `make ci` passed end to end in a persistent run, including resolved Android configuration, package contracts, runtime qualification contracts, reference-host bundle tests, and `go test ./...`.
+- The first foreground `make ci` invocation was terminated by the execution wrapper during `config-check-test.sh`; the persistent rerun completed with exit status 0. Only the completed rerun is recorded as the task validation result.
+- Repository policy scans passed: no em dashes were found and no prohibited prior-art name references were found outside `docs/acknowledgements.md`.
+- The generated patch passed `git apply --check`, applied cleanly to a fresh copy of the exact task-047 tree, and the patched tree matched the finished tree byte-for-byte and file-mode-for-file-mode. The finished ZIP round-trip matched by the same comparison.
+- Roadmap remains 63 checked and 24 open. No checkbox closes in task 048 because the new bootstrap entrypoint has not yet executed on the real host and Android has not booted.
+
+External validation still required:
+
+- Re-import the existing task-047 Android 15 x86_64 packaged archive. Repackaging and rebuilding AOSP are not required because task 048 changes only Docker image metadata and host-side contract tooling.
+- Confirm the imported image entrypoint is `["/system/bin/bootstrap/linker64","/system/bin/sh","/royd-entrypoint"]` and rerun the runtime smoke test.
+- If the container reaches `/init` and fails later, treat that first new init/runtime error as new evidence rather than changing unrelated Binder, SELinux, graphics, or VINTF code.
+
+Unresolved failures or questions:
+
+- The bootstrap-linker invocation is supported by upstream Bionic source and by the real Android 15 filesystem layout, but it still needs direct execution evidence in the imported royd image.
+- It is not yet externally proven that `/royd-entrypoint` writes `/royd-runtime.conf` on Android 15 or that `/init` becomes PID 1.
+- Android 10 through 14 and 16 through 17 share the system-root entrypoint contract statically but have no real bootstrap execution evidence.
+- Clean Android build gates, successful boot, log forwarding, ADB, Binder isolation, SurfaceFlinger, and graphics qualification remain open.
+
+Recommended next task: validate task 048 on the existing rented host. If the image reaches a new failure after the royd entrypoint starts or after `/init` takes PID 1, task 049 should address only that first evidenced blocker. If the smoke test succeeds, task 049 should collect the first successful runtime qualification evidence rather than starting unrelated implementation.
+
+Exact commands on the existing rented host:
+
+```sh
+cd /root/royd
+git pull
+
+env \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_ANDROID_PROFILE=standard \
+  ROYD_HAL_PROFILE=graphical \
+  ROYD_GRAPHICS_BACKEND=software \
+  ./runtime/scripts/import.sh x86_64 standard
+
+docker image inspect --format '{{json .Config.Entrypoint}}' royd:dev
+
+ROYD_ANDROID_VERSION=15 \
+ROYD_ANDROID_PROFILE=standard \
+ROYD_HAL_PROFILE=graphical \
+ROYD_GRAPHICS_BACKEND=software \
+make runtime-smoke-test
+```
+
+Expected evidence to return: complete import output, the Docker entrypoint inspection, and complete smoke-test output. The entrypoint inspection should print `["/system/bin/bootstrap/linker64","/system/bin/sh","/royd-entrypoint"]`. Import should still report `Image contract passed` and `Runtime image is ready`. Runtime success is `Single-instance runtime smoke test passed`. On failure, return the first new container error and `docker logs` from a preserved reproduction. Do not rebuild or repackage Android for this validation.
+
 ## Task 047 complete
 
 Problem addressed: the first imported Android 15 image could not execute `/royd-entrypoint` or `/system/bin/sh` because the OCI packager nested Android 15 `system.img` under `/system`. The built `system.img` is itself the Android root filesystem, so its root-level `bin -> /system/bin` symlink became the self-referential `/system/bin -> /system/bin` inside the container. Task 047 corrects rootfs assembly and permanently carries the separately evidenced Docker import label quoting fix needed to re-import the repaired archive.

@@ -60,7 +60,7 @@ docker run -d \
   royd.fps=30
 ```
 
-The image entrypoint validates these arguments and then `exec`s Android `/init`. The entrypoint is not a supervisor and does not remain as a separate process. Android init therefore becomes PID 1.
+On Android 10 and newer, the image starts the bootstrap linker directly to load `/system/bin/sh` before the Runtime APEX is active, then runs the royd entrypoint script. Android 8 and 9 run the script directly. The script validates these arguments and then `exec`s Android `/init`; it is not a supervisor and does not remain as a separate process. Android init therefore becomes PID 1.
 
 ## Security modes
 

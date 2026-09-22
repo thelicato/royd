@@ -69,7 +69,7 @@ odm.img          -> /odm, when present
 
 Android 8 and 9 retain the older ramdisk-root layout, with `ramdisk.img` at `/` and `system.img` at `/system`. Sparse Android images are converted with AOSP's `simg2img` before mounting.
 
-The imported image uses `/royd-entrypoint` as the OCI entrypoint. It consumes only royd runtime arguments, writes the validated runtime configuration, then replaces itself with `/init` using `exec`. This keeps Android init as PID 1 while avoiding reliance on kernel-style `androidboot.*` command-line transport inside a container.
+For Android 10 and newer, the OCI entrypoint starts `/system/bin/bootstrap/linker64` directly so `/system/bin/sh` can run before the Runtime APEX is activated, then executes `/royd-entrypoint`. Android 8 and 9 retain the direct `/royd-entrypoint` path. The script consumes only royd runtime arguments, writes the validated runtime configuration, then replaces itself with `/init` using `exec`. This keeps Android init as PID 1 while avoiding reliance on kernel-style `androidboot.*` command-line transport inside a container.
 
 Display defaults are stored as the OCI image command so normal Docker arguments can replace them.
 

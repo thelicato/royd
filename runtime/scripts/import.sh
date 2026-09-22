@@ -74,10 +74,11 @@ case "$hal_profile" in
   graphical) default_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
   headless) default_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5"]' ;;
 esac
+runtime_entrypoint=$("$script_dir/image-entrypoint.sh" "$ANDROID_ROOTFS_SOURCE")
 printf 'Importing %s as %s\n' "$archive" "$image"
 docker import \
   --platform "$platform" \
-  -c 'ENTRYPOINT ["/royd-entrypoint"]' \
+  -c "ENTRYPOINT $runtime_entrypoint" \
   -c "CMD $default_cmd" \
   -c 'EXPOSE 5555/tcp' \
   -c 'HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=6 CMD ["/vendor/bin/royd-health"]' \

@@ -128,7 +128,8 @@ grep -Fq 'ro.config.low_ram=true' android/compat/modern/vendor.mk
 grep -Fq 'ro.config.low_ram=true' android/compat/legacy/vendor.mk
 grep -Fq 'ro.lmk.use_psi=true' android/compat/modern/vendor.mk
 grep -Fq 'ro.lmk.use_minfree_levels=false' android/compat/modern/vendor.mk
-grep -Fq 'ENTRYPOINT ["/royd-entrypoint"]' runtime/scripts/import.sh
+grep -Fq 'image-entrypoint.sh' runtime/scripts/import.sh
+grep -Fq '/system/bin/bootstrap/linker64' runtime/scripts/image-entrypoint.sh
 grep -Fq 'royd.width=540' runtime/scripts/import.sh
 grep -Fq 'royd.height=960' runtime/scripts/import.sh
 grep -Fq 'exec /init' runtime/rootfs/royd-entrypoint
