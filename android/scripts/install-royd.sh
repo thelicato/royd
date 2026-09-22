@@ -31,6 +31,7 @@ graphics_backend_dst="$vendor_dst/graphics_backend.mk"
 graphics_composer=$ANDROID_GRAPHICS_COMPOSER
 graphics_allocator=$ANDROID_GRAPHICS_ALLOCATOR
 graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
+software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
 modern_graphics_dst="$vendor_dst/graphics_allocator"
 modern_composer_src="$android_dir/graphics/composer-aidl4"
@@ -58,6 +59,10 @@ case "$graphics_composer" in
     [ -d "$modern_composer_src" ] || fail "modern graphics composer source not found at $modern_composer_src"
     ;;
   *) fail "unsupported Android graphics composer contract: $graphics_composer" ;;
+esac
+case "$software_egl" in
+  angle|swiftshader) ;;
+  *) fail "unsupported software EGL implementation: $software_egl" ;;
 esac
 case "$graphics_allocator" in
   gralloc0-memfd)
@@ -119,6 +124,8 @@ if [ "$graphics_composer" = aidl4-client ]; then
   printf 'BOARD_VENDOR_SEPOLICY_DIRS += device/royd/sepolicy/vendor\n' >> "$device_dst/BoardConfigVersion.mk"
 fi
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
+printf 'ROYD_ANDROID_VERSION := %s\n' "$ANDROID_VERSION" >> "$vendor_dst/version.mk"
+printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_allocator=%s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"
 if [ -n "$graphics_mapper" ]; then

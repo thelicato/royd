@@ -1,5 +1,13 @@
 # Development handoff notes
 
+## Task 054 implementation prepared
+
+Scope: keep Android 15 APEX activation usable with kernel SELinux disabled, select the r36 software EGL implementation correctly, and correct the ART bootclasspath diagnosis without changing the unresolved `vdc`, device-mapper lifecycle, or private-network BPF work.
+
+Repository changes: `PRODUCT_COMPRESSED_APEX := false` remains the proven container requirement; Android 15 now selects upstream `angle_default.mk` plus the `vulkan.pastel` SwiftShader Vulkan backend while other pinned releases retain the legacy SwiftShader GLES path; installer metadata carries the version-specific software EGL selector. No direct `default_art_config.mk` inheritance is added because r36 already inherits it through `base_system.mk`/`runtime_libart.mk`, and Android 15 derives the classpath environment at boot into `/data/system/environ/classpath`.
+
+External validation still required: incremental Android 15 build, check the two system classpath protobufs and ANGLE selector/libraries, package/import, clear stale zero-open Android device-mapper mappings, run one diagnostic boot, temporarily terminate only the three already-known spinning `vdc` calls, then inspect `derive_classpath` output and the first SurfaceFlinger linker/EGL failure if either frontier remains. Roadmap remains unchanged until real build/runtime evidence closes a milestone.
+
 ## Task 053 complete
 
 Problem addressed: real Android 15 runtime evidence after task 052 showed that royd's private Binder devices and the SELinux-disabled `servicemanager` access gate were both active, but Binder transactions to the context manager still failed. `servicemanager` registered itself with `FLAT_BINDER_FLAG_TXN_SECURITY_CTX` and separately requested sender SIDs, so the Binder driver attempted to obtain SELinux security contexts even though the host kernel had SELinux disabled. `vold` could not register `VoldNativeService`, exited, and its `reboot_on_failure` policy shut Android down.

@@ -27,6 +27,7 @@ grep -Fxq 'ANDROID_RELEASE=bp1a' "$version_env" || fail 'Android 15 release conf
 grep -Fxq 'ANDROID_GRAPHICS_COMPOSER=aidl4-client' "$version_env" || fail 'Android 15 does not select the current composer3 source ABI'
 grep -Fxq 'ANDROID_GRAPHICS_ALLOCATOR=aidl2-stablec5-memfd' "$version_env" || fail 'Android 15 allocator contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_MAPPER=stablec5-royd' "$version_env" || fail 'Android 15 mapper contract drifted'
+grep -Fxq 'ANDROID_SOFTWARE_EGL=angle' "$version_env" || fail 'Android 15 software EGL contract drifted'
 
 # android-15.0.0_r36 defines composer3 V1-V3 as frozen and builds its latest
 # composer3 NDK defaults against current V4. A service using those defaults must
@@ -93,12 +94,20 @@ mkdir -p "$work/build" "$work/external/minigbm" "$work/external/mesa3d"
 ROYD_ANDROID_VERSION=15 "$script_dir/install-royd.sh" "$work" standard >/dev/null
 [ -d "$work/vendor/royd/graphics_composer" ] || fail 'installer omitted the current composer source project'
 grep -Fxq 'ROYD_GRAPHICS_COMPOSER := aidl4-client' "$work/vendor/royd/version.mk" || fail 'installed Android 15 composer selector mismatch'
+grep -Fxq 'ROYD_ANDROID_VERSION := 15' "$work/vendor/royd/version.mk" || fail 'installed Android version selector mismatch'
+grep -Fxq 'ROYD_SOFTWARE_EGL := angle' "$work/vendor/royd/version.mk" || fail 'installed Android 15 EGL selector mismatch'
 grep -Fq 'android.hardware.graphics.composer3-service.royd' "$work/vendor/royd/graphics_backend.mk" || fail 'installed software product omits composer3 service'
+grep -Fq '$(SRC_TARGET_DIR)/product/angle_default.mk' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not select ANGLE'
+grep -Fq 'ro.hardware.vulkan=pastel' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not select SwiftShader Vulkan'
+grep -Fq 'vulkan.pastel' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not package SwiftShader Vulkan'
+grep -Fq 'ro.hardware.egl=swiftshader' "$work/vendor/royd/graphics_backend.mk" || fail 'software backend lost the non-Android-15 SwiftShader fallback'
 [ -f "$work/vendor/royd/graphics_allocator/allocator/android.hardware.graphics.allocator-service.royd.rc" ] || fail 'installer lost the royd-specific allocator init rc'
 [ ! -e "$work/vendor/royd/graphics_allocator/allocator/allocator.rc" ] || fail 'installer retained the colliding generic allocator.rc basename'
 ! grep -Fq 'android.hardware.graphics.composer@' "$work/vendor/royd/version.mk" || fail 'installed Android 15 version fragment still packages HIDL composer'
 grep -Fxq 'DEVICE_MANIFEST_FILE := device/royd/vintf/manifest-15.xml' "$work/device/royd/BoardConfigVersion.mk" || fail 'installed board fragment does not select Android 15 manifest'
 grep -Fxq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$work/device/royd/container_version.mk" || fail 'kernel-less OTA VINTF setting was lost'
+grep -Fxq 'PRODUCT_COMPRESSED_APEX := false' "$work/device/royd/container_version.mk" || fail 'Android 15 container product re-enabled compressed APEX'
+! grep -Fq 'default_art_config.mk' "$work/device/royd/container_version.mk" || fail 'Android 15 product redundantly inherits default_art_config.mk'
 ! grep -R -Fq 'PRODUCT_ENFORCE_VINTF_MANIFEST := false' "$work/device/royd" "$work/vendor/royd" || fail 'normal VINTF validation is disabled'
 
 printf '%s\n' 'Android 15 build-readiness contract test passed'

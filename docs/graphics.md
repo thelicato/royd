@@ -6,7 +6,7 @@ royd uses a software-first graphics contract so Android can start without a host
 
 ## Software path
 
-The default renderer is SwiftShader. The allocator, mapper, and composer family is selected by the pinned Android contract rather than forced through one legacy ABI.
+The software renderer is version-selected. Android 15 uses AOSP ANGLE from the system image; the other pinned releases retain the existing SwiftShader contract until their software path is validated separately. The allocator, mapper, and composer family is selected by the pinned Android contract rather than forced through one legacy ABI.
 
 | Android | Allocator / mapper | Composer |
 | --- | --- | --- |
@@ -20,6 +20,8 @@ The default renderer is SwiftShader. The allocator, mapper, and composer family 
 This mapping is configuration, not a support claim. Clean AOSP builds and real boots are still required for every pinned release.
 
 ## Android 15 client composition
+
+For `android-15.0.0_r36`, AOSP `base_system.mk` already installs `libEGL_angle`, `libGLESv1_CM_angle`, and `libGLESv2_angle`. royd selects AOSP `angle_default.mk`, which sets `persist.graphics.egl=angle`, and also packages SwiftShader's Vulkan ICD as `vulkan.pastel` with `ro.hardware.vulkan=pastel`. This is the CPU-only software stack: ANGLE provides EGL/GLES and SwiftShader provides its Vulkan backend. royd does not invent an `angle_supported.mk` dependency or require `ro.hardware.egl=angle`.
 
 Android 15 uses repository-owned memfd-backed allocation and a composer3 service built against the current V4 source interface. Android 15 stable-AIDL release handling falls that interface back to the latest frozen V3 wire contract when unfrozen AIDL is disabled. The composer exposes one fixed internal display, advertises no virtual displays or hardware overlay capability, and requests `Composition::CLIENT` for layers it cannot compose. SurfaceFlinger and RenderEngine therefore remain responsible for the actual software composition.
 
