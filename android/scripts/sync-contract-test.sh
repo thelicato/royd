@@ -17,7 +17,8 @@ case "$1" in
     mkdir -p .repo
     ;;
   sync)
-    mkdir -p build system/core/init frameworks/native/cmds/servicemanager
+    mkdir -p build system/core/init frameworks/native/cmds/servicemanager \
+      frameworks/native/libs/binder/include/binder frameworks/native/libs/binder
     if [ ! -f system/core/init/service.cpp ]; then
       cat > system/core/init/service.cpp <<'SRC'
 #include <inttypes.h>
@@ -278,6 +279,8 @@ public:
     };
 
     virtual CallingContext getCallingContext();
+    virtual bool canFind(const CallingContext& ctx, const std::string& name);
+    virtual bool canAdd(const CallingContext& ctx, const std::string& name);
     virtual bool canList(const CallingContext& ctx);
 
 private:
@@ -290,6 +293,94 @@ private:
 };
 
 };
+SRC
+    fi
+    if [ ! -f frameworks/native/libs/binder/include/binder/ProcessState.h ]; then
+      cat > frameworks/native/libs/binder/include/binder/ProcessState.h <<'SRC'
+#pragma once
+
+namespace android {
+
+class ProcessState {
+public:
+    LIBBINDER_EXPORTED void startThreadPool();
+
+    [[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager();
+
+    LIBBINDER_EXPORTED sp<IBinder> getStrongProxyForHandle(int32_t handle);
+    LIBBINDER_EXPORTED void expungeHandle(int32_t handle, IBinder* binder);
+};
+
+}  // namespace android
+SRC
+    fi
+    if [ ! -f frameworks/native/libs/binder/ProcessState.cpp ]; then
+      cat > frameworks/native/libs/binder/ProcessState.cpp <<'SRC'
+void ProcessState::startThreadPool()
+{
+    std::unique_lock<std::mutex> _l(mLock);
+    if (!mThreadPoolStarted) {
+        if (mMaxThreads == 0) {
+            ALOGW("Extra binder thread started, but 0 threads requested. Do not use "
+                  "*startThreadPool when zero threads are requested.");
+        }
+        mThreadPoolStarted = true;
+        spawnPooledThread(true);
+    }
+}
+
+bool ProcessState::becomeContextManager()
+{
+    std::unique_lock<std::mutex> _l(mLock);
+
+    flat_binder_object obj {
+        .flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX,
+    };
+
+    int result = ioctl(mDriverFD, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+
+    // fallback to original method
+    if (result != 0) {
+        android_errorWriteLog(0x534e4554, "121035042");
+
+        int unused = 0;
+        result = ioctl(mDriverFD, BINDER_SET_CONTEXT_MGR, &unused);
+    }
+
+    if (result == -1) {
+        ALOGE("Binder ioctl to become context manager failed: %s\n", strerror(errno));
+    }
+
+    return result == 0;
+}
+SRC
+    fi
+    if [ ! -f frameworks/native/cmds/servicemanager/main.cpp ]; then
+      cat > frameworks/native/cmds/servicemanager/main.cpp <<'SRC'
+int main(int argc, char** argv) {
+    const char* driver = argc == 2 ? argv[1] : "/dev/binder";
+
+    LOG(INFO) << "Starting sm instance on " << driver;
+
+    sp<ProcessState> ps = ProcessState::initWithDriver(driver);
+    ps->setThreadPoolMaxThreadCount(0);
+    ps->setCallRestriction(ProcessState::CallRestriction::FATAL_IF_NOT_ONEWAY);
+
+    IPCThreadState::self()->disableBackgroundScheduling(true);
+
+    sp<ServiceManager> manager = sp<ServiceManager>::make(std::make_unique<Access>());
+    manager->setRequestingSid(true);
+    if (!manager->addService("manager", manager, false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk()) {
+        LOG(ERROR) << "Could not self register servicemanager";
+    }
+
+    IPCThreadState::self()->setTheContextObject(manager);
+    if (!ps->becomeContextManager()) {
+        LOG(FATAL) << "Could not become context manager";
+    }
+
+    sp<Looper> looper = Looper::prepare(false /*allowNonCallbacks*/);
+}
 SRC
     fi
     ;;
@@ -356,6 +447,14 @@ grep -Fq 'mSkipSelinux = IsRoydContainerWithoutSelinux();' "$tmp/src/frameworks/
 grep -Fq 'CHECK(selinux_status_open(true /*fallback*/) >= 0);' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'selinux_check_access' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'selabel_lookup' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
+grep -Fq 'bool usesSelinux() const { return !mSkipSelinux; }' "$tmp/src/frameworks/native/cmds/servicemanager/Access.h"
+grep -Fq '[[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager();' "$tmp/src/frameworks/native/libs/binder/include/binder/ProcessState.h"
+grep -Fq '[[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager(bool requestSecurityContext);' "$tmp/src/frameworks/native/libs/binder/include/binder/ProcessState.h"
+grep -Fq 'return becomeContextManager(true);' "$tmp/src/frameworks/native/libs/binder/ProcessState.cpp"
+grep -Fq '.flags = requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0,' "$tmp/src/frameworks/native/libs/binder/ProcessState.cpp"
+grep -Fq 'const bool requestSecurityContext = access->usesSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
+grep -Fq 'manager->setRequestingSid(requestSecurityContext);' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
+grep -Fq 'ps->becomeContextManager(requestSecurityContext)' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

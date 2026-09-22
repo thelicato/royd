@@ -192,6 +192,7 @@ The following decisions are currently agreed:
 - No mandatory royd host binary, daemon, or bootstrap service.
 - Optional CLI: Go. Keep the implementation small, local-first, transparent about Docker operations, and limited to convenience commands and lightweight host checks until runtime validation justifies more automation.
 - Binder strategy: mount royd's private binderfs instance at `/dev/royd-binderfs`, allocate its Binder devices there, and expose them at `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder`. Keep this mount separate from Android's own `/dev/binderfs` mount so Android init cannot hide royd's allocated devices.
+- Android 15 Binder security-context policy: when the existing explicit `ROYD_CONTAINER=1` plus kernel-SELinux-disabled gate is active, `servicemanager` must not request sender SIDs or register the Binder context manager with `FLAT_BINDER_FLAG_TXN_SECURITY_CTX`. Preserve the normal Binder security-context request for every other Android run.
 - Android logging: expose `logcat` through container stdout and stderr so `docker logs` is useful by default.
 - ADB: development images expose `adbd` over TCP port 5555 with authentication disabled for local container workflows. Keep the host publication loopback-only by default and treat remote exposure as unsafe unless explicitly secured.
 - Container health: imported OCI images include a health check that requires Android boot completion, running `adbd`, ADB TCP configuration, and Binder device readiness.

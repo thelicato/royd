@@ -1,5 +1,46 @@
 # Development handoff notes
 
+## Task 053 complete
+
+Problem addressed: real Android 15 runtime evidence after task 052 showed that royd's private Binder devices and the SELinux-disabled `servicemanager` access gate were both active, but Binder transactions to the context manager still failed. `servicemanager` registered itself with `FLAT_BINDER_FLAG_TXN_SECURITY_CTX` and separately requested sender SIDs, so the Binder driver attempted to obtain SELinux security contexts even though the host kernel had SELinux disabled. `vold` could not register `VoldNativeService`, exited, and its `reboot_on_failure` policy shut Android down.
+
+Important evidence discovered:
+
+- Task 052 is externally validated for its intended blockers. The built and packaged image contained the patched `servicemanager`, `/dev/royd-binderfs`, and Binder node permission change. Runtime logs showed `servicemanager` advanced past Binder open and its previous `selinux_status_open(true)` abort.
+- `apexd-bootstrap` still completed successfully in the task-052 image despite device-mapper warnings, so those warnings were not the shutdown trigger in this run.
+- Exact `android-15.0.0_r36` source shows `ProcessState::becomeContextManager()` unconditionally sets `FLAT_BINDER_FLAG_TXN_SECURITY_CTX`, while `servicemanager/main.cpp` independently calls `manager->setRequestingSid(true)`.
+- With kernel SELinux disabled, Binder sender-security-context delivery cannot provide the requested context. The first causal downstream failure was `vold` failing to register its native service, followed by `reboot,vold-failed`.
+- Cgroup/task-profile warnings remain observable but are still not the first evidenced blocker and are not changed in task 053.
+
+Files/interfaces changed:
+
+- `android/patches/android-15.0.0_r36/0003-servicemanager-disable-binder-security-context-without-selinux.patch`: expose task 052's already-computed `Access::usesSelinux()` state to `servicemanager`, disable both SID requesting and Binder context-manager transaction security-context requests only when that state is false, and preserve normal Android behaviour otherwise.
+- `frameworks/native/libs/binder/ProcessState` is patched by task 053 with an ABI-preserving bool overload. The existing zero-argument `becomeContextManager()` remains and delegates to the new overload with `true`, so existing callers retain the upstream security-context request by default.
+- `android/scripts/android15-binder-security-context-test.sh`, `android/scripts/sync-contract-test.sh`, and `scripts/ci.sh`: cover the new gate, preserve the old libbinder API/default, verify exact Android-15-shaped patch application, and keep append-only patch-set extension working.
+- `AGENTS.md`, `docs/security.md`, and these notes document the container-only Binder security-context rule.
+
+Validation actually performed:
+
+- The focused Android 15 Binder security-context, servicemanager, and sync/patch-application regressions passed.
+- The sync regression applies all three Android 15 patches in order to Android-15-shaped fixtures and verifies the zero-argument libbinder API remains present with default security-context behaviour.
+- Full `make ci` passed and printed `royd lightweight CI passed`. Static tests are not evidence that the new `frameworks/native` patch compiles in AOSP or that Android completes boot.
+- Roadmap remains unchanged. No checkbox closes in task 053 because the new Android patch still requires a real incremental build and runtime validation.
+
+External validation still required:
+
+- Apply task 053 to the existing Android 15 source tree. The append-only patch helper should recognise tasks 051 and 052 as the already-applied prefix and apply only patch `0003`.
+- Run an incremental Android 15 x86_64 standard/graphical/software build, package and import the image, then rerun the privileged smoke test.
+- Confirm `servicemanager` remains running, sets `servicemanager.ready=true`, Binder no longer reports sender security-context transaction failures, and `vold` no longer exits while registering `VoldNativeService`.
+- Treat the first later fatal blocker as new evidence. Do not infer that cgroups, zygote, graphics, ADB or boot completion are fixed until separately observed.
+
+Unresolved failures or questions:
+
+- The task-053 `frameworks/native` patch has exact-source-shape and patch-application regression coverage but has not yet compiled on the real AOSP tree.
+- The runtime has not yet demonstrated stable `vold`, surviving zygotes, SurfaceFlinger startup or `sys.boot_completed=1`.
+- Device-mapper and cgroup/task-profile warnings remain visible. Neither was the first shutdown trigger in the task-052 validation run, so neither is changed here.
+
+Recommended next task: validate task 053 on the existing rented host with an incremental Android build and privileged runtime smoke test. If the image reaches a new boot failure, task 054 should address only that first evidenced blocker.
+
 ## Task 052 complete
 
 Problem addressed: real Android 15 runtime evidence after task 051 showed that royd allocated Binder devices successfully during `early-init`, but Android later mounted its own binderfs instance over `/dev/binderfs`. The conventional `/dev/binder`, `/dev/hwbinder`, and `/dev/vndbinder` symlinks then pointed at missing targets. A live diagnostic proved that allocating into the later visible binderfs created working devices, and a second live override proved that keeping royd's private instance at `/dev/royd-binderfs` preserved working Binder devices across Android init. `servicemanager` then advanced past Binder open and exposed the next blocker: unconditional SELinux status initialisation on a kernel with SELinux disabled.

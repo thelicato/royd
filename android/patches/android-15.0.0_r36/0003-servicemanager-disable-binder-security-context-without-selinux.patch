@@ -1,0 +1,72 @@
+diff --git a/frameworks/native/cmds/servicemanager/Access.h b/frameworks/native/cmds/servicemanager/Access.h
+index b4ed244..d5b54e1 100644
+--- a/frameworks/native/cmds/servicemanager/Access.h
++++ b/frameworks/native/cmds/servicemanager/Access.h
+@@ -20,6 +20,7 @@ public:
+     virtual bool canFind(const CallingContext& ctx, const std::string& name);
+     virtual bool canAdd(const CallingContext& ctx, const std::string& name);
+     virtual bool canList(const CallingContext& ctx);
++    bool usesSelinux() const { return !mSkipSelinux; }
+
+ private:
+     bool actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+diff --git a/frameworks/native/cmds/servicemanager/main.cpp b/frameworks/native/cmds/servicemanager/main.cpp
+index 8c4bc4a..f5b3609 100644
+--- a/frameworks/native/cmds/servicemanager/main.cpp
++++ b/frameworks/native/cmds/servicemanager/main.cpp
+@@ -164,14 +164,16 @@ int main(int argc, char** argv) {
+
+     IPCThreadState::self()->disableBackgroundScheduling(true);
+
+-    sp<ServiceManager> manager = sp<ServiceManager>::make(std::make_unique<Access>());
+-    manager->setRequestingSid(true);
++    auto access = std::make_unique<Access>();
++    const bool requestSecurityContext = access->usesSelinux();
++    sp<ServiceManager> manager = sp<ServiceManager>::make(std::move(access));
++    manager->setRequestingSid(requestSecurityContext);
+     if (!manager->addService("manager", manager, false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk()) {
+         LOG(ERROR) << "Could not self register servicemanager";
+     }
+
+     IPCThreadState::self()->setTheContextObject(manager);
+-    if (!ps->becomeContextManager()) {
++    if (!ps->becomeContextManager(requestSecurityContext)) {
+         LOG(FATAL) << "Could not become context manager";
+     }
+
+diff --git a/frameworks/native/libs/binder/ProcessState.cpp b/frameworks/native/libs/binder/ProcessState.cpp
+index bff9180..bb70d9d 100644
+--- a/frameworks/native/libs/binder/ProcessState.cpp
++++ b/frameworks/native/libs/binder/ProcessState.cpp
+@@ -222,11 +222,16 @@ void ProcessState::startThreadPool()
+     }
+ }
+
+-bool ProcessState::becomeContextManager()
++bool ProcessState::becomeContextManager()
++{
++    return becomeContextManager(true);
++}
++
++bool ProcessState::becomeContextManager(bool requestSecurityContext)
+ {
+     std::unique_lock<std::mutex> _l(mLock);
+
+     flat_binder_object obj {
+-        .flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX,
++        .flags = requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0,
+     };
+
+     int result = ioctl(mDriverFD, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+diff --git a/frameworks/native/libs/binder/include/binder/ProcessState.h b/frameworks/native/libs/binder/include/binder/ProcessState.h
+index 435f9b6..149d8d0 100644
+--- a/frameworks/native/libs/binder/include/binder/ProcessState.h
++++ b/frameworks/native/libs/binder/include/binder/ProcessState.h
+@@ -79,6 +79,7 @@ public:
+     LIBBINDER_EXPORTED void startThreadPool();
+
+     [[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager();
++    [[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager(bool requestSecurityContext);
+
+     LIBBINDER_EXPORTED sp<IBinder> getStrongProxyForHandle(int32_t handle);
+     LIBBINDER_EXPORTED void expungeHandle(int32_t handle, IBinder* binder);

@@ -106,6 +106,7 @@ ROYD_SECURITY_SWEEP_OUTPUT=security-sweep.md make runtime-security-sweep
 The experimental profile does not currently force seccomp unconfined, AppArmor unconfined, SELinux label changes, or `no-new-privileges`. Those controls are intentionally measured rather than changed speculatively.
 
 Android 15 has repository-owned container adaptations for hosts where the kernel reports SELinux disabled. They activate only when both `ROYD_CONTAINER=1` and `is_selinux_enabled() <= 0`; normal SELinux-enabled Android keeps its upstream init and servicemanager policy paths. The servicemanager adaptation allows service-manager operations without SELinux policy lookups only in that explicitly gated SELinux-disabled container case.
+In that same gated case, Android 15 servicemanager also disables Binder sender-SID requests and registers the Binder context manager without `FLAT_BINDER_FLAG_TXN_SECURITY_CTX`. The existing zero-argument libbinder context-manager API keeps the upstream security-context request as its default, so normal Android behaviour is unchanged.
 
 Docker's default seccomp profile adjusts some syscall permissions according to the selected capabilities. AppArmor is separate: on AppArmor-enabled Docker hosts, the default `docker-default` profile can deny mount operations even when `SYS_ADMIN` is present. Because royd mounts binderfs inside the container, qualification must record the actual LSM and seccomp state and any required exception before the reduced mode can become a supported default.
 
