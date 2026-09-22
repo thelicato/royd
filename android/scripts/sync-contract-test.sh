@@ -451,7 +451,7 @@ grep -Fq 'bool usesSelinux() const { return !mSkipSelinux; }' "$tmp/src/framewor
 grep -Fq '[[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager();' "$tmp/src/frameworks/native/libs/binder/include/binder/ProcessState.h"
 grep -Fq '[[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager(bool requestSecurityContext);' "$tmp/src/frameworks/native/libs/binder/include/binder/ProcessState.h"
 grep -Fq 'return becomeContextManager(true);' "$tmp/src/frameworks/native/libs/binder/ProcessState.cpp"
-grep -Fq '.flags = requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0,' "$tmp/src/frameworks/native/libs/binder/ProcessState.cpp"
+grep -Fq '.flags = static_cast<__u32>(requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0),' "$tmp/src/frameworks/native/libs/binder/ProcessState.cpp"
 grep -Fq 'const bool requestSecurityContext = access->usesSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 grep -Fq 'manager->setRequestingSid(requestSecurityContext);' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 grep -Fq 'ps->becomeContextManager(requestSecurityContext)' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"

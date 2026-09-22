@@ -10,7 +10,7 @@ grep -F 'bool usesSelinux() const { return !mSkipSelinux; }' "$patch" >/dev/null
 grep -F 'bool ProcessState::becomeContextManager()' "$patch" >/dev/null
 grep -F 'return becomeContextManager(true);' "$patch" >/dev/null
 grep -F 'bool ProcessState::becomeContextManager(bool requestSecurityContext)' "$patch" >/dev/null
-grep -F '.flags = requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0,' "$patch" >/dev/null
+grep -F '.flags = static_cast<__u32>(requestSecurityContext ? FLAT_BINDER_FLAG_TXN_SECURITY_CTX : 0),' "$patch" >/dev/null
 grep -F 'const bool requestSecurityContext = access->usesSelinux();' "$patch" >/dev/null
 grep -F 'manager->setRequestingSid(requestSecurityContext);' "$patch" >/dev/null
 grep -F 'ps->becomeContextManager(requestSecurityContext)' "$patch" >/dev/null

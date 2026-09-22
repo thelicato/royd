@@ -23,7 +23,7 @@ Validation actually performed:
 
 - The focused Android 15 Binder security-context, servicemanager, and sync/patch-application regressions passed.
 - The sync regression applies all three Android 15 patches in order to Android-15-shaped fixtures and verifies the zero-argument libbinder API remains present with default security-context behaviour.
-- Full `make ci` passed and printed `royd lightweight CI passed`. Static tests are not evidence that the new `frameworks/native` patch compiles in AOSP or that Android completes boot.
+- Full `make ci` passed and printed `royd lightweight CI passed`. The first real incremental AOSP compile then rejected the task-053 `flat_binder_object::flags` conditional because Android builds libbinder with `-Werror` and C++ narrowing checks; the patch now explicitly casts that conditional to `__u32`, matching the field type. Runtime validation remains pending.
 - Roadmap remains unchanged. No checkbox closes in task 053 because the new Android patch still requires a real incremental build and runtime validation.
 
 External validation still required:
@@ -35,7 +35,7 @@ External validation still required:
 
 Unresolved failures or questions:
 
-- The task-053 `frameworks/native` patch has exact-source-shape and patch-application regression coverage but has not yet compiled on the real AOSP tree.
+- The first task-053 real AOSP compile reached `frameworks/native/libs/binder/ProcessState.cpp` and failed only on the `flat_binder_object::flags` conditional narrowing from `int` to `__u32`. The repository patch now carries the explicit cast; that corrected patch still requires a successful incremental rebuild and runtime validation.
 - The runtime has not yet demonstrated stable `vold`, surviving zygotes, SurfaceFlinger startup or `sys.boot_completed=1`.
 - Device-mapper and cgroup/task-profile warnings remain visible. Neither was the first shutdown trigger in the task-052 validation run, so neither is changed here.
 
