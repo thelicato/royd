@@ -17,7 +17,61 @@ case "$1" in
     mkdir -p .repo
     ;;
   sync)
-    mkdir -p build
+    mkdir -p build system/core/init
+    cat > system/core/init/service.cpp <<'SRC'
+#include <inttypes.h>
+#include <linux/securebits.h>
+#include <sched.h>
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+using android::base::WriteStringToFile;
+namespace android {
+namespace init {
+
+static Result<std::string> ComputeContextFromExecutable(const std::string& service_path) {
+    std::string computed_context;
+
+void Service::SetProcessAttributesAndCaps() {
+    if (auto result = SetProcessAttributes(proc_attr_); !result.ok()) {
+        LOG(FATAL) << "cannot set attribute for " << name_ << ": " << result.error();
+    }
+    if (!seclabel_.empty()) {
+        if (setexeccon(seclabel_.c_str()) < 0) {
+            PLOG(FATAL) << "cannot setexeccon('" << seclabel_ << "') for " << name_;
+        }
+    }
+}
+Result<void> Service::Start() {
+    }
+
+    std::string scon;
+    if (!seclabel_.empty()) {
+        scon = seclabel_;
+    } else {
+        auto result = ComputeContextFromExecutable(args_[0]);
+SRC
+    cat > system/core/init/subcontext.cpp <<'SRC'
+
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
+
+#include <android-base/file.h>
+#include <android-base/properties.h>
+#include <android-base/strings.h>
+#include <selinux/android.h>
+
+#include "action.h"
+#include "builtins.h"
+static std::vector<Subcontext> subcontexts;
+static bool shutting_down;
+
+std::vector<Subcontext>* InitializeSubcontexts() {
+    if (SelinuxGetVendorAndroidVersion() >= __ANDROID_API_P__) {
+        for (const auto& [path_prefix, secontext] : paths_and_secontexts) {
+            subcontexts.emplace_back(path_prefix, secontext);
+SRC
     ;;
   forall)
     ;;
@@ -52,6 +106,7 @@ chmod +x "$tmp/bin/repo" "$tmp/bin/git-lfs"
 
 : > "$tmp/repo.log"
 for pass in 1 2; do
+  TERM=${TERM:-dumb} \
   PATH="$tmp/bin:$PATH" \
   ROYD_REPO_LOG="$tmp/repo.log" \
   ROYD_ANDROID_VERSION=15 \

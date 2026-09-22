@@ -5,6 +5,8 @@ services:
     privileged: true
     ports:
       - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT:-5555}:5555"
+    tmpfs:
+      - /dev/socket:rw,nosuid,nodev,noexec,mode=0755
     volumes:
       - royd-data:/data
     command:

@@ -1,5 +1,63 @@
 # Development handoff notes
 
+## Task 051 complete
+
+Problem addressed: real Android 15 runtime validation proved that royd can reach Android second-stage init, but stock first-stage init is incompatible with an OCI environment that already provides `/sys`, and second-stage startup then failed because `/dev/socket` was absent and SELinux-labelled service/subcontext startup was attempted on a host kernel with SELinux disabled. Task 051 formalises the second-stage container entry contract and adds a narrowly gated Android 15 init adaptation for the SELinux-disabled royd container case.
+
+Important evidence discovered:
+
+- Task 050 external validation wrote `/royd-runtime.conf` successfully and Android first-stage init then aborted after `mount("sysfs", "/sys", ...)` returned `EBUSY` and `selinuxfs` could not be mounted. This proves the royd bootstrap handed PID 1 to Android init.
+- A direct `exec /init second_stage` diagnostic advanced through product-property loading and restorecon with SELinux disabled, then failed because `/dev/socket/property_service_for_system` could not be created.
+- Adding a private `/dev/socket` tmpfs allowed Android to create both property-service sockets, set up mount namespaces, parse stock init configuration and `/vendor/etc/init/init.royd.rc`, and enter `early-init`.
+- The next fatal blocker was `apexd-bootstrap`: service launch failed with `Could not get process context`, while vendor-init subcontexts repeatedly failed `setexeccon(...): Invalid argument`. Cgroup/task-profile warnings were also observed but were not the shutdown trigger and are not changed in task 051.
+- Exact AOSP init source evidence shows service startup computes SELinux process contexts before launch and vendor-init subcontexts call `setexeccon`; Android init also has an explicit `second_stage` dispatch path. The repository patch therefore remains limited to the explicit royd-container plus SELinux-disabled condition.
+
+Files/interfaces changed:
+
+- `runtime/rootfs/royd-entrypoint`: export the explicit `ROYD_CONTAINER=1` marker and hand off to `/init second_stage`.
+- `runtime/scripts/container-args.sh`: define the private `/dev/socket` tmpfs runtime argument.
+- Runtime smoke, qualification, memory, multi-instance and Binder-isolation launchers, Compose baseline files, and the optional Go CLI now include the `/dev/socket` tmpfs contract.
+- `android/patches/android-15.0.0_r36/0001-init-support-royd-container-selinux-disabled.patch`: when and only when `ROYD_CONTAINER=1` and kernel SELinux is disabled, skip service SELinux process-context selection/application and vendor-init subcontext creation. Normal Android behaviour is unchanged otherwise.
+- `android/scripts/android15-container-init-test.sh` and `android/scripts/sync-contract-test.sh`: validate the new init patch contract and repository patch application.
+- `README.md`, `docs/runtime.md`, `scripts/ci.sh`, CLI tests, and these notes.
+
+Validation actually performed:
+
+- Focused shell syntax, Android 15 container-init, sync/patch-application, entrypoint, image, security, repository/runtime and Go CLI tests passed.
+- Full `make ci` passed end to end in a detached rerun and printed `royd lightweight CI passed`. A foreground invocation had previously been terminated by the execution wrapper during `config-check-test.sh` without an assertion failure.
+- Static tests are not evidence that the Android 15 `system/core/init` patch compiles in AOSP or that the container boots.
+
+External validation still required:
+
+- A real Android 15 incremental rebuild is required because task 051 patches `system/core/init`. The existing synced source tree can be reused because tasks 045 through 050 carried no Android 15 local source patch. Apply the repository patch explicitly before a `--skip-sync` build. If `apply-patches.sh` reports that a local patch set changed after application, stop and return that evidence rather than deleting patch state blindly.
+- After build and packaging, import the image and rerun the privileged smoke test. Confirm `apexd-bootstrap` gets past the previous SELinux process-context failure.
+
+Unresolved failures or questions:
+
+- The Android 15 init patch has static and patch-application contract coverage but has not yet compiled against the real `android-15.0.0_r36` tree.
+- Cgroup setup currently reports missing `/etc/cgroups.json`, `/etc/task_profiles.json`, and uninitialised processgroup controllers during the second-stage diagnostic. Those warnings were not the task-051 fatal blocker and remain task-052 evidence if they persist after `apexd-bootstrap` starts.
+- Successful APEX activation, Binder setup, framework boot, log forwarding, ADB, SurfaceFlinger and graphics remain unproven.
+
+Recommended next task: rebuild Android 15 with the task-051 `system/core/init` patch and rerun packaging/import/smoke validation. Task 052 should address only the first new evidenced failure.
+
+Exact commands on the existing real AOSP build host:
+
+```sh
+cd /root/royd
+ROYD_ANDROID_VERSION=15 ./android/scripts/apply-patches.sh .work/android-src-15
+./build.sh \
+  --android 15 \
+  --arch x86_64 \
+  --profile standard \
+  --hal-profile graphical \
+  --graphics software \
+  --jobs "$(nproc)" \
+  --skip-sync \
+  --incremental
+```
+
+Expected evidence to return: the complete first failure from patch application, compile/link, packaging, import, or smoke boot. Success evidence should show the local Android 15 init patch applying, a successful Android build and package/import, then kernel/init logs in which `init second stage started!`, property-service socket creation succeeds, and `apexd-bootstrap` no longer fails with `Could not get process context`. Do not treat later cgroup, APEX, Binder, graphics, or framework failures as fixed until separately evidenced.
+
 ## Task 050 complete
 
 Problem addressed: task 049 let the Android 15 bootstrap shell parse release metadata safely, but the real container then exited while writing `/royd-runtime.conf`. Android's pre-APEX shell resolved `printf` to `/bin/printf`, which was not executable before the normal Runtime APEX linker environment existed. Task 050 removes `printf` and keeps the complete pre-init entrypoint path on shell built-ins until `exec /init`.

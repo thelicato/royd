@@ -22,6 +22,7 @@ run ./android/scripts/hal-profile-test.sh
 run ./android/scripts/contract-test.sh
 run ./android/scripts/vintf-contract-test.sh
 run ./android/scripts/android15-build-readiness-test.sh
+run ./android/scripts/android15-container-init-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh

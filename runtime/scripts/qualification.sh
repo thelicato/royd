@@ -112,6 +112,7 @@ run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$h
 if [ "$host_status" = pass ] && [ "$image_status" = pass ]; then
   profile_args=$("$script_dir/profile.sh" "$runtime_profile")
   security_args=$("$script_dir/security-args.sh" "$security_mode")
+container_args=$("$script_dir/container-args.sh")
 gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backend" "$arch")
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker volume rm "$volume" >/dev/null 2>&1 || true
@@ -119,7 +120,7 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
   log '==> start'
   # Word splitting is intentional because helpers emit trusted Docker and Android arguments.
   # shellcheck disable=SC2086
-  if docker run -d $security_args $gpu_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
+  if docker run -d $security_args $gpu_args $container_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
     image_id=$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || printf unknown)
     run_stage security "$script_dir/assert-security.sh" "$container" "$security_mode"
     if [ "$security_status" = pass ]; then

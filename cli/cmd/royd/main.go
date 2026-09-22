@@ -174,6 +174,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	dockerArgs = append(dockerArgs,
 		"--name", cfg.name,
 		"--label", "org.royd.instance=true",
+		"--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755",
 		"-v", cfg.volume+":/data",
 		"-p", cfg.port,
 	)

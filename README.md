@@ -43,6 +43,7 @@ The target Docker interface is deliberately small. A locally built development i
 
 ```sh
 docker run --privileged \
+  --tmpfs /dev/socket:rw,nosuid,nodev,noexec,mode=0755 \
   -v android-data:/data \
   -p 5555:5555 \
   royd:dev

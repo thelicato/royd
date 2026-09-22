@@ -88,3 +88,5 @@ Imported images carry OCI metadata plus royd labels for image format, Android so
 ## Host GPU runtime
 
 Host GPU images are experimental and require `/dev/dri` to be passed into the container. Set `ROYD_GRAPHICS_BACKEND=host-gpu-generic` or `host-gpu-intel`; Compose adds the GPU device overlay automatically. Direct runtime scripts use `runtime/scripts/gpu-args.sh`. Software mode does not request a GPU device.
+
+For system-root Android images, royd enters Android init at `second_stage`; the OCI runtime supplies a private tmpfs at `/dev/socket`. Android `/init` remains PID 1.

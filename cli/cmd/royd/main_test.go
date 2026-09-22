@@ -55,6 +55,7 @@ func TestRunContainerDefaults(t *testing.T) {
 	assertSingleCall(t, runner, []string{
 		"run", "-d", "--privileged", "--name", "royd",
 		"--label", "org.royd.instance=true",
+		"--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755",
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
@@ -74,6 +75,7 @@ func TestRunContainerOverrides(t *testing.T) {
 	assertSingleCall(t, runner, []string{
 		"run", "-d", "--privileged", "--name", "test",
 		"--label", "org.royd.instance=true",
+		"--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755",
 		"-v", "test-data:/data",
 		"-p", "127.0.0.1:5560:5555",
 		"--memory", "768m", "--memory-swap", "768m",
@@ -114,6 +116,7 @@ func TestRunContainerExperimentalSecurity(t *testing.T) {
 		"--cap-add=SYS_PTRACE",
 		"--name", "royd",
 		"--label", "org.royd.instance=true",
+		"--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755",
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev",
@@ -133,6 +136,7 @@ func TestRunContainerHostGPU(t *testing.T) {
 		"run", "-d", "--privileged", "--device=/dev/dri:/dev/dri",
 		"--name", "royd",
 		"--label", "org.royd.instance=true",
+		"--tmpfs=/dev/socket:rw,nosuid,nodev,noexec,mode=0755",
 		"-v", "royd-data:/data",
 		"-p", "127.0.0.1:5555:5555",
 		"royd:dev-host-gpu-generic",

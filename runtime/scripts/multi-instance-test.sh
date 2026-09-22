@@ -25,6 +25,7 @@ docker image inspect "$image" >/dev/null 2>&1 || {
 profile_args=$("$script_dir/profile.sh" "$profile")
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_args=$("$script_dir/security-args.sh" "$security_mode")
+container_args=$("$script_dir/container-args.sh")
 runtime_arch=${ROYD_ARCH:-${ROYD_QUALIFY_ARCH:-x86_64}}
 gpu_args=$(ROYD_GRAPHICS_ARCH="$runtime_arch" "$script_dir/gpu-args.sh" "${ROYD_GRAPHICS_BACKEND:-software}" "$runtime_arch")
 
@@ -40,9 +41,9 @@ docker volume create "$volume_b" >/dev/null
 printf 'Starting two royd containers from %s using profile %s and security mode %s\n' "$image" "$profile" "$security_mode"
 # Word splitting is intentional because profile.sh and security-args.sh emit trusted arguments.
 # shellcheck disable=SC2086
-docker run -d $security_args $gpu_args --name "$container_a" -v "$volume_a:/data" "$image" $profile_args >/dev/null
+docker run -d $security_args $gpu_args $container_args --name "$container_a" -v "$volume_a:/data" "$image" $profile_args >/dev/null
 # shellcheck disable=SC2086
-docker run -d $security_args $gpu_args --name "$container_b" -v "$volume_b:/data" "$image" $profile_args >/dev/null
+docker run -d $security_args $gpu_args $container_args --name "$container_b" -v "$volume_b:/data" "$image" $profile_args >/dev/null
 
 "$script_dir/assert-security.sh" "$container_a" "$security_mode"
 "$script_dir/assert-security.sh" "$container_b" "$security_mode"

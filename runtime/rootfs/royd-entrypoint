@@ -75,4 +75,5 @@ if [ "${ROYD_ENTRYPOINT_TEST_ONLY:-0}" = 1 ]; then
   exit 0
 fi
 
-exec /init
+export ROYD_CONTAINER=1
+exec /init second_stage
