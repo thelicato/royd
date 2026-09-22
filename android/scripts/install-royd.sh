@@ -33,7 +33,7 @@ graphics_allocator=$ANDROID_GRAPHICS_ALLOCATOR
 graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
 modern_graphics_dst="$vendor_dst/graphics_allocator"
-modern_composer_src="$android_dir/graphics/composer-aidl3"
+modern_composer_src="$android_dir/graphics/composer-aidl4"
 modern_composer_dst="$vendor_dst/graphics_composer"
 compat_src="$android_dir/compat/$ANDROID_PRODUCT_FAMILY"
 device_manifest=${ANDROID_DEVICE_MANIFEST:-}
@@ -54,7 +54,7 @@ fi
 [ -f "$graphics_backend_src" ] || fail "Android graphics backend not found at $graphics_backend_src"
 case "$graphics_composer" in
   2.1|2.2|2.3|2.4) ;;
-  aidl3-client)
+  aidl4-client)
     [ -d "$modern_composer_src" ] || fail "modern graphics composer source not found at $modern_composer_src"
     ;;
   *) fail "unsupported Android graphics composer contract: $graphics_composer" ;;
@@ -86,7 +86,7 @@ cp -a "$vendor_src/." "$vendor_dst/"
 if [ "$graphics_allocator" = aidl2-stablec5-memfd ]; then
   cp -a "$modern_graphics_src" "$modern_graphics_dst"
 fi
-if [ "$graphics_composer" = aidl3-client ]; then
+if [ "$graphics_composer" = aidl4-client ]; then
   cp -a "$modern_composer_src" "$modern_composer_dst"
 fi
 cp "$profile_src" "$profile_dst"
@@ -115,7 +115,7 @@ fi
 if [ "$graphics_allocator" = aidl2-stablec5-memfd ]; then
   printf 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/private\n' >> "$device_dst/BoardConfigVersion.mk"
 fi
-if [ "$graphics_composer" = aidl3-client ]; then
+if [ "$graphics_composer" = aidl4-client ]; then
   printf 'BOARD_VENDOR_SEPOLICY_DIRS += device/royd/sepolicy/vendor\n' >> "$device_dst/BoardConfigVersion.mk"
 fi
 cp "$compat_src/vendor.mk" "$vendor_dst/version.mk"
@@ -128,7 +128,7 @@ fi
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.memory_compat=%s\n' "$ANDROID_MEMORY_COMPAT" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_COMPOSER := %s\n' "$graphics_composer" >> "$vendor_dst/version.mk"
 case "$graphics_composer" in
-  aidl3-client) ;;
+  aidl4-client) ;;
   *) printf 'PRODUCT_PACKAGES += android.hardware.graphics.composer@%s-service\n' "$graphics_composer" >> "$vendor_dst/version.mk" ;;
 esac
 printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.graphics_composer=%s\n' "$graphics_composer" >> "$vendor_dst/version.mk"

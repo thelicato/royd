@@ -42,7 +42,7 @@ No host-side Binder device naming convention is part of the royd contract.
 
 ## Graphics baseline
 
-The software-first graphics baseline uses SwiftShader for EGL and OpenGL ES. Android 15 selects the repository-owned AIDL allocator V2, stable-C mapper V5, and composer3 V3 client-composition service. Other pinned versions retain the legacy `gralloc.royd` and `hwcomposer.default` family until their branch contracts are migrated separately.
+The software-first graphics baseline uses SwiftShader for EGL and OpenGL ES. Android 15 selects the repository-owned AIDL allocator V2, stable-C mapper V5, and a composer3 client-composition service built against the current V4 source interface with frozen V3 release fallback. Other pinned versions retain the legacy `gralloc.royd` and `hwcomposer.default` family until their branch contracts are migrated separately.
 
 The software path does not require `/dev/dri`. The runtime records the selected backend and the version-selected allocator/composer identities through `vendor.royd.graphics.*` properties.
 

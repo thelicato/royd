@@ -15,9 +15,12 @@
             <instance>royd</instance>
         </interface>
     </hal>
+    <!-- Android 15 builds this service against the current composer3 V4 interface.
+         Stable AIDL release handling adjusts the emitted version to the latest
+         frozen interface when RELEASE_AIDL_USE_UNFROZEN is false. -->
     <hal format="aidl">
         <name>android.hardware.graphics.composer3</name>
-        <version>3</version>
+        <version>4</version>
         <interface>
             <name>IComposer</name>
             <instance>default</instance>

@@ -43,7 +43,7 @@ for hal in root.findall("hal"):
 expected_hals = [
     ("aidl", "android.hardware.graphics.allocator", "2", "IAllocator", "default"),
     ("native", "mapper", "5.0", None, "royd"),
-    ("aidl", "android.hardware.graphics.composer3", "3", "IComposer", "default"),
+    ("aidl", "android.hardware.graphics.composer3", "4", "IComposer", "default"),
 ]
 if hals != expected_hals:
     raise SystemExit(f"error: {path} HAL declarations mismatch: {hals!r}")

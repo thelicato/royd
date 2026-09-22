@@ -14,14 +14,14 @@ The default renderer is SwiftShader. The allocator, mapper, and composer family 
 | 9 | `gralloc.royd` | HIDL 2.2 plus `hwcomposer.default` |
 | 10 | `gralloc.royd` | HIDL 2.3 plus `hwcomposer.default` |
 | 11-14 | `gralloc.royd` | HIDL 2.4 plus `hwcomposer.default` |
-| 15 | AIDL allocator V2 plus `mapper.royd` stable-C V5 | repository-owned composer3 V3 client-composition service |
+| 15 | AIDL allocator V2 plus `mapper.royd` stable-C V5 | repository-owned composer3 client composition, current V4 source interface with frozen V3 release fallback |
 | 16-17 | `gralloc.royd` | HIDL 2.4 plus `hwcomposer.default`, pending branch-specific migration research |
 
 This mapping is configuration, not a support claim. Clean AOSP builds and real boots are still required for every pinned release.
 
 ## Android 15 client composition
 
-Android 15 uses repository-owned memfd-backed allocation and a composer3 V3 service. The composer exposes one fixed internal display, advertises no virtual displays or hardware overlay capability, and requests `Composition::CLIENT` for layers it cannot compose. SurfaceFlinger and RenderEngine therefore remain responsible for the actual software composition.
+Android 15 uses repository-owned memfd-backed allocation and a composer3 service built against the current V4 source interface. Android 15 stable-AIDL release handling falls that interface back to the latest frozen V3 wire contract when unfrozen AIDL is disabled. The composer exposes one fixed internal display, advertises no virtual displays or hardware overlay capability, and requests `Composition::CLIENT` for layers it cannot compose. SurfaceFlinger and RenderEngine therefore remain responsible for the actual software composition.
 
 The service reports the configured virtual display dimensions and synthetic vsync timing. It does not provide physical scan-out, readback, HDR conversion, display brightness control, doze modes, or other capabilities that royd has not implemented and validated.
 

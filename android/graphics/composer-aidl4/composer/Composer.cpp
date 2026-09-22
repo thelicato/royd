@@ -522,6 +522,25 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
     return ndk::ScopedAStatus::ok();
 }
 
+ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t display,
+                                                               int32_t* /*maxProfiles*/) {
+    if (!isDisplay(display)) return badDisplay();
+    return unsupported();
+}
+
+ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
+        int64_t display, const drm::HdcpLevels& /*levels*/) {
+    if (!isDisplay(display)) return badDisplay();
+    return unsupported();
+}
+
+ndk::ScopedAStatus ComposerClient::getLuts(int64_t display,
+                                            const std::vector<c3::Buffer>& /*buffers*/,
+                                            std::vector<c3::Luts>* /*luts*/) {
+    if (!isDisplay(display)) return badDisplay();
+    return unsupported();
+}
+
 void ComposerClient::vsyncLoop() {
     while (!mStopVsync.load()) {
         if (!mVsyncEnabled.load()) {

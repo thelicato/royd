@@ -1,6 +1,7 @@
 #pragma once
 
 #include <aidl/android/hardware/common/NativeHandle.h>
+#include <aidl/android/hardware/drm/HdcpLevels.h>
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/common/HdrConversionCapability.h>
@@ -23,6 +24,7 @@
 namespace royd::graphics::composer {
 
 namespace c3 = aidl::android::hardware::graphics::composer3;
+namespace drm = aidl::android::hardware::drm;
 namespace common = aidl::android::hardware::graphics::common;
 
 class ComposerClient final : public c3::BnComposerClient {
@@ -110,6 +112,10 @@ class ComposerClient final : public c3::BnComposerClient {
     ndk::ScopedAStatus notifyExpectedPresent(int64_t display,
                                              const c3::ClockMonotonicTimestamp& expectedPresentTime,
                                              int32_t frameIntervalNs) override;
+    ndk::ScopedAStatus getMaxLayerPictureProfiles(int64_t display, int32_t* maxProfiles) override;
+    ndk::ScopedAStatus startHdcpNegotiation(int64_t display, const drm::HdcpLevels& levels) override;
+    ndk::ScopedAStatus getLuts(int64_t display, const std::vector<c3::Buffer>& buffers,
+                               std::vector<c3::Luts>* luts) override;
 
   private:
     static constexpr int64_t kDisplayId = 1;

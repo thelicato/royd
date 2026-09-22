@@ -45,9 +45,9 @@ case "$declared_allocator" in
 esac
 
 case "$composer" in
-  aidl3-client)
+  aidl4-client)
     setprop vendor.royd.graphics.composer "$composer"
-    log "graphics: composer AIDL v3 client composition configured"
+    log "graphics: composer AIDL current V4 client composition configured"
     ;;
   '')
     setprop vendor.royd.graphics.composer unavailable

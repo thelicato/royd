@@ -4,7 +4,7 @@ royd separates Android image profiles from hardware-surface profiles. Image prof
 
 ## `graphical`
 
-`graphical` is the default HAL profile. It keeps AOSP SwiftShader EGL/GLES plus the allocator, mapper, and composer family selected by the pinned Android version contract. Android 15 uses the repository-owned AIDL allocator V2, stable-C mapper V5, and composer3 V3 service; versions not yet migrated retain the legacy `gralloc.royd` and `hwcomposer.default` family.
+`graphical` is the default HAL profile. It keeps AOSP SwiftShader EGL/GLES plus the allocator, mapper, and composer family selected by the pinned Android version contract. Android 15 uses the repository-owned AIDL allocator V2, stable-C mapper V5, and a composer3 service built against the current V4 source interface with frozen V3 release fallback; versions not yet migrated retain the legacy `gralloc.royd` and `hwcomposer.default` family.
 
 The imported OCI image defaults to a 540 x 960 display at 240 dpi and 30 fps. Runtime display arguments can still override those values.
 

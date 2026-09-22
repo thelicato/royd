@@ -9,7 +9,7 @@ PRODUCT_PACKAGES += \
     gralloc.minigbm_intel \
     libGLES_mesa
 
-ifeq ($(ROYD_GRAPHICS_COMPOSER),aidl3-client)
+ifeq ($(ROYD_GRAPHICS_COMPOSER),aidl4-client)
 PRODUCT_PACKAGES += android.hardware.graphics.composer3-service.royd
 else
 PRODUCT_VENDOR_PROPERTIES += ro.hardware.hwcomposer=default
