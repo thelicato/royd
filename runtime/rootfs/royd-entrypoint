@@ -28,7 +28,7 @@ case "$hal_profile" in
     fps=5
     ;;
   *)
-    printf 'royd: unsupported HAL profile in release metadata: %s\n' "$hal_profile" >&2
+    echo "royd: unsupported HAL profile in release metadata: $hal_profile" >&2
     exit 64
     ;;
 esac
@@ -38,7 +38,7 @@ positive_integer() {
   value=$2
   case "$value" in
     ''|*[!0-9]*|0)
-      printf 'royd: %s must be a positive integer, got %s\n' "$name" "$value" >&2
+      echo "royd: $name must be a positive integer, got $value" >&2
       exit 64
       ;;
   esac
@@ -52,7 +52,7 @@ for argument in "$@"; do
     royd.fps=*) fps=${argument#royd.fps=} ;;
     '') ;;
     *)
-      printf 'royd: unknown runtime argument: %s\n' "$argument" >&2
+      echo "royd: unknown runtime argument: $argument" >&2
       exit 64
       ;;
   esac
@@ -64,8 +64,12 @@ positive_integer dpi "$dpi"
 positive_integer fps "$fps"
 
 umask 077
-printf 'ROYD_WIDTH=%s\nROYD_HEIGHT=%s\nROYD_DPI=%s\nROYD_FPS=%s\n' \
-  "$width" "$height" "$dpi" "$fps" > "$runtime_file"
+{
+  echo "ROYD_WIDTH=$width"
+  echo "ROYD_HEIGHT=$height"
+  echo "ROYD_DPI=$dpi"
+  echo "ROYD_FPS=$fps"
+} > "$runtime_file"
 
 if [ "${ROYD_ENTRYPOINT_TEST_ONLY:-0}" = 1 ]; then
   exit 0

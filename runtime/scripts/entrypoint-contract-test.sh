@@ -43,6 +43,20 @@ EOF_RELEASE
 run_entrypoint "$tmp/non-executable-release" "$tmp/non-executable.conf"
 [ ! -e "$tmp/metadata-executed" ]
 
+# The pre-init success path must not depend on external utilities. Android's
+# bootstrap shell is available before the normal runtime linker/APEX setup is.
+PATH="$tmp/no-external-tools" \
+  ROYD_RELEASE_FILE="$tmp/graphical-release" \
+  ROYD_RUNTIME_CONFIG="$tmp/builtin-only.conf" \
+  ROYD_ENTRYPOINT_TEST_ONLY=1 \
+  /bin/sh "$entrypoint" royd.width=360 royd.height=640 royd.dpi=160 royd.fps=24
+cmp "$tmp/graphical.expected" "$tmp/builtin-only.conf"
+
+if grep -Eq '(^|[[:space:]])printf([[:space:]]|$)' "$entrypoint"; then
+  printf '%s\n' 'error: pre-init entrypoint must not use printf' >&2
+  exit 1
+fi
+
 cat > "$tmp/headless-release" <<'REL'
 ROYD_HAL_PROFILE=headless
 REL

@@ -1,5 +1,73 @@
 # Development handoff notes
 
+## Task 050 complete
+
+Problem addressed: task 049 let the Android 15 bootstrap shell parse release metadata safely, but the real container then exited while writing `/royd-runtime.conf`. Android's pre-APEX shell resolved `printf` to `/bin/printf`, which was not executable before the normal Runtime APEX linker environment existed. Task 050 removes `printf` and keeps the complete pre-init entrypoint path on shell built-ins until `exec /init`.
+
+Important evidence discovered:
+
+- External task-049 validation started the container through the bootstrap linker and reached `/royd-entrypoint` beyond release-metadata parsing. The persistent reproduction exited with code 126, was not OOM-killed, and logged `/royd-entrypoint[68]: /bin/printf: No such file or directory`.
+- The preceding warning about missing `/linkerconfig/ld.config.txt` again did not stop the bootstrap shell. The observed fatal error was the external `printf` utility invocation.
+- Directly selecting `/system/bin/sh` still bypasses the bootstrap linker and remains an invalid pre-APEX diagnostic path.
+- The successful pre-init path now uses shell syntax, parameter expansion, `read`, `case`, `[`, `echo`, `umask`, and finally `exec /init`. No conclusion is drawn yet about whether Android init survives first-stage startup or reaches second stage.
+
+Files/interfaces changed:
+
+- `runtime/rootfs/royd-entrypoint`: replace every pre-init `printf` invocation, including validation errors and runtime-config generation, with shell-builtin `echo`.
+- `runtime/scripts/entrypoint-contract-test.sh`: exercise the successful pre-init path with `PATH` pointing at a non-existent directory and explicitly reject `printf` in the entrypoint so host-shell builtin differences cannot hide the Android failure.
+- `docs/development-notes.md`.
+
+Validation actually performed:
+
+- `sh -n runtime/rootfs/royd-entrypoint` and `sh -n runtime/scripts/entrypoint-contract-test.sh` passed.
+- `runtime/scripts/entrypoint-contract-test.sh`, `runtime/scripts/image-contract-test.sh`, `android/scripts/package-contract-test.sh`, `android/scripts/version-test.sh`, `android/scripts/android15-build-readiness-test.sh`, `scripts/check-runtime.sh`, and `scripts/check-repo.sh` passed.
+- A foreground `make ci` invocation was terminated by the execution wrapper while entering `config-check-test.sh`, with no assertion failure before termination. A single detached rerun then completed with exit status 0 and printed `royd lightweight CI passed`, including the task-050 entrypoint regression, Android package and image contracts, runtime qualification contracts, reference-host bundle test, and `go test ./...`.
+- Roadmap remains 63 checked and 24 open. No checkbox closes in task 050 because the changed entrypoint still requires real-host execution and Android `/init` has not yet been shown to stay running.
+
+External validation still required:
+
+- Repackage Android 15 x86_64 using the existing successful AOSP output so the updated `/royd-entrypoint` is embedded in the rootfs archive. AOSP rebuild and Repo sync are not required.
+- Re-import the updated archive and rerun the runtime smoke test.
+- Confirm the previous `/bin/printf: No such file or directory` failure is gone. If `/init` starts and a later failure appears, preserve the first new init/runtime evidence rather than changing unrelated Binder, SELinux, graphics, or VINTF code.
+
+Unresolved failures or questions:
+
+- It is not yet externally proven that `/royd-entrypoint` successfully writes `/royd-runtime.conf`, `exec`s `/init`, or leaves Android init as PID 1.
+- The pre-init linker configuration warning remains observable but has twice been followed by successful shell execution, so no workaround is justified from current evidence.
+- Successful Android boot, log forwarding, ADB, Binder isolation, SurfaceFlinger, software graphics, memory qualification, and clean architecture build gates remain open.
+
+Recommended next task: validate task 050 on the existing rented host. If `/init` is reached and a new failure appears, task 051 should address only that first evidenced init/runtime blocker. If the smoke test succeeds, task 051 should collect the first successful runtime qualification evidence instead of introducing unrelated implementation.
+
+Exact commands on the existing rented host:
+
+```sh
+cd /root/royd
+git pull
+
+env \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_ANDROID_PROFILE=standard \
+  ROYD_HAL_PROFILE=graphical \
+  ROYD_GRAPHICS_BACKEND=software \
+  ROYD_BUILDER_TTY=never \
+  ./android/scripts/builder.sh android/scripts/package.sh x86_64 standard
+
+env \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_ANDROID_PROFILE=standard \
+  ROYD_HAL_PROFILE=graphical \
+  ROYD_GRAPHICS_BACKEND=software \
+  ./runtime/scripts/import.sh x86_64 standard
+
+ROYD_ANDROID_VERSION=15 \
+ROYD_ANDROID_PROFILE=standard \
+ROYD_HAL_PROFILE=graphical \
+ROYD_GRAPHICS_BACKEND=software \
+make runtime-smoke-test
+```
+
+Expected evidence to return: complete package, import, and smoke-test output. Packaging should report both runtime artefacts ready, import should report `Image contract passed` and `Runtime image is ready`, and the previous `/bin/printf: No such file or directory` error must be absent. Runtime success is `Single-instance runtime smoke test passed`. On failure, preserve a debug container and return its `docker inspect` state and complete `docker logs`. Do not rebuild AOSP unless a later failure specifically requires it.
+
 ## Task 049 complete
 
 Problem addressed: task 048 made the Android 15 bootstrap shell executable before Runtime APEX activation, but the container then exited inside `/royd-entrypoint`. The entrypoint sourced `/royd-release` as shell code even though the repository generates that file as plain metadata and values such as `ANDROID_REQUIRED_PARTITIONS=system vendor system_ext product` contain unquoted spaces. Task 049 stops executing release metadata and parses only the required `ROYD_HAL_PROFILE` key with shell built-ins.
