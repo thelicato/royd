@@ -19,7 +19,11 @@ run_entrypoint() {
 }
 
 cat > "$tmp/graphical-release" <<'REL'
+ROYD_IMAGE_FORMAT=1
+ROYD_ANDROID_VERSION=15
 ROYD_HAL_PROFILE=graphical
+ANDROID_REQUIRED_PARTITIONS=system vendor system_ext product
+ANDROID_MEMORY_COMPAT=cgroup-v2
 REL
 run_entrypoint "$tmp/graphical-release" "$tmp/graphical.conf" \
   royd.width=360 royd.height=640 royd.dpi=160 royd.fps=24
@@ -30,6 +34,14 @@ ROYD_DPI=160
 ROYD_FPS=24
 EOF_EXPECTED
 cmp "$tmp/graphical.expected" "$tmp/graphical.conf"
+
+cat > "$tmp/non-executable-release" <<EOF_RELEASE
+ROYD_HAL_PROFILE=graphical
+UNUSED_METADATA=\$(touch "$tmp/metadata-executed")
+ANDROID_REQUIRED_PARTITIONS=system vendor system_ext product
+EOF_RELEASE
+run_entrypoint "$tmp/non-executable-release" "$tmp/non-executable.conf"
+[ ! -e "$tmp/metadata-executed" ]
 
 cat > "$tmp/headless-release" <<'REL'
 ROYD_HAL_PROFILE=headless

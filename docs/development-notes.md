@@ -1,5 +1,75 @@
 # Development handoff notes
 
+## Task 049 complete
+
+Problem addressed: task 048 made the Android 15 bootstrap shell executable before Runtime APEX activation, but the container then exited inside `/royd-entrypoint`. The entrypoint sourced `/royd-release` as shell code even though the repository generates that file as plain metadata and values such as `ANDROID_REQUIRED_PARTITIONS=system vendor system_ext product` contain unquoted spaces. Task 049 stops executing release metadata and parses only the required `ROYD_HAL_PROFILE` key with shell built-ins.
+
+Important evidence discovered:
+
+- External task-048 validation started the container through `/system/bin/bootstrap/linker64`, `/system/bin/sh`, and `/royd-entrypoint`. The container exited with code 127, was not OOM-killed, and logged `/royd-entrypoint: /royd-release[11]: vendor: inaccessible or not found`.
+- The preceding bootstrap-linker warning about missing `/linkerconfig/ld.config.txt` did not stop execution. The shell continued into `/royd-entrypoint`, so task 048's bootstrap path is externally proven to execute on the Android 15 image.
+- `android/scripts/package.sh` intentionally emits plain `KEY=value` release metadata. `ANDROID_REQUIRED_PARTITIONS` expands to a space-separated list, so sourcing the file causes the shell to treat `vendor` as a command. No conclusion is drawn yet about later Android init, Binder, SELinux, graphics, APEX activation, or framework startup.
+- Directly selecting `/system/bin/sh` still bypasses the task-048 bootstrap linker and is not a valid diagnostic path before Runtime APEX activation.
+
+Files/interfaces changed:
+
+- `runtime/rootfs/royd-entrypoint`: parse `ROYD_HAL_PROFILE` from `/royd-release` as data instead of sourcing the metadata file.
+- `runtime/scripts/entrypoint-contract-test.sh`: use production-like release metadata with space-separated partitions and prove unrelated shell-active metadata is not executed.
+- `docs/development-notes.md`.
+
+Validation actually performed:
+
+- `sh -n runtime/rootfs/royd-entrypoint runtime/scripts/entrypoint-contract-test.sh` passed.
+- `runtime/scripts/entrypoint-contract-test.sh`, `runtime/scripts/image-contract-test.sh`, `android/scripts/package-contract-test.sh`, `android/scripts/version-test.sh`, `scripts/check-runtime.sh`, and `scripts/check-repo.sh` passed.
+- Full `make ci` passed end to end and printed `royd lightweight CI passed`, including the task-049 entrypoint regression, Android package and image contracts, runtime qualification contracts, reference-host bundle test, and `go test ./...`.
+- Repository policy scans passed: no em dashes were found and no prohibited prior-art name references were found outside `docs/acknowledgements.md`.
+- The generated patch passed `git apply --check`, applied cleanly to a fresh copy of the exact task-048 tree, and the patched tree matched the finished tree byte-for-byte and file-mode-for-file-mode. The finished ZIP round-trip matched by the same comparison.
+- Roadmap remains 63 checked and 24 open. No checkbox closes in task 049 because `/init` and Android boot still require real-host validation after repackaging the changed entrypoint.
+
+External validation still required:
+
+- Repackage Android 15 x86_64 using the existing successful AOSP output so the updated `/royd-entrypoint` is embedded in the rootfs archive. AOSP rebuild and Repo sync are not required.
+- Re-import the updated archive and rerun the runtime smoke test.
+- Confirm the previous `/royd-release[11]: vendor: inaccessible or not found` failure is gone. If Android reaches a later failure, preserve the first new container/init evidence rather than changing unrelated subsystems.
+
+Unresolved failures or questions:
+
+- It is not yet externally proven that the corrected entrypoint writes `/royd-runtime.conf`, successfully `exec`s `/init`, or leaves Android init as PID 1.
+- The bootstrap linker still warns that `/linkerconfig/ld.config.txt` is absent before init. The warning was non-fatal for the shell entrypoint, and no workaround is justified without evidence that it blocks a later stage.
+- Successful Android boot, log forwarding, ADB, Binder isolation, SurfaceFlinger, software graphics, memory qualification, and clean architecture build gates remain open.
+
+Recommended next task: validate task 049 on the existing rented host. If `/init` is reached and a new failure appears, task 050 should address only that first evidenced init/runtime blocker. If the smoke test succeeds, task 050 should collect the first successful runtime qualification evidence rather than introduce unrelated implementation.
+
+Exact commands on the existing rented host:
+
+```sh
+cd /root/royd
+git pull
+
+env \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_ANDROID_PROFILE=standard \
+  ROYD_HAL_PROFILE=graphical \
+  ROYD_GRAPHICS_BACKEND=software \
+  ROYD_BUILDER_TTY=never \
+  ./android/scripts/builder.sh android/scripts/package.sh x86_64 standard
+
+env \
+  ROYD_ANDROID_VERSION=15 \
+  ROYD_ANDROID_PROFILE=standard \
+  ROYD_HAL_PROFILE=graphical \
+  ROYD_GRAPHICS_BACKEND=software \
+  ./runtime/scripts/import.sh x86_64 standard
+
+ROYD_ANDROID_VERSION=15 \
+ROYD_ANDROID_PROFILE=standard \
+ROYD_HAL_PROFILE=graphical \
+ROYD_GRAPHICS_BACKEND=software \
+make runtime-smoke-test
+```
+
+Expected evidence to return: complete package, import, and smoke-test output. Packaging should report both runtime artefacts ready, import should report `Image contract passed` and `Runtime image is ready`, and the previous `vendor: inaccessible or not found` error must be absent. Runtime success is `Single-instance runtime smoke test passed`. On failure, return the first new error plus `docker inspect` state and `docker logs` from a preserved reproduction. Do not rebuild AOSP unless a later failure specifically requires it.
+
 ## Task 048 complete
 
 Problem addressed: after task 047 corrected Android 15 rootfs assembly, the imported image still exited before the royd shell entrypoint could run. Docker reported `exec /royd-entrypoint: no such file or directory`, and directly selecting `/system/bin/sh` produced the same error. The real Android 15 image showed that normal `sh` depends on the Runtime APEX linker, which is not available before Android init activates APEXes. Task 048 makes the OCI bootstrap use Android's existing bootstrap linker for system-root images before running the royd shell script.
