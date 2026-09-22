@@ -30,6 +30,7 @@ run ./android/scripts/graphics-backend-test.sh
 run ./android/scripts/hal-contract-test.sh
 run ./android/scripts/matrix-report-test.sh
 run ./android/scripts/build-matrix-test.sh
+run ./android/scripts/package-contract-test.sh
 run ./runtime/scripts/image-contract-test.sh
 run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh

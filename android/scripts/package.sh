@@ -54,7 +54,9 @@ cleanup() {
   for mount_dir in $mounts; do
     mountpoint -q "$mount_dir" 2>/dev/null && sudo umount "$mount_dir" || true
   done
-  rm -rf "$tmp"
+  # Ramdisk extraction preserves root ownership and device nodes. The supported
+  # builder runs in a disposable --rm container, so this local cleanup is best effort.
+  rm -rf "$tmp" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -78,8 +80,10 @@ append_image() {
   required=$3
   image="$product_out/$name.img"
   if [ ! -f "$image" ]; then
-    [ "$required" = yes ] && fail "$name image not found at $image; build Android first"
-    return
+    if [ "$required" = yes ]; then
+      fail "$name image not found at $image; build Android first"
+    fi
+    return 0
   fi
 
   mount_dir="$tmp/mnt-$name"
