@@ -45,7 +45,14 @@ mount_dir=$4
 name=$(basename "$image")
 case "${ROYD_ANDROID_VERSION:-}:$name" in
   15:system.img)
-    mkdir -p "$mount_dir/system/bin" "$mount_dir/dev" "$mount_dir/proc" "$mount_dir/sys"
+    mkdir -p \
+      "$mount_dir/system/bin" \
+      "$mount_dir/dev" \
+      "$mount_dir/proc" \
+      "$mount_dir/sys" \
+      "$mount_dir/vendor" \
+      "$mount_dir/system_ext" \
+      "$mount_dir/product"
     printf '%s\n' modern-system-shell > "$mount_dir/system/bin/sh"
     printf '%s\n' modern-system-init > "$mount_dir/system/bin/init"
     ln -s /system/bin "$mount_dir/bin"
@@ -170,6 +177,17 @@ tar -xf "$archive15" -C "$modern_root"
 }
 [ ! -e "$modern_root/odm" ] || {
   printf '%s\n' 'error: absent optional odm partition was unexpectedly packaged' >&2
+  exit 1
+}
+modern_duplicates=$(
+  tar -tf "$archive15" |
+    sed -e 's#^\./##' -e 's#/$##' |
+    sort |
+    uniq -d
+)
+[ -z "$modern_duplicates" ] || {
+  printf '%s\n' 'error: modern runtime archive contains duplicate paths:' >&2
+  printf '%s\n' "$modern_duplicates" >&2
   exit 1
 }
 
