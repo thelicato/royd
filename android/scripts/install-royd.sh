@@ -111,7 +111,15 @@ profile_policy_sha256=$(sha256sum "$profile_packages_dst" | awk '{print $1}')
   printf 'PRODUCT_VENDOR_PROPERTIES += ro.vendor.royd.profile_policy_sha256=%s\n' "$profile_policy_sha256"
 } > "$profile_policy_dst"
 cp "$hal_profile_src" "$hal_profile_dst"
-cp "$graphics_backend_src" "$graphics_backend_dst"
+# Product inheritance only propagates registered PRODUCT_* variables. Keep the
+# resolved backend selectors in the same inherited product fragment as the
+# conditionals that consume them.
+{
+  printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl"
+  printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator"
+  printf 'ROYD_GRAPHICS_COMPOSER := %s\n' "$graphics_composer"
+  cat "$graphics_backend_src"
+} > "$graphics_backend_dst"
 cp "$compat_src/product.mk" "$device_dst/container_version.mk"
 cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
 if [ -n "$device_manifest" ]; then
