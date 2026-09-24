@@ -92,6 +92,7 @@ done
 grep -Fq 'name: "android.hardware.graphics.composer3-service.royd"' "$composer_bp"
 grep -Fq 'defaults: ["android.hardware.graphics.composer3-ndk_shared"]' "$composer_bp"
 grep -Fq 'android.hardware.graphics.composer3-command-buffer' "$composer_bp"
+grep -Fq '#pragma clang diagnostic ignored "-Wsign-compare"' "$composer_cpp" || fail 'composer must locally suppress the Android 15 ComposerServiceWriter sign-compare warning'
 for method in getMaxLayerPictureProfiles startHdcpNegotiation getLuts; do
   grep -Fq "$method(" "$composer/composer/Composer.h" || fail "composer3 current V4 method missing: $method"
 done

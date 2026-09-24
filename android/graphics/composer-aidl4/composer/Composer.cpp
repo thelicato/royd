@@ -1,6 +1,9 @@
 #include "Composer.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-compare"
 #include <android/hardware/graphics/composer3/ComposerServiceWriter.h>
+#pragma clang diagnostic pop
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <sys/eventfd.h>
