@@ -9,7 +9,6 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 require_command cpio
 require_command file
-require_command find
 require_command gzip
 require_command lz4
 require_command mount
@@ -97,12 +96,15 @@ append_image() {
   if [ -z "$destination" ]; then
     sudo tar --xattrs --numeric-owner -C "$mount_dir" -cf - . > "$output"
   else
-    sudo find "$mount_dir" -mindepth 1 -maxdepth 1 -printf './%P\0' | \
-      sudo tar --xattrs --numeric-owner \
-        -C "$mount_dir" \
-        --null --files-from=- \
-        --transform="s#^\./#./$destination/#" \
-        -rf "$output"
+    partition_tar="$tmp/$name.partition.tar"
+    root_marker=".royd-partition-root-$name"
+    sudo tar --xattrs --numeric-owner \
+      --transform="s|^[.]$|./$root_marker|" \
+      --transform="s|^\./|./$destination/|" \
+      -C "$mount_dir" -cf - . > "$partition_tar"
+    tar --delete -f "$partition_tar" "./$destination/$root_marker"
+    tar -Af "$output" "$partition_tar"
+    rm -f "$partition_tar"
   fi
   sudo umount "$mount_dir"
 }

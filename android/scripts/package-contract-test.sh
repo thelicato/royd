@@ -34,7 +34,16 @@ exec "$REAL_RM" "$@"
 MOCK
 cat > "$mock_bin/sudo" <<'MOCK'
 #!/bin/sh
-exec "$@"
+set -eu
+case "${1:-}" in
+  */cpio|cpio|*/mount|mount|*/tar|tar|*/umount|umount)
+    exec "$@"
+    ;;
+  *)
+    printf 'sudo: command not permitted by builder contract: %s\n' "${1:-}" >&2
+    exit 1
+    ;;
+esac
 MOCK
 cat > "$mock_bin/mount" <<'MOCK'
 #!/bin/sh
