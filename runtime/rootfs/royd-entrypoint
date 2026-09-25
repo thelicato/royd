@@ -75,5 +75,6 @@ if [ "${ROYD_ENTRYPOINT_TEST_ONLY:-0}" = 1 ]; then
   exit 0
 fi
 
+umask 000
 export ROYD_CONTAINER=1
 exec /init second_stage

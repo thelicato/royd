@@ -77,11 +77,19 @@ grep -Fxq 'BOARD_VENDOR_SEPOLICY_DIRS += device/royd/sepolicy/vendor' "$work/dev
   fail 'Android 15 board fragment does not include composer3 vendor policy'
 grep -Fq 'hal_graphics_composer_default_exec:s0' "$work/device/royd/sepolicy/vendor/file_contexts" || \
   fail 'Android 15 composer3 executable label is missing'
+# The upstream AIDL Health module owns and installs its source V4
+# device-manifest fragment. Stable-AIDL release handling emits frozen V3 for
+# bp1a. Keep it out of the central manifest to avoid a duplicate declaration,
+# but require the Android 15 product to install that module.
+grep -Fxq 'PRODUCT_PACKAGES += android.hardware.health-service.example' "$work/vendor/royd/version.mk" || \
+  fail 'Android 15 product does not install the module-owned AIDL Health VINTF fragment'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"
 ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/null
 ! grep -Fq 'DEVICE_MANIFEST_FILE' "$work/device/royd/BoardConfigVersion.mk" || \
   fail 'Android 14 unexpectedly selected the Android 15 device manifest'
+! grep -Fq 'ROYD_HEALTH_SERVICE :=' "$work/vendor/royd/version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 AIDL Health'
 
 printf '%s\n' 'Android VINTF foundation contract test passed'
