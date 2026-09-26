@@ -27,6 +27,13 @@ grep -Fq 'ROYD_PROFILE_POLICY := standard-v1' "$tmp/vendor/royd/profile_policy.m
 grep -Fq 'royd-binder-alloc' "$tmp/vendor/royd/Android.bp"
 grep -Fq 'royd-memfd-probe' "$tmp/vendor/royd/Android.bp"
 grep -Fq 'ro.vendor.royd.memory_compat=native-memfd' "$tmp/vendor/royd/version.mk"
+awk '
+  $0 == "on late-fs" {
+    getline
+    if ($0 == "    trigger nonencrypted") found++
+  }
+  END { exit found == 1 ? 0 : 1 }
+' "$tmp/vendor/royd/init.royd.rc"
 
 "$script_dir/install-royd.sh" "$tmp" minimal
 grep -Fq 'ro.vendor.royd.image_profile=minimal' "$tmp/vendor/royd/profile.mk"

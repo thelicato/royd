@@ -109,6 +109,8 @@ grep -Fq 'exec -- /vendor/bin/royd-binder-setup' android/royd/vendor/royd/init.r
 grep -Fq 'on property:init.svc.logd=running' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'setprop service.adb.tcp.port 5555' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'start adbd' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'on late-fs' android/royd/vendor/royd/init.royd.rc
+grep -Fq 'trigger nonencrypted' android/royd/vendor/royd/init.royd.rc
 grep -Fq 'royd-health' android/royd/vendor/royd/royd.mk
 grep -Fq 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.adb.secure=0' android/compat/legacy/vendor.mk
 grep -Fq 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.adb.secure=0' android/compat/transitional/vendor.mk

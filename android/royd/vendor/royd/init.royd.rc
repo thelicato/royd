@@ -18,6 +18,11 @@ on post-fs-data
     setprop service.adb.tcp.port 5555
     start adbd
 
+# OCI supplies the mounted Android partitions, so there is no device fstab or
+# mount_all result to queue this event as it would on a conventional device.
+on late-fs
+    trigger nonencrypted
+
 service royd-boot-watchdog /vendor/bin/royd-boot-watchdog
     class core
     user root
