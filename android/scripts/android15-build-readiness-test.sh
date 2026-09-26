@@ -20,12 +20,14 @@ allocator_rc="$allocator/allocator/android.hardware.graphics.allocator-service.r
 manifest="$android_dir/royd/device/royd/vintf/manifest-15.xml"
 file_contexts="$android_dir/royd/device/royd/sepolicy/vendor/file_contexts"
 mapper_contexts="$android_dir/royd/device/royd/sepolicy/system_ext/private/service_contexts"
+audio_dir="$android_dir/royd/vendor/royd/audio"
 
 [ -f "$version_env" ] || fail 'Android 15 version metadata is missing'
 grep -Fxq 'AOSP_TAG=android-15.0.0_r36' "$version_env" || fail 'Android 15 AOSP tag drifted'
 grep -Fxq 'ANDROID_RELEASE=bp1a' "$version_env" || fail 'Android 15 release configuration drifted'
 grep -Fxq 'ANDROID_HEALTH_SERVICE=android.hardware.health-service.example' "$version_env" || fail 'Android 15 health service contract drifted'
 grep -Fxq 'ANDROID_POWER_SERVICE=android.hardware.power-service.example' "$version_env" || fail 'Android 15 power service contract drifted'
+grep -Fxq 'ANDROID_AUDIO_SERVICE=com.android.hardware.audio' "$version_env" || fail 'Android 15 audio service contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_COMPOSER=aidl4-client' "$version_env" || fail 'Android 15 does not select the current composer3 source ABI'
 grep -Fxq 'ANDROID_GRAPHICS_ALLOCATOR=aidl2-stablec5-memfd' "$version_env" || fail 'Android 15 allocator contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_MAPPER=stablec5-royd' "$version_env" || fail 'Android 15 mapper contract drifted'
@@ -101,6 +103,13 @@ grep -Fxq 'ROYD_HEALTH_SERVICE := android.hardware.health-service.example' "$wor
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.health-service.example' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits the AIDL health service'
 grep -Fxq 'ROYD_POWER_SERVICE := android.hardware.power-service.example' "$work/vendor/royd/version.mk" || fail 'installed Android 15 power service selector mismatch'
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.power-service.example' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits the AIDL power service'
+grep -Fxq 'ROYD_AUDIO_SERVICE := com.android.hardware.audio' "$work/vendor/royd/version.mk" || fail 'installed Android 15 audio service selector mismatch'
+grep -Fxq '$(call inherit-product, vendor/royd/audio/aosp-aidl.mk)' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits the AIDL audio policy'
+grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'installed Android 15 product omits the AIDL audio APEX'
+grep -Fxq '    ro.boot.audio.tinyalsa.ignore_output=true \' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio output does not select the stub driver'
+grep -Fxq '    ro.boot.audio.tinyalsa.simulate_input=true' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio input does not select the stub driver'
+grep -Fq '<module name="primary" halVersion="3.0">' "$audio_dir/primary_audio_policy_configuration.xml" || fail 'royd primary AIDL audio policy is missing'
+grep -Fq '<xi:include href="primary_audio_policy_configuration.xml"/>' "$audio_dir/audio_policy_configuration.xml" || fail 'royd top-level audio policy omits its primary module'
 grep -Fxq 'ROYD_SOFTWARE_EGL := angle' "$work/vendor/royd/version.mk" || fail 'installed Android 15 EGL selector mismatch'
 grep -Fxq 'ROYD_SOFTWARE_EGL := angle' "$work/vendor/royd/graphics_backend.mk" || fail 'installed graphics backend cannot see Android 15 EGL selector'
 grep -Fxq 'ROYD_GRAPHICS_ALLOCATOR := aidl2-stablec5-memfd' "$work/vendor/royd/graphics_backend.mk" || fail 'installed graphics backend cannot see Android 15 allocator selector'

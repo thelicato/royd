@@ -88,6 +88,13 @@ grep -Fxq 'PRODUCT_PACKAGES += android.hardware.health-service.example' "$work/v
 # bp1a, so keep this declaration out of royd's central device manifest.
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.power-service.example' "$work/vendor/royd/version.mk" || \
   fail 'Android 15 product does not install the module-owned AIDL Power VINTF fragment'
+# The Audio APEX owns its init rules and source AIDL V3 device-manifest
+# fragment. Stable-AIDL release handling emits frozen V2 for bp1a, so keep
+# those declarations out of royd's central device manifest.
+grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || \
+  fail 'Android 15 product does not install the module-owned AIDL Audio VINTF fragment'
+! grep -Fq '<name>android.hardware.audio.' "$manifest" || \
+  fail 'Android 15 central device manifest duplicates the Audio APEX declarations'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"
@@ -98,5 +105,7 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
   fail 'Android 14 unexpectedly selected Android 15 AIDL Health'
 ! grep -Fq 'ROYD_POWER_SERVICE :=' "$work/vendor/royd/version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 AIDL Power'
+! grep -Fq 'ROYD_AUDIO_SERVICE :=' "$work/vendor/royd/version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 AIDL Audio'
 
 printf '%s\n' 'Android VINTF foundation contract test passed'
