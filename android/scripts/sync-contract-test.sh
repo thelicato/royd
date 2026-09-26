@@ -17,8 +17,94 @@ case "$1" in
     mkdir -p .repo
     ;;
   sync)
-    mkdir -p build system/core/init frameworks/native/cmds/servicemanager \
+    mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder
+    if [ ! -f system/vold/Utils.cpp ]; then
+      cat > system/vold/Utils.cpp <<'SRC'
+#include <logwrap/logwrap.h>
+#include <private/android_filesystem_config.h>
+#include <private/android_projectid_config.h>
+
+#include <dirent.h>
+#include <fcntl.h>
+
+status_t PrepareDir(const std::string& path, mode_t mode, uid_t uid, gid_t gid,
+                    unsigned int attrs) {
+    std::lock_guard<std::mutex> lock(kSecurityLock);
+    const char* cpath = path.c_str();
+    auto clearfscreatecon = android::base::make_scope_guard([] { setfscreatecon(nullptr); });
+    auto secontext = std::unique_ptr<char, void (*)(char*)>(nullptr, freecon);
+    char* tmp_secontext;
+
+    if (selabel_lookup(sehandle, &tmp_secontext, cpath, S_IFDIR) == 0) {
+        secontext.reset(tmp_secontext);
+        if (setfscreatecon(secontext.get()) != 0) {
+            LOG(ERROR) << "Failed to setfscreatecon for directory " << path;
+            return -EINVAL;
+        }
+    } else if (errno == ENOENT) {
+        LOG(DEBUG) << "No selabel defined for directory " << path;
+    }
+}
+SRC
+    fi
+    if [ ! -f system/vold/vold_prepare_subdirs.cpp ]; then
+      cat > system/vold/vold_prepare_subdirs.cpp <<'SRC'
+
+#include <cutils/fs.h>
+#include <selinux/android.h>
+
+#include "Utils.h"
+#include "android/os/IVold.h"
+
+#include <private/android_filesystem_config.h>
+
+static void usage(const char* progname) {
+    std::cerr << "Usage: " << progname << " [ prepare | destroy ] <volume_uuid> <user_id> <flags>"
+              << std::endl;
+}
+
+static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, uid_t uid, gid_t gid,
+                                 const std::string& path, uid_t user_id) {
+    auto clearfscreatecon = android::base::make_scope_guard([] { setfscreatecon(nullptr); });
+    auto secontext = std::unique_ptr<char, void (*)(char*)>(nullptr, freecon);
+    char* tmp_secontext;
+
+    if (selabel_lookup(sehandle, &tmp_secontext, path.c_str(), S_IFDIR) == 0) {
+        secontext.reset(tmp_secontext);
+        if (user_id != (uid_t)-1) {
+            if (selinux_android_context_with_level(secontext.get(), &tmp_secontext, user_id,
+                                                   (uid_t)-1) != 0) {
+                PLOG(ERROR) << "Unable to create context with level for: " << path;
+                return false;
+            }
+            secontext.reset(tmp_secontext);
+        }
+        if (setfscreatecon(secontext.get()) != 0) {
+            LOG(ERROR) << "Failed to setfscreatecon for directory " << path;
+            return false;
+        }
+    } else if (errno == ENOENT) {
+        LOG(DEBUG) << "No selabel defined for directory " << path;
+    }
+
+    LOG(DEBUG) << "Setting up mode " << std::oct << mode << std::dec << " uid " << uid << " gid "
+               << gid << " context " << (secontext ? secontext.get() : "null")
+               << " on path: " << path;
+    if (fs_prepare_dir(path.c_str(), mode, uid, gid) != 0) {
+        return false;
+    }
+    if (secontext) {
+        char* tmp_oldsecontext = nullptr;
+        if (lgetfilecon(path.c_str(), &tmp_oldsecontext) < 0) {
+            PLOG(ERROR) << "Unable to read secontext for: " << path;
+            return false;
+        }
+    }
+    return true;
+}
+SRC
+    fi
     if [ ! -f system/core/init/service.cpp ]; then
       cat > system/core/init/service.cpp <<'SRC'
 #include <inttypes.h>
@@ -455,6 +541,11 @@ grep -Fq '.flags = static_cast<__u32>(requestSecurityContext ? FLAT_BINDER_FLAG_
 grep -Fq 'const bool requestSecurityContext = access->usesSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 grep -Fq 'manager->setRequestingSid(requestSecurityContext);' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 grep -Fq 'ps->becomeContextManager(requestSecurityContext)' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
+grep -Fq 'saved_errno == EINVAL' "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'is_selinux_enabled() <= 0' "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'static bool is_royd_selinux_disabled()' "$tmp/src/system/vold/vold_prepare_subdirs.cpp"
+grep -Fq 'if (secontext && !is_royd_selinux_disabled()) {' \
+  "$tmp/src/system/vold/vold_prepare_subdirs.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
