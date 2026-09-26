@@ -83,6 +83,11 @@ grep -Fq 'hal_graphics_composer_default_exec:s0' "$work/device/royd/sepolicy/ven
 # but require the Android 15 product to install that module.
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.health-service.example' "$work/vendor/royd/version.mk" || \
   fail 'Android 15 product does not install the module-owned AIDL Health VINTF fragment'
+# The upstream AIDL Power module likewise owns its init rules and source V6
+# device-manifest fragment. Stable-AIDL release handling emits frozen V5 for
+# bp1a, so keep this declaration out of royd's central device manifest.
+grep -Fxq 'PRODUCT_PACKAGES += android.hardware.power-service.example' "$work/vendor/royd/version.mk" || \
+  fail 'Android 15 product does not install the module-owned AIDL Power VINTF fragment'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"
@@ -91,5 +96,7 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
   fail 'Android 14 unexpectedly selected the Android 15 device manifest'
 ! grep -Fq 'ROYD_HEALTH_SERVICE :=' "$work/vendor/royd/version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 AIDL Health'
+! grep -Fq 'ROYD_POWER_SERVICE :=' "$work/vendor/royd/version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 AIDL Power'
 
 printf '%s\n' 'Android VINTF foundation contract test passed'

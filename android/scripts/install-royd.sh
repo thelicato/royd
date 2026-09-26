@@ -32,6 +32,7 @@ graphics_composer=$ANDROID_GRAPHICS_COMPOSER
 graphics_allocator=$ANDROID_GRAPHICS_ALLOCATOR
 graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
 health_service=${ANDROID_HEALTH_SERVICE:-}
+power_service=${ANDROID_POWER_SERVICE:-}
 software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
 modern_graphics_dst="$vendor_dst/graphics_allocator"
@@ -78,6 +79,10 @@ esac
 case "$health_service" in
   ''|android.hardware.health-service.example) ;;
   *) fail "unsupported Android health service: $health_service" ;;
+esac
+case "$power_service" in
+  ''|android.hardware.power-service.example) ;;
+  *) fail "unsupported Android power service: $power_service" ;;
 esac
 [ -d "$compat_src" ] || fail "Android compatibility family not found at $compat_src"
 [ -z "$device_manifest_src" ] || [ -f "$device_manifest_src" ] || fail "Android device manifest not found at $device_manifest_src"
@@ -141,6 +146,10 @@ printf 'ROYD_ANDROID_VERSION := %s\n' "$ANDROID_VERSION" >> "$vendor_dst/version
 if [ -n "$health_service" ]; then
   printf 'ROYD_HEALTH_SERVICE := %s\n' "$health_service" >> "$vendor_dst/version.mk"
   printf 'PRODUCT_PACKAGES += %s\n' "$health_service" >> "$vendor_dst/version.mk"
+fi
+if [ -n "$power_service" ]; then
+  printf 'ROYD_POWER_SERVICE := %s\n' "$power_service" >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_PACKAGES += %s\n' "$power_service" >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"
