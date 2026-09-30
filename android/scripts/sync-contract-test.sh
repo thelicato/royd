@@ -19,7 +19,8 @@ case "$1" in
   sync)
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
-      system/hardware/interfaces/suspend/1.0/default
+      system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
+      system/security/keystore2/src
     if [ ! -f system/hardware/interfaces/suspend/1.0/default/Android.bp ]; then
       cat > system/hardware/interfaces/suspend/1.0/default/Android.bp <<'SRC'
 cc_defaults {
@@ -71,6 +72,199 @@ int main() {
         // This will block all reads/writes to these fds from the suspend thread.
         Socketpair(SOCK_STREAM, &wakeupCountFd, &stateFd);
     }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/selinux/src/lib.rs ]; then
+      cat > system/security/keystore2/selinux/src/lib.rs <<'SRC'
+fn init_logger_once() {
+    SELINUX_LOG_INIT.call_once(redirect_selinux_logs_to_logcat)
+}
+
+/// Selinux Error code.
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
+pub enum Error {
+    /// Indicates that an access check yielded no access.
+    #[error("Permission Denied")]
+    PermissionDenied,
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/apc.rs ]; then
+      cat > system/security/keystore2/src/apc.rs <<'SRC'
+impl ApcManager {
+    pub fn new_native_binder(
+        confirmation_token_sender: Sender<Vec<u8>>,
+    ) -> Result<Strong<dyn IProtectedConfirmation>> {
+        Ok(BnProtectedConfirmation::new_binder(
+            Self { state: Arc::new(Mutex::new(ApcState::new(confirmation_token_sender))) },
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/authorization.rs ]; then
+      cat > system/security/keystore2/src/authorization.rs <<'SRC'
+impl AuthorizationManager {
+    pub fn new_native_binder() -> Result<Strong<dyn IKeystoreAuthorization>> {
+        Ok(BnKeystoreAuthorization::new_binder(
+            Self,
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/km_compat.rs ]; then
+      cat > system/security/keystore2/src/km_compat.rs <<'SRC'
+    fn wrap() {
+
+        Ok(BnKeyMintDevice::new_binder(
+            Self { real, soft, emu },
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/maintenance.rs ]; then
+      cat > system/security/keystore2/src/maintenance.rs <<'SRC'
+impl Maintenance {
+    pub fn new_native_binder(
+        delete_listener: Box<dyn DeleteListener + Send + Sync + 'static>,
+    ) -> Result<Strong<dyn IKeystoreMaintenance>> {
+        Ok(BnKeystoreMaintenance::new_binder(
+            Self { delete_listener },
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/metrics.rs ]; then
+      cat > system/security/keystore2/src/metrics.rs <<'SRC'
+impl Metrics {
+    pub fn new_native_binder() -> Result<Strong<dyn IKeystoreMetrics>> {
+        Ok(BnKeystoreMetrics::new_binder(
+            Self,
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/operation.rs ]; then
+      cat > system/security/keystore2/src/operation.rs <<'SRC'
+impl KeystoreOperation {
+    pub fn new_native_binder(operation: Arc<Operation>) -> binder::Strong<dyn IKeystoreOperation> {
+        BnKeystoreOperation::new_binder(
+            Self { operation: Mutex::new(Some(operation)) },
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        )
+    }
+}
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/security_level.rs ]; then
+      cat > system/security/keystore2/src/security_level.rs <<'SRC'
+        let result = BnKeystoreSecurityLevel::new_binder(
+            Self {
+                security_level,
+                keymint: dev,
+                hw_info,
+                km_uuid,
+                operation_db: OperationDb::new(),
+                rem_prov_state: RemProvState::new(security_level),
+                id_rotation_state,
+            },
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        );
+        Ok((result, km_uuid))
+    }
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/service.rs ]; then
+      cat > system/security/keystore2/src/service.rs <<'SRC'
+impl KeystoreService {
+
+        Ok(BnKeystoreService::new_binder(
+            result,
+            BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+        ))
+    }
+
+SRC
+    fi
+    if [ ! -f system/security/keystore2/src/utils.rs ]; then
+      cat > system/security/keystore2/src/utils.rs <<'SRC'
+use android_system_keystore2::aidl::android::system::keystore2::{
+    Authorization::Authorization, Domain::Domain, KeyDescriptor::KeyDescriptor,
+    ResponseCode::ResponseCode,
+};
+use anyhow::{Context, Result};
+use binder::{FromIBinder, StatusCode, Strong, ThreadState};
+use keystore2_apc_compat::{
+    ApcCompatUiOptions, APC_COMPAT_ERROR_ABORTED, APC_COMPAT_ERROR_CANCELLED,
+    APC_COMPAT_ERROR_IGNORED, APC_COMPAT_ERROR_OK, APC_COMPAT_ERROR_OPERATION_PENDING,
+};
+
+#[cfg(test)]
+mod tests;
+
+/// Per RFC 5280 4.1.2.5, an undefined expiration (not-after) field should be set to GeneralizedTime
+/// 999912312359559, which is 253402300799000 ms from Jan 1, 1970.
+pub const UNDEFINED_NOT_AFTER: i64 = 253402300799000i64;
+
+/// This function uses its namesake in the permission module and in
+/// combination with with_calling_sid from the binder crate to check
+/// if the caller has the given keystore permission.
+pub fn check_keystore_permission(perm: KeystorePerm) -> anyhow::Result<()> {
+    ThreadState::with_calling_sid(|calling_sid| {
+        permission::check_keystore_permission(
+            calling_sid
+                .ok_or_else(Error::sys)
+                .context(ks_err!("Cannot check permission without calling_sid."))?,
+            perm,
+        )
+    })
+}
+
+/// This function uses its namesake in the permission module and in
+/// combination with with_calling_sid from the binder crate to check
+/// if the caller has the given grant permission.
+pub fn check_grant_permission(access_vec: KeyPermSet, key: &KeyDescriptor) -> anyhow::Result<()> {
+    ThreadState::with_calling_sid(|calling_sid| {
+        permission::check_grant_permission(
+            ThreadState::get_calling_uid(),
+            calling_sid
+                .ok_or_else(Error::sys)
+                .context(ks_err!("Cannot check permission without calling_sid."))?,
+            access_vec,
+            key,
+        )
+    })
+}
+
+/// This function uses its namesake in the permission module and in
+/// combination with with_calling_sid from the binder crate to check
+/// if the caller has the given key permission.
+pub fn check_key_permission(
+    perm: KeyPerm,
+    key: &KeyDescriptor,
+    access_vector: &Option<KeyPermSet>,
+) -> anyhow::Result<()> {
+    ThreadState::with_calling_sid(|calling_sid| {
+        permission::check_key_permission(
+            ThreadState::get_calling_uid(),
+            calling_sid
+                .ok_or_else(Error::sys)
+                .context(ks_err!("Cannot check permission without calling_sid."))?,
+            perm,
+            key,
+            access_vector,
+        )
+    })
 }
 SRC
     fi
@@ -607,6 +801,18 @@ grep -Fq 'const bool disableHostSuspend = isRoydContainerWithoutSelinux();' \
   "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
 grep -Fq 'if (disableHostSuspend || wakeupCountFd < 0 || stateFd < 0) {' \
   "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
+grep -Fq 'pub fn is_selinux_enabled() -> i32 {' \
+  "$tmp/src/system/security/keystore2/selinux/src/lib.rs"
+[ "$(grep -R -c 'crate::utils::binder_features(BinderFeatures {' \
+  "$tmp/src/system/security/keystore2/src"/*.rs | awk -F: '{sum += $2} END {print sum + 0}')" -eq 8 ]
+grep -Fq 'fn royd_missing_sid_fallback_enabled() -> bool {' \
+  "$tmp/src/system/security/keystore2/src/utils.rs"
+grep -Fq 'matches!(perm, KeystorePerm::Unlock | KeystorePerm::ChangeUser)' \
+  "$tmp/src/system/security/keystore2/src/utils.rs"
+grep -Fq 'key.nspace == LOCK_SETTINGS_NAMESPACE' \
+  "$tmp/src/system/security/keystore2/src/utils.rs"
+grep -Fq 'missing-SID grant permission fallback' \
+  "$tmp/src/system/security/keystore2/src/utils.rs"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

@@ -27,6 +27,7 @@ run ./android/scripts/android15-servicemanager-container-test.sh
 run ./android/scripts/android15-binder-security-context-test.sh
 run ./android/scripts/android15-vold-container-test.sh
 run ./android/scripts/android15-system-suspend-container-test.sh
+run ./android/scripts/android15-keystore2-container-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh
