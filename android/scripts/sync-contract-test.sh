@@ -18,7 +18,62 @@ case "$1" in
     ;;
   sync)
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
-      frameworks/native/libs/binder/include/binder frameworks/native/libs/binder
+      frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
+      system/hardware/interfaces/suspend/1.0/default
+    if [ ! -f system/hardware/interfaces/suspend/1.0/default/Android.bp ]; then
+      cat > system/hardware/interfaces/suspend/1.0/default/Android.bp <<'SRC'
+cc_defaults {
+    name: "system_suspend_defaults",
+    shared_libs: [
+        "libcutils",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+        "server_configurable_flags",
+    ],
+}
+SRC
+    fi
+    if [ ! -f system/hardware/interfaces/suspend/1.0/default/main.cpp ]; then
+      cat > system/hardware/interfaces/suspend/1.0/default/main.cpp <<'SRC'
+#include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
+#include <cutils/native_handle.h>
+#include <fcntl.h>
+#include <hidl/HidlTransportSupport.h>
+#include <hwbinder/ProcessState.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+static constexpr uint32_t kDefaultShortSuspendThresholdMillis = 0;
+static constexpr bool kDefaultFailedSuspendBackoffEnabled = true;
+static constexpr bool kDefaultShortSuspendBackoffEnabled = false;
+
+int main() {
+    unique_fd wakeupCountFd{TEMP_FAILURE_RETRY(open(kSysPowerWakeupCount, O_CLOEXEC | O_RDWR))};
+    if (wakeupCountFd < 0) {
+        PLOG(ERROR) << "error opening " << kSysPowerWakeupCount;
+    }
+    unique_fd stateFd{TEMP_FAILURE_RETRY(open(kSysPowerState, O_CLOEXEC | O_RDWR))};
+    if (stateFd < 0) {
+        PLOG(ERROR) << "error opening " << kSysPowerState;
+    }
+    unique_fd kernelWakelockStatsFd{
+        TEMP_FAILURE_RETRY(open(kSysClassWakeup, O_DIRECTORY | O_CLOEXEC | O_RDONLY))};
+
+    // If either /sys/power/wakeup_count or /sys/power/state fail to open, we construct
+    // SystemSuspend with blocking fds. This way this process will keep running, handle wake lock
+    // requests, collect stats, but won't suspend the device. We want this behavior on devices
+    // (hosts) where system suspend should not be handles by Android platform e.g. ARC++, Android
+    // virtual devices.
+    if (wakeupCountFd < 0 || stateFd < 0) {
+        // This will block all reads/writes to these fds from the suspend thread.
+        Socketpair(SOCK_STREAM, &wakeupCountFd, &stateFd);
+    }
+}
+SRC
+    fi
     if [ ! -f system/vold/Utils.cpp ]; then
       cat > system/vold/Utils.cpp <<'SRC'
 #include <logwrap/logwrap.h>
@@ -546,6 +601,12 @@ grep -Fq 'is_selinux_enabled() <= 0' "$tmp/src/system/vold/Utils.cpp"
 grep -Fq 'static bool is_royd_selinux_disabled()' "$tmp/src/system/vold/vold_prepare_subdirs.cpp"
 grep -Fq 'if (secontext && !is_royd_selinux_disabled()) {' \
   "$tmp/src/system/vold/vold_prepare_subdirs.cpp"
+grep -Fq '"libselinux",' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/Android.bp"
+grep -Fq 'const bool disableHostSuspend = isRoydContainerWithoutSelinux();' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
+grep -Fq 'if (disableHostSuspend || wakeupCountFd < 0 || stateFd < 0) {' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

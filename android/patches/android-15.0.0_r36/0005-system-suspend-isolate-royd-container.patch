@@ -1,0 +1,75 @@
+diff --git a/system/hardware/interfaces/suspend/1.0/default/Android.bp b/system/hardware/interfaces/suspend/1.0/default/Android.bp
+index 6652b6d..c9af464 100644
+--- a/system/hardware/interfaces/suspend/1.0/default/Android.bp
++++ b/system/hardware/interfaces/suspend/1.0/default/Android.bp
+@@ -29,6 +29,7 @@ cc_defaults {
+         "libcutils",
+         "libhidlbase",
+         "liblog",
++        "libselinux",
+         "libutils",
+         "server_configurable_flags",
+     ],
+diff --git a/system/hardware/interfaces/suspend/1.0/default/main.cpp b/system/hardware/interfaces/suspend/1.0/default/main.cpp
+index e8d7947..0cd5af7 100644
+--- a/system/hardware/interfaces/suspend/1.0/default/main.cpp
++++ b/system/hardware/interfaces/suspend/1.0/default/main.cpp
+@@ -22,9 +22,12 @@
+ #include <binder/IServiceManager.h>
+ #include <binder/ProcessState.h>
+ #include <cutils/native_handle.h>
++#include <cstdlib>
++#include <cstring>
+ #include <fcntl.h>
+ #include <hidl/HidlTransportSupport.h>
+ #include <hwbinder/ProcessState.h>
++#include <selinux/selinux.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+@@ -69,14 +72,29 @@ static constexpr uint32_t kDefaultShortSuspendThresholdMillis = 0;
+ static constexpr bool kDefaultFailedSuspendBackoffEnabled = true;
+ static constexpr bool kDefaultShortSuspendBackoffEnabled = false;
+ 
++static bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = std::getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && std::strcmp(roydContainer, "1") == 0 &&
++            is_selinux_enabled() <= 0;
++}
++
+ int main() {
+-    unique_fd wakeupCountFd{TEMP_FAILURE_RETRY(open(kSysPowerWakeupCount, O_CLOEXEC | O_RDWR))};
+-    if (wakeupCountFd < 0) {
+-        PLOG(ERROR) << "error opening " << kSysPowerWakeupCount;
+-    }
+-    unique_fd stateFd{TEMP_FAILURE_RETRY(open(kSysPowerState, O_CLOEXEC | O_RDWR))};
+-    if (stateFd < 0) {
+-        PLOG(ERROR) << "error opening " << kSysPowerState;
++    unique_fd wakeupCountFd;
++    unique_fd stateFd;
++    const bool disableHostSuspend = isRoydContainerWithoutSelinux();
++    if (disableHostSuspend) {
++        LOG(WARNING) << "ROYD: isolating Android SystemSuspend from host power state because "
++                        "ROYD_CONTAINER=1 and kernel SELinux is disabled";
++    } else {
++        wakeupCountFd.reset(
++                TEMP_FAILURE_RETRY(open(kSysPowerWakeupCount, O_CLOEXEC | O_RDWR)));
++        if (wakeupCountFd < 0) {
++            PLOG(ERROR) << "error opening " << kSysPowerWakeupCount;
++        }
++        stateFd.reset(TEMP_FAILURE_RETRY(open(kSysPowerState, O_CLOEXEC | O_RDWR)));
++        if (stateFd < 0) {
++            PLOG(ERROR) << "error opening " << kSysPowerState;
++        }
+     }
+     unique_fd kernelWakelockStatsFd{
+         TEMP_FAILURE_RETRY(open(kSysClassWakeup, O_DIRECTORY | O_CLOEXEC | O_RDONLY))};
+@@ -103,7 +121,7 @@ int main() {
+     // requests, collect stats, but won't suspend the device. We want this behavior on devices
+     // (hosts) where system suspend should not be handles by Android platform e.g. ARC++, Android
+     // virtual devices.
+-    if (wakeupCountFd < 0 || stateFd < 0) {
++    if (disableHostSuspend || wakeupCountFd < 0 || stateFd < 0) {
+         // This will block all reads/writes to these fds from the suspend thread.
+         Socketpair(SOCK_STREAM, &wakeupCountFd, &stateFd);
+     }
