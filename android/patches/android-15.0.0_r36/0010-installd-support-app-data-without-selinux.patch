@@ -1,0 +1,38 @@
+diff --git a/frameworks/native/cmds/installd/InstalldNativeService.cpp b/frameworks/native/cmds/installd/InstalldNativeService.cpp
+--- a/frameworks/native/cmds/installd/InstalldNativeService.cpp
++++ b/frameworks/native/cmds/installd/InstalldNativeService.cpp
+@@ -62,6 +62,7 @@
+ #include <private/android_filesystem_config.h>
+ #include <private/android_projectid_config.h>
+ #include <selinux/android.h>
++#include <selinux/selinux.h>
+ #include <system/thread_defs.h>
+ #include <utils/Trace.h>
+ 
+@@ -473,6 +474,12 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16>& /* args */)
+ 
+ constexpr const char kXattrRestoreconInProgress[] = "user.restorecon_in_progress";
+ 
++static bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && strcmp(roydContainer, "1") == 0 &&
++            is_selinux_enabled() <= 0;
++}
++
+ static std::string lgetfilecon(const std::string& path) {
+     char* context;
+     if (::lgetfilecon(path.c_str(), &context) < 0) {
+@@ -536,6 +543,13 @@ static int restorecon_app_data_lazy(const std::string& path, const std::string&
+ 
+     // Check to see if there was an interrupted operation.
+     bool inProgress = getRestoreconInProgress(path);
++    if (!inProgress && isRoydContainerWithoutSelinux()) {
++        LOG(WARNING) << "ROYD: skipping Installd app-data SELinux context comparison for "
++                     << path
++                     << " because ROYD_CONTAINER=1 and kernel SELinux is disabled";
++        return 0;
++    }
++
+     std::string before, after;
+     if (!inProgress) {
+         if (before = lgetfilecon(path); before.empty()) {

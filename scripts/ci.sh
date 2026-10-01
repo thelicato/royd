@@ -31,6 +31,7 @@ run ./android/scripts/android15-keystore2-container-test.sh
 run ./android/scripts/android15-zygote-app-data-container-test.sh
 run ./android/scripts/android15-zygote-system-server-container-test.sh
 run ./android/scripts/android15-debug-kernel-config-container-test.sh
+run ./android/scripts/android15-installd-app-data-container-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh

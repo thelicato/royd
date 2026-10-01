@@ -3,6 +3,7 @@
 .PHONY: android15-zygote-app-data-container-test
 .PHONY: android15-zygote-system-server-container-test
 .PHONY: android15-debug-kernel-config-container-test
+.PHONY: android15-installd-app-data-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -250,6 +251,9 @@ android15-zygote-system-server-container-test:
 
 android15-debug-kernel-config-container-test:
 	./android/scripts/android15-debug-kernel-config-container-test.sh
+
+android15-installd-app-data-container-test:
+	./android/scripts/android15-installd-app-data-container-test.sh
 
 android-display-contract-test:
 	./android/scripts/display-contract-test.sh

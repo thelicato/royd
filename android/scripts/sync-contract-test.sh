@@ -20,7 +20,7 @@ case "$1" in
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
-      system/security/keystore2/src frameworks/base/core/jni
+      system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd
     if [ ! -f frameworks/base/core/jni/android_os_Debug.cpp ]; then
       cat > frameworks/base/core/jni/android_os_Debug.cpp <<'SRC'
 #include <memunreachable/memunreachable.h>
@@ -46,6 +46,67 @@ static jboolean android_os_Debug_isVmapStack(JNIEnv *env, jobject clazz)
         cfg_state = (it != configs.end() && it->second == "y") ? CONFIG_SET : CONFIG_UNSET;
     }
     return cfg_state == CONFIG_SET;
+}
+SRC
+    fi
+    if [ ! -f frameworks/native/cmds/installd/InstalldNativeService.cpp ]; then
+      cat > frameworks/native/cmds/installd/InstalldNativeService.cpp <<'SRC'
+#include <private/android_filesystem_config.h>
+#include <private/android_projectid_config.h>
+#include <selinux/android.h>
+#include <system/thread_defs.h>
+#include <utils/Trace.h>
+
+constexpr const char kXattrRestoreconInProgress[] = "user.restorecon_in_progress";
+
+static std::string lgetfilecon(const std::string& path) {
+    char* context;
+    if (::lgetfilecon(path.c_str(), &context) < 0) {
+        PLOG(ERROR) << "Failed to lgetfilecon for " << path;
+        return {};
+    }
+    std::string result{context};
+    free(context);
+    return result;
+}
+
+static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid,
+        bool existing) {
+    ScopedTrace tracer("restorecon-lazy");
+    if (!existing) {
+        ScopedTrace tracer("new-path");
+        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
+                SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
+            PLOG(ERROR) << "Failed recursive restorecon for " << path;
+            return -1;
+        }
+        return 0;
+    }
+
+    // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by libselinux. Not needed here.
+
+    // Check to see if there was an interrupted operation.
+    bool inProgress = getRestoreconInProgress(path);
+    std::string before, after;
+    if (!inProgress) {
+        if (before = lgetfilecon(path); before.empty()) {
+            PLOG(ERROR) << "Failed before getfilecon for " << path;
+            return -1;
+        }
+        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid, 0) < 0) {
+            PLOG(ERROR) << "Failed top-level restorecon for " << path;
+            return -1;
+        }
+        if (after = lgetfilecon(path); after.empty()) {
+            PLOG(ERROR) << "Failed after getfilecon for " << path;
+            return -1;
+        }
+    }
+
+    if (inProgress || before != after) {
+        return runRecursiveRestorecon(path, seInfo, uid);
+    }
+    return 0;
 }
 SRC
     fi
@@ -971,6 +1032,18 @@ grep -Fq 'ROYD: /proc/config.gz unavailable with kernel SELinux disabled;' \
   "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
 grep -Fq 'CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";' \
   "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
+grep -Fq '#include <selinux/selinux.h>' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fq 'if (!inProgress && isRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fq 'ROYD: skipping Installd app-data SELinux context comparison for' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fq 'if (!existing) {' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fq 'if (before = lgetfilecon(path); before.empty()) {' \
+  "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
