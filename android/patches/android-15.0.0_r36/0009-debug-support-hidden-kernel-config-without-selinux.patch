@@ -1,0 +1,33 @@
+diff --git a/frameworks/base/core/jni/android_os_Debug.cpp b/frameworks/base/core/jni/android_os_Debug.cpp
+--- a/frameworks/base/core/jni/android_os_Debug.cpp
++++ b/frameworks/base/core/jni/android_os_Debug.cpp
+@@ -41,6 +41,7 @@
+ #include <memunreachable/memunreachable.h>
+ #include <nativehelper/JNIPlatformHelp.h>
+ #include <nativehelper/ScopedUtfChars.h>
++#include <selinux/selinux.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -782,9 +783,18 @@ static jboolean android_os_Debug_isVmapStack(JNIEnv *env, jobject clazz)
+     if (cfg_state == CONFIG_UNKNOWN) {
+         std::map<std::string, std::string> configs;
+         const status_t result = android::kernelconfigs::LoadKernelConfigs(&configs);
+-        CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";
+-        std::map<std::string, std::string>::const_iterator it = configs.find("CONFIG_VMAP_STACK");
+-        cfg_state = (it != configs.end() && it->second == "y") ? CONFIG_SET : CONFIG_UNSET;
++        const char* royd_container = getenv("ROYD_CONTAINER");
++        if (result != OK && royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++                is_selinux_enabled() <= 0) {
++            ALOGW("ROYD: /proc/config.gz unavailable with kernel SELinux disabled; "
++                  "conservatively treating CONFIG_VMAP_STACK as unset");
++            cfg_state = CONFIG_UNSET;
++        } else {
++            CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";
++            std::map<std::string, std::string>::const_iterator it =
++                    configs.find("CONFIG_VMAP_STACK");
++            cfg_state = (it != configs.end() && it->second == "y") ? CONFIG_SET : CONFIG_UNSET;
++        }
+     }
+     return cfg_state == CONFIG_SET;
+ }

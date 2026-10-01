@@ -21,6 +21,34 @@ case "$1" in
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni
+    if [ ! -f frameworks/base/core/jni/android_os_Debug.cpp ]; then
+      cat > frameworks/base/core/jni/android_os_Debug.cpp <<'SRC'
+#include <memunreachable/memunreachable.h>
+#include <nativehelper/JNIPlatformHelp.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static jboolean android_os_Debug_isVmapStack(JNIEnv *env, jobject clazz)
+{
+    static enum {
+        CONFIG_UNKNOWN,
+        CONFIG_SET,
+        CONFIG_UNSET,
+    } cfg_state = CONFIG_UNKNOWN;
+
+    if (cfg_state == CONFIG_UNKNOWN) {
+        std::map<std::string, std::string> configs;
+        const status_t result = android::kernelconfigs::LoadKernelConfigs(&configs);
+        CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";
+        std::map<std::string, std::string>::const_iterator it = configs.find("CONFIG_VMAP_STACK");
+        cfg_state = (it != configs.end() && it->second == "y") ? CONFIG_SET : CONFIG_UNSET;
+    }
+    return cfg_state == CONFIG_SET;
+}
+SRC
+    fi
     if [ ! -f frameworks/base/core/jni/com_android_internal_os_Zygote.cpp ]; then
       cat > frameworks/base/core/jni/com_android_internal_os_Zygote.cpp <<'SRC'
 #include <processgroup/sched_policy.h>
@@ -935,6 +963,14 @@ grep -Fq 'ROYD: skipping system_server setcon because ROYD_CONTAINER=1 and kerne
   "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
 grep -Fq '} else if (selinux_android_setcon(kSystemServerLabel) != 0) {' \
   "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq '#include <selinux/selinux.h>' \
+  "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
+grep -Fq 'if (result != OK && royd_container != nullptr && strcmp(royd_container, "1") == 0 &&' \
+  "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
+grep -Fq 'ROYD: /proc/config.gz unavailable with kernel SELinux disabled;' \
+  "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
+grep -Fq 'CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";' \
+  "$tmp/src/frameworks/base/core/jni/android_os_Debug.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
