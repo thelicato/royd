@@ -20,7 +20,96 @@ case "$1" in
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
-      system/security/keystore2/src
+      system/security/keystore2/src frameworks/base/core/jni
+    if [ ! -f frameworks/base/core/jni/com_android_internal_os_Zygote.cpp ]; then
+      cat > frameworks/base/core/jni/com_android_internal_os_Zygote.cpp <<'SRC'
+#include <processgroup/sched_policy.h>
+#include <seccomp_policy.h>
+#include <selinux/android.h>
+#include <stats_socket.h>
+#include <utils/String8.h>
+#include <utils/Trace.h>
+
+static bool gIsSecurityEnforced = true;
+
+/**
+ * True if the app process is running in its mount namespace.
+ */
+static bool gInAppMountNamespace = false;
+
+/**
+ * The maximum number of characters (not including a null terminator) that a
+ * process name may contain.
+ */
+
+static void isolateAppData() {
+  snprintf(internalDePath, PATH_MAX, "/data/user_de");
+  snprintf(externalPrivateMountPath, PATH_MAX, "/mnt/expand");
+
+  // Get the "u:object_r:system_userdir_file:s0" security context.  This can be
+  // gotten from several different places; we use /data/user.
+  char* dataUserdirContext = nullptr;
+  if (getfilecon(internalCePath, &dataUserdirContext) < 0) {
+    fail_fn(CREATE_ERROR("Unable to getfilecon on %s %s", internalCePath,
+        strerror(errno)));
+  }
+  // Get the "u:object_r:system_data_file:s0" security context.  This can be
+  // gotten from several different places; we use /data/misc.
+  char* dataFileContext = nullptr;
+  if (getfilecon("/data/misc", &dataFileContext) < 0) {
+    fail_fn(CREATE_ERROR("Unable to getfilecon on /data/misc %s", strerror(errno)));
+  }
+
+  MountAppDataTmpFs(internalLegacyCePath, fail_fn);
+
+      }
+  }
+
+  // We set the label AFTER everything is done, as we are applying
+  // the file operations on tmpfs. If we set the label when we mount
+  // tmpfs, SELinux will not happy as we are changing system_data_files.
+  // Relabel dir under /data/user, including /data/user/0
+  relabelSubdirs(internalCePath, dataFileContext, fail_fn);
+
+  // Relabel /data/user
+  relabelDir(internalCePath, dataUserdirContext, fail_fn);
+
+  // Relabel /data/data
+  relabelDir(internalLegacyCePath, dataFileContext, fail_fn);
+
+  // Relabel subdirectories of /data/user_de
+  relabelSubdirs(internalDePath, dataFileContext, fail_fn);
+
+  // Relabel /data/user_de
+  relabelDir(internalDePath, dataUserdirContext, fail_fn);
+
+  // Relabel CE and DE dirs under /mnt/expand
+  dir = opendir(externalPrivateMountPath);
+  if (dir == nullptr) {
+    fail_fn(CREATE_ERROR("Failed to opendir %s", externalPrivateMountPath));
+  }
+  while ((ent = readdir(dir))) {
+    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+    auto volPath = StringPrintf("%s/%s", externalPrivateMountPath, ent->d_name);
+    auto cePath = StringPrintf("%s/user", volPath.c_str());
+    auto dePath = StringPrintf("%s/user_de", volPath.c_str());
+
+    relabelSubdirs(cePath.c_str(), dataFileContext, fail_fn);
+    relabelDir(cePath.c_str(), dataUserdirContext, fail_fn);
+    relabelSubdirs(dePath.c_str(), dataFileContext, fail_fn);
+    relabelDir(dePath.c_str(), dataUserdirContext, fail_fn);
+  }
+  closedir(dir);
+
+  freecon(dataUserdirContext);
+  freecon(dataFileContext);
+}
+
+/**
+ * Next declaration.
+ */
+SRC
+    fi
     if [ ! -f system/hardware/interfaces/suspend/1.0/default/Android.bp ]; then
       cat > system/hardware/interfaces/suspend/1.0/default/Android.bp <<'SRC'
 cc_defaults {
@@ -813,6 +902,18 @@ grep -Fq 'key.nspace == LOCK_SETTINGS_NAMESPACE' \
   "$tmp/src/system/security/keystore2/src/utils.rs"
 grep -Fq 'missing-SID grant permission fallback' \
   "$tmp/src/system/security/keystore2/src/utils.rs"
+grep -Fq '#include <selinux/selinux.h>' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'static bool IsRoydContainerWithoutSelinux() {' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'const bool skip_selinux_labelling = IsRoydContainerWithoutSelinux();' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'ROYD: skipping app-data SELinux context copy and relabelling' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'MountAppDataTmpFs(internalLegacyCePath, fail_fn);' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'if (!skip_selinux_labelling) {' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

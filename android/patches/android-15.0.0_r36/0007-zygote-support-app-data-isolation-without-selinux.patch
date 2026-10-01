@@ -1,0 +1,137 @@
+diff --git a/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp b/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
+--- a/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
++++ b/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
+@@ -73,6 +73,7 @@
+ #include <processgroup/sched_policy.h>
+ #include <seccomp_policy.h>
+ #include <selinux/android.h>
++#include <selinux/selinux.h>
+ #include <stats_socket.h>
+ #include <utils/String8.h>
+ #include <utils/Trace.h>
+@@ -133,6 +134,12 @@ static bool gIsSecurityEnforced = true;
+  */
+ static bool gInAppMountNamespace = false;
+ 
++static bool IsRoydContainerWithoutSelinux() {
++  const char* royd_container = getenv("ROYD_CONTAINER");
++  return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++      is_selinux_enabled() <= 0;
++}
++
+ /**
+  * The maximum number of characters (not including a null terminator) that a
+  * process name may contain.
+@@ -1262,18 +1269,24 @@ static void isolateAppData(JNIEnv* env, const std::vector<std::string>& merged_d
+   snprintf(internalDePath, PATH_MAX, "/data/user_de");
+   snprintf(externalPrivateMountPath, PATH_MAX, "/mnt/expand");
+ 
+-  // Get the "u:object_r:system_userdir_file:s0" security context.  This can be
+-  // gotten from several different places; we use /data/user.
++  const bool skip_selinux_labelling = IsRoydContainerWithoutSelinux();
+   char* dataUserdirContext = nullptr;
+-  if (getfilecon(internalCePath, &dataUserdirContext) < 0) {
+-    fail_fn(CREATE_ERROR("Unable to getfilecon on %s %s", internalCePath,
+-        strerror(errno)));
+-  }
+-  // Get the "u:object_r:system_data_file:s0" security context.  This can be
+-  // gotten from several different places; we use /data/misc.
+   char* dataFileContext = nullptr;
+-  if (getfilecon("/data/misc", &dataFileContext) < 0) {
+-    fail_fn(CREATE_ERROR("Unable to getfilecon on /data/misc %s", strerror(errno)));
++  if (skip_selinux_labelling) {
++    ALOGW("ROYD: skipping app-data SELinux context copy and relabelling for %s because "
++          "ROYD_CONTAINER=1 and kernel SELinux is disabled", process_name);
++  } else {
++    // Get the "u:object_r:system_userdir_file:s0" security context.  This can be
++    // gotten from several different places; we use /data/user.
++    if (getfilecon(internalCePath, &dataUserdirContext) < 0) {
++      fail_fn(CREATE_ERROR("Unable to getfilecon on %s %s", internalCePath,
++          strerror(errno)));
++    }
++    // Get the "u:object_r:system_data_file:s0" security context.  This can be
++    // gotten from several different places; we use /data/misc.
++    if (getfilecon("/data/misc", &dataFileContext) < 0) {
++      fail_fn(CREATE_ERROR("Unable to getfilecon on /data/misc %s", strerror(errno)));
++    }
+   }
+ 
+   MountAppDataTmpFs(internalLegacyCePath, fail_fn);
+@@ -1377,44 +1390,46 @@ static void isolateAppData(JNIEnv* env, const std::vector<std::string>& merged_d
+       }
+   }
+ 
+-  // We set the label AFTER everything is done, as we are applying
+-  // the file operations on tmpfs. If we set the label when we mount
+-  // tmpfs, SELinux will not happy as we are changing system_data_files.
+-  // Relabel dir under /data/user, including /data/user/0
+-  relabelSubdirs(internalCePath, dataFileContext, fail_fn);
++  if (!skip_selinux_labelling) {
++    // We set the label AFTER everything is done, as we are applying
++    // the file operations on tmpfs. If we set the label when we mount
++    // tmpfs, SELinux will not happy as we are changing system_data_files.
++    // Relabel dir under /data/user, including /data/user/0
++    relabelSubdirs(internalCePath, dataFileContext, fail_fn);
+ 
+-  // Relabel /data/user
+-  relabelDir(internalCePath, dataUserdirContext, fail_fn);
++    // Relabel /data/user
++    relabelDir(internalCePath, dataUserdirContext, fail_fn);
+ 
+-  // Relabel /data/data
+-  relabelDir(internalLegacyCePath, dataFileContext, fail_fn);
++    // Relabel /data/data
++    relabelDir(internalLegacyCePath, dataFileContext, fail_fn);
+ 
+-  // Relabel subdirectories of /data/user_de
+-  relabelSubdirs(internalDePath, dataFileContext, fail_fn);
++    // Relabel subdirectories of /data/user_de
++    relabelSubdirs(internalDePath, dataFileContext, fail_fn);
+ 
+-  // Relabel /data/user_de
+-  relabelDir(internalDePath, dataUserdirContext, fail_fn);
++    // Relabel /data/user_de
++    relabelDir(internalDePath, dataUserdirContext, fail_fn);
+ 
+-  // Relabel CE and DE dirs under /mnt/expand
+-  dir = opendir(externalPrivateMountPath);
+-  if (dir == nullptr) {
+-    fail_fn(CREATE_ERROR("Failed to opendir %s", externalPrivateMountPath));
+-  }
+-  while ((ent = readdir(dir))) {
+-    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+-    auto volPath = StringPrintf("%s/%s", externalPrivateMountPath, ent->d_name);
+-    auto cePath = StringPrintf("%s/user", volPath.c_str());
+-    auto dePath = StringPrintf("%s/user_de", volPath.c_str());
++    // Relabel CE and DE dirs under /mnt/expand
++    dir = opendir(externalPrivateMountPath);
++    if (dir == nullptr) {
++      fail_fn(CREATE_ERROR("Failed to opendir %s", externalPrivateMountPath));
++    }
++    while ((ent = readdir(dir))) {
++      if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
++      auto volPath = StringPrintf("%s/%s", externalPrivateMountPath, ent->d_name);
++      auto cePath = StringPrintf("%s/user", volPath.c_str());
++      auto dePath = StringPrintf("%s/user_de", volPath.c_str());
+ 
+-    relabelSubdirs(cePath.c_str(), dataFileContext, fail_fn);
+-    relabelDir(cePath.c_str(), dataUserdirContext, fail_fn);
+-    relabelSubdirs(dePath.c_str(), dataFileContext, fail_fn);
+-    relabelDir(dePath.c_str(), dataUserdirContext, fail_fn);
+-  }
+-  closedir(dir);
++      relabelSubdirs(cePath.c_str(), dataFileContext, fail_fn);
++      relabelDir(cePath.c_str(), dataUserdirContext, fail_fn);
++      relabelSubdirs(dePath.c_str(), dataFileContext, fail_fn);
++      relabelDir(dePath.c_str(), dataUserdirContext, fail_fn);
++    }
++    closedir(dir);
+ 
+-  freecon(dataUserdirContext);
+-  freecon(dataFileContext);
++    freecon(dataUserdirContext);
++    freecon(dataFileContext);
++  }
+ }
+ 
+ /**
