@@ -105,6 +105,21 @@ static void isolateAppData() {
   freecon(dataFileContext);
 }
 
+static void SpecializeCommon() {
+    if (is_system_server) {
+        env->CallStaticVoidMethod(gZygoteClass, gCallPostForkSystemServerHooks, runtime_flags);
+        if (env->ExceptionCheck()) {
+            fail_fn("Error calling post fork system server hooks.");
+        }
+
+        // TODO(b/117874058): Remove hardcoded label here.
+        static const char* kSystemServerLabel = "u:r:system_server:s0";
+        if (selinux_android_setcon(kSystemServerLabel) != 0) {
+            fail_fn(CREATE_ERROR("selinux_android_setcon(%s)", kSystemServerLabel));
+        }
+    }
+}
+
 /**
  * Next declaration.
  */
@@ -913,6 +928,12 @@ grep -Fq 'ROYD: skipping app-data SELinux context copy and relabelling' \
 grep -Fq 'MountAppDataTmpFs(internalLegacyCePath, fail_fn);' \
   "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
 grep -Fq 'if (!skip_selinux_labelling) {' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'if (IsRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq 'ROYD: skipping system_server setcon because ROYD_CONTAINER=1 and kernel' \
+  "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
+grep -Fq '} else if (selinux_android_setcon(kSystemServerLabel) != 0) {' \
   "$tmp/src/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
