@@ -69,6 +69,8 @@ grep -Fxq 'DEVICE_MANIFEST_FILE := device/royd/vintf/manifest-15.xml' "$work/dev
   fail 'Android 15 installed board fragment does not select the repository-owned device manifest'
 grep -Fxq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$work/device/royd/container_version.mk" || \
   fail 'Android 15 installed product does not retain the kernel-less OTA VINTF setting'
+grep -Fxq '$(call inherit-product, frameworks/native/build/phone-hdpi-512-dalvik-heap.mk)' "$work/device/royd/container_version.mk" || \
+  fail 'Android 15 installed product does not select its low-memory Dalvik heap profile'
 grep -Fxq 'SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/royd/sepolicy/system_ext/private' "$work/device/royd/BoardConfigVersion.mk" || \
   fail 'Android 15 installed board fragment does not include stable-C mapper service policy'
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$work/device/royd/sepolicy/system_ext/private/service_contexts" || \
@@ -107,5 +109,7 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
   fail 'Android 14 unexpectedly selected Android 15 AIDL Power'
 ! grep -Fq 'ROYD_AUDIO_SERVICE :=' "$work/vendor/royd/version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 AIDL Audio'
+! grep -Fq 'dalvik-heap.mk' "$work/device/royd/container_version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 Dalvik heap policy'
 
 printf '%s\n' 'Android VINTF foundation contract test passed'

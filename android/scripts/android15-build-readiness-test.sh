@@ -28,6 +28,7 @@ grep -Fxq 'ANDROID_RELEASE=bp1a' "$version_env" || fail 'Android 15 release conf
 grep -Fxq 'ANDROID_HEALTH_SERVICE=android.hardware.health-service.example' "$version_env" || fail 'Android 15 health service contract drifted'
 grep -Fxq 'ANDROID_POWER_SERVICE=android.hardware.power-service.example' "$version_env" || fail 'Android 15 power service contract drifted'
 grep -Fxq 'ANDROID_AUDIO_SERVICE=com.android.hardware.audio' "$version_env" || fail 'Android 15 audio service contract drifted'
+grep -Fxq 'ANDROID_DALVIK_HEAP_PROFILE=phone-hdpi-512' "$version_env" || fail 'Android 15 Dalvik heap profile contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_COMPOSER=aidl4-client' "$version_env" || fail 'Android 15 does not select the current composer3 source ABI'
 grep -Fxq 'ANDROID_GRAPHICS_ALLOCATOR=aidl2-stablec5-memfd' "$version_env" || fail 'Android 15 allocator contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_MAPPER=stablec5-royd' "$version_env" || fail 'Android 15 mapper contract drifted'
@@ -125,6 +126,7 @@ grep -Fq 'ro.hardware.egl=swiftshader' "$work/vendor/royd/graphics_backend.mk" |
 grep -Fxq 'DEVICE_MANIFEST_FILE := device/royd/vintf/manifest-15.xml' "$work/device/royd/BoardConfigVersion.mk" || fail 'installed board fragment does not select Android 15 manifest'
 grep -Fxq 'PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false' "$work/device/royd/container_version.mk" || fail 'kernel-less OTA VINTF setting was lost'
 grep -Fxq 'PRODUCT_COMPRESSED_APEX := false' "$work/device/royd/container_version.mk" || fail 'Android 15 container product re-enabled compressed APEX'
+grep -Fxq '$(call inherit-product, frameworks/native/build/phone-hdpi-512-dalvik-heap.mk)' "$work/device/royd/container_version.mk" || fail 'Android 15 product omits its low-memory Dalvik heap profile'
 ! grep -Fq 'default_art_config.mk' "$work/device/royd/container_version.mk" || fail 'Android 15 product redundantly inherits default_art_config.mk'
 ! grep -R -Fq 'PRODUCT_ENFORCE_VINTF_MANIFEST := false' "$work/device/royd" "$work/vendor/royd" || fail 'normal VINTF validation is disabled'
 

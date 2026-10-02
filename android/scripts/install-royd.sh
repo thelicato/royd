@@ -34,6 +34,7 @@ graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
 health_service=${ANDROID_HEALTH_SERVICE:-}
 power_service=${ANDROID_POWER_SERVICE:-}
 audio_service=${ANDROID_AUDIO_SERVICE:-}
+dalvik_heap_profile=${ANDROID_DALVIK_HEAP_PROFILE:-}
 software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
 modern_graphics_dst="$vendor_dst/graphics_allocator"
@@ -89,6 +90,10 @@ case "$audio_service" in
   ''|com.android.hardware.audio) ;;
   *) fail "unsupported Android audio service: $audio_service" ;;
 esac
+case "$dalvik_heap_profile" in
+  ''|phone-hdpi-512) ;;
+  *) fail "unsupported Android Dalvik heap profile: $dalvik_heap_profile" ;;
+esac
 [ -d "$compat_src" ] || fail "Android compatibility family not found at $compat_src"
 [ -z "$device_manifest_src" ] || [ -f "$device_manifest_src" ] || fail "Android device manifest not found at $device_manifest_src"
 case "$graphics_backend" in
@@ -136,6 +141,10 @@ cp "$hal_profile_src" "$hal_profile_dst"
   cat "$graphics_backend_src"
 } > "$graphics_backend_dst"
 cp "$compat_src/product.mk" "$device_dst/container_version.mk"
+if [ -n "$dalvik_heap_profile" ]; then
+  printf '$(call inherit-product, frameworks/native/build/%s-dalvik-heap.mk)\n' \
+    "$dalvik_heap_profile" >> "$device_dst/container_version.mk"
+fi
 cp "$compat_src/BoardConfigVersion.mk" "$device_dst/BoardConfigVersion.mk"
 if [ -n "$device_manifest" ]; then
   printf 'DEVICE_MANIFEST_FILE := device/royd/%s\n' "$device_manifest" >> "$device_dst/BoardConfigVersion.mk"

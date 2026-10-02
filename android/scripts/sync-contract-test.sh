@@ -1044,6 +1044,8 @@ grep -Fq 'if (!existing) {' \
   "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
 grep -Fq 'if (before = lgetfilecon(path); before.empty()) {' \
   "$tmp/src/frameworks/native/cmds/installd/InstalldNativeService.cpp"
+grep -Fxq '$(call inherit-product, frameworks/native/build/phone-hdpi-512-dalvik-heap.mk)' \
+  "$tmp/src/device/royd/container_version.mk"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
