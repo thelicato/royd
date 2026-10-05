@@ -109,6 +109,35 @@ append_image() {
   sudo umount "$mount_dir"
 }
 
+materialise_processgroup_etc() {
+  [ "$ANDROID_ROOTFS_SOURCE" = system ] || return 0
+
+  overlay="$tmp/oci-etc"
+  mkdir -p "$overlay/etc"
+  for config in cgroups.json task_profiles.json; do
+    tar -tf "$output" "./system/etc/$config" >/dev/null 2>&1 || \
+      fail "Android process-group configuration not found at /system/etc/$config"
+    ln -s "/system/etc/$config" "$overlay/etc/$config"
+  done
+
+  etc_type=$(tar -tvf "$output" ./etc 2>/dev/null | awk 'NR == 1 { print substr($1, 1, 1) }')
+  case "$etc_type" in
+    l)
+      tar --delete -f "$output" ./etc
+      ;;
+    d|'') ;;
+    *) fail "packaged Android /etc has unsupported archive type: $etc_type" ;;
+  esac
+
+  printf '%s\n' 'Materialising Android process-group configuration under OCI /etc'
+  if [ "$etc_type" = d ]; then
+    sudo tar --numeric-owner --owner=0 --group=0 -C "$overlay" -rf "$output" \
+      ./etc/cgroups.json ./etc/task_profiles.json
+  else
+    sudo tar --numeric-owner --owner=0 --group=0 -C "$overlay" -rf "$output" ./etc
+  fi
+}
+
 mkdir -p "$runtime_dir"
 rm -f "$output"
 root_partition=
@@ -151,6 +180,8 @@ for partition in ${ANDROID_OPTIONAL_PARTITIONS:-}; do
   [ "$partition" = "$root_partition" ] && continue
   append_image "$partition" "$partition" no
 done
+
+materialise_processgroup_etc
 
 entry_dir="$tmp/entrypoint"
 mkdir -p "$entry_dir"

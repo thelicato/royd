@@ -56,6 +56,7 @@ case "${ROYD_ANDROID_VERSION:-}:$name" in
   15:system.img)
     mkdir -p \
       "$mount_dir/system/bin" \
+      "$mount_dir/system/etc" \
       "$mount_dir/dev" \
       "$mount_dir/proc" \
       "$mount_dir/sys" \
@@ -64,7 +65,10 @@ case "${ROYD_ANDROID_VERSION:-}:$name" in
       "$mount_dir/product"
     printf '%s\n' modern-system-shell > "$mount_dir/system/bin/sh"
     printf '%s\n' modern-system-init > "$mount_dir/system/bin/init"
+    printf '%s\n' modern-cgroups > "$mount_dir/system/etc/cgroups.json"
+    printf '%s\n' modern-task-profiles > "$mount_dir/system/etc/task_profiles.json"
     ln -s /system/bin "$mount_dir/bin"
+    ln -s /system/etc "$mount_dir/etc"
     ln -s /system/bin/init "$mount_dir/init"
     ;;
   15:vendor.img)
@@ -162,6 +166,18 @@ tar -xf "$archive15" -C "$modern_root"
 }
 [ "$(readlink "$modern_root/init")" = /system/bin/init ] || {
   printf '%s\n' 'error: modern packaged /init symlink does not target /system/bin/init' >&2
+  exit 1
+}
+[ -d "$modern_root/etc" ] && [ ! -L "$modern_root/etc" ] || {
+  printf '%s\n' 'error: modern packaged /etc is not an OCI-compatible real directory' >&2
+  exit 1
+}
+[ "$(readlink "$modern_root/etc/cgroups.json")" = /system/etc/cgroups.json ] || {
+  printf '%s\n' 'error: modern packaged /etc/cgroups.json does not target /system/etc/cgroups.json' >&2
+  exit 1
+}
+[ "$(readlink "$modern_root/etc/task_profiles.json")" = /system/etc/task_profiles.json ] || {
+  printf '%s\n' 'error: modern packaged /etc/task_profiles.json does not target /system/etc/task_profiles.json' >&2
   exit 1
 }
 [ -f "$modern_root/system/bin/sh" ] && [ ! -L "$modern_root/system/bin" ] || {
