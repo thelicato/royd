@@ -1,0 +1,49 @@
+diff --git a/system/logging/logd/Android.bp b/system/logging/logd/Android.bp
+--- a/system/logging/logd/Android.bp
++++ b/system/logging/logd/Android.bp
+@@ -95,6 +95,7 @@ cc_binary {
+         "libcutils",
+         "libpackagelistparser",
+         "libprocessgroup",
++        "libselinux",
+         "libcap",
+         "libutils",
+     ],
+diff --git a/system/logging/logd/main.cpp b/system/logging/logd/main.cpp
+--- a/system/logging/logd/main.cpp
++++ b/system/logging/logd/main.cpp
+@@ -43,6 +43,7 @@
+ #include <private/android_filesystem_config.h>
+ #include <private/android_logger.h>
+ #include <processgroup/sched_policy.h>
++#include <selinux/selinux.h>
+ #include <utils/threads.h>
+ 
+ #include "CommandListener.h"
+@@ -68,12 +69,25 @@ using android::base::SetProperty;
+         '0' + LOG_MAKEPRI(LOG_DAEMON, LOG_PRI(PRI)) % 10, '>'
+ 
++static bool IsRoydContainerWithoutSelinux() {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++            is_selinux_enabled() <= 0;
++}
++
+ // The service is designed to be run by init, it does not respond well to starting up manually. Init
+ // has a 'sigstop' feature that sends SIGSTOP to a service immediately before calling exec().  This
+ // allows debuggers, etc to be attached to logd at the very beginning, while still having init
+ // handle the user, groups, capabilities, files, etc setup.
+ static void DropPrivs(bool klogd, bool auditd) {
+     if (set_sched_policy(0, SP_BACKGROUND) < 0) {
+-        PLOG(FATAL) << "failed to set background scheduling policy";
++        const int saved_errno = errno;
++        if (saved_errno == ENOENT && IsRoydContainerWithoutSelinux()) {
++            LOG(WARNING) << "ROYD: background scheduling profile unavailable because "
++                         << "ROYD_CONTAINER=1 and kernel SELinux is disabled";
++        } else {
++            errno = saved_errno;
++            PLOG(FATAL) << "failed to set background scheduling policy";
++        }
+     }
+ 
+     if (!GetBoolProperty("ro.debuggable", false)) {

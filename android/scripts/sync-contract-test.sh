@@ -20,7 +20,48 @@ case "$1" in
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
-      system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd
+      system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
+      system/logging/logd
+    if [ ! -f system/logging/logd/Android.bp ]; then
+      cat > system/logging/logd/Android.bp <<'SRC'
+cc_binary {
+    name: "logd",
+    shared_libs: [
+        "libbinder",
+        "libsysutils",
+        "libcutils",
+        "libpackagelistparser",
+        "libprocessgroup",
+        "libcap",
+        "libutils",
+    ],
+}
+SRC
+    fi
+    if [ ! -f system/logging/logd/main.cpp ]; then
+      cat > system/logging/logd/main.cpp <<'SRC'
+#include <private/android_filesystem_config.h>
+#include <private/android_logger.h>
+#include <processgroup/sched_policy.h>
+#include <utils/threads.h>
+
+using android::base::SetProperty;
+
+#define KMSG_PRIORITY(PRI)                                 \
+    '<', '0' + LOG_MAKEPRI(LOG_DAEMON, LOG_PRI(PRI)) / 10, \
+        '0' + LOG_MAKEPRI(LOG_DAEMON, LOG_PRI(PRI)) % 10, '>'
+
+// The service is designed to be run by init, it does not respond well to starting up manually. Init
+// has a 'sigstop' feature that sends SIGSTOP to a service immediately before calling exec().  This
+// allows debuggers, etc to be attached to logd at the very beginning, while still having init
+// handle the user, groups, capabilities, files, etc setup.
+static void DropPrivs(bool klogd, bool auditd) {
+    if (set_sched_policy(0, SP_BACKGROUND) < 0) {
+        PLOG(FATAL) << "failed to set background scheduling policy";
+    }
+}
+SRC
+    fi
     if [ ! -f frameworks/base/core/jni/android_os_Debug.cpp ]; then
       cat > frameworks/base/core/jni/android_os_Debug.cpp <<'SRC'
 #include <memunreachable/memunreachable.h>
@@ -1048,6 +1089,13 @@ grep -Fxq '$(call inherit-product, frameworks/native/build/phone-hdpi-512-dalvik
   "$tmp/src/device/royd/container_version.mk"
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.security.keymint-service' \
   "$tmp/src/vendor/royd/version.mk"
+grep -Fq '"libselinux",' "$tmp/src/system/logging/logd/Android.bp"
+grep -Fq 'static bool IsRoydContainerWithoutSelinux() {' \
+  "$tmp/src/system/logging/logd/main.cpp"
+grep -Fq 'if (saved_errno == ENOENT && IsRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/system/logging/logd/main.cpp"
+grep -Fq 'PLOG(FATAL) << "failed to set background scheduling policy";' \
+  "$tmp/src/system/logging/logd/main.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
