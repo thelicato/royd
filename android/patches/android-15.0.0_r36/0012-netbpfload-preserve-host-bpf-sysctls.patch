@@ -1,0 +1,40 @@
+diff --git a/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp b/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp
+--- a/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp
++++ b/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp
+@@ -1182,6 +1182,12 @@ static bool exists(const char* const path) {
+     abort();  // can only hit this if permissions (likely selinux) are screwed up
+ }
+ 
++static bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && strcmp(roydContainer, "1") == 0 &&
++            !exists("/sys/fs/selinux/enforce");
++}
++
+ #define APEXROOT "/apex/com.android.tethering"
+ #define BPFROOT APEXROOT "/etc/bpf"
+ 
+@@ -1578,7 +1584,13 @@ static int doLoad(char** argv, char * const envp[]) {
+         return 1;
+     }
+ 
+-    if (runningAsRoot) {
++    const bool preserveHostBpfSysctls = isRoydContainerWithoutSelinux();
++    if (preserveHostBpfSysctls) {
++        ALOGW("ROYD: preserving host BPF sysctls because ROYD_CONTAINER=1 and kernel "
++              "SELinux is disabled");
++    }
++
++    if (runningAsRoot && !preserveHostBpfSysctls) {
+         // Note: writing this proc file requires being root (always the case on V+)
+ 
+         // Linux 5.16-rc1 changed the default to 2 (disabled but changeable),
+@@ -1589,7 +1601,7 @@ static int doLoad(char** argv, char * const envp[]) {
+             isAtLeastKernelVersion(5, 13, 0)) return 1;
+     }
+ 
+-    if (isAtLeastU) {
++    if (isAtLeastU && !preserveHostBpfSysctls) {
+         // Note: writing these proc files requires CAP_NET_ADMIN
+         // and sepolicy which is only present on U+,
+         // on Android T and earlier versions they're written from the 'load_bpf_programs'

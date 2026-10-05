@@ -21,7 +21,65 @@ case "$1" in
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
-      system/logging/logd
+      system/logging/logd packages/modules/Connectivity/bpf/loader
+    if [ ! -f packages/modules/Connectivity/bpf/loader/Android.bp ]; then
+      cat > packages/modules/Connectivity/bpf/loader/Android.bp <<'SRC'
+cc_binary {
+    name: "netbpfload",
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    srcs: ["NetBpfLoad.cpp"],
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp ]; then
+      cat > packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp <<'SRC'
+static bool exists(const char* const path) {
+    int v = access(path, F_OK);
+    if (!v) return true;
+    if (errno == ENOENT) return false;
+    ALOGE("FATAL: access(%s, F_OK) -> %d [%d:%s]", path, v, errno, strerror(errno));
+    abort();  // can only hit this if permissions (likely selinux) are screwed up
+}
+
+#define APEXROOT "/apex/com.android.tethering"
+#define BPFROOT APEXROOT "/etc/bpf"
+
+static int doLoad(char** argv, char * const envp[]) {
+    if (!isEng() && !isUser() && !isUserdebug()) {
+        ALOGE("Failed to determine the build type");
+        return 1;
+    }
+
+    if (runningAsRoot) {
+        // Note: writing this proc file requires being root (always the case on V+)
+
+        // Linux 5.16-rc1 changed the default to 2 (disabled but changeable),
+        // but we need 0 (enabled)
+        if (writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
+            isAtLeastKernelVersion(5, 13, 0)) return 1;
+    }
+
+    if (isAtLeastU) {
+        // Note: writing these proc files requires CAP_NET_ADMIN
+        // and sepolicy which is only present on U+,
+        // on Android T and earlier versions they're written from the 'load_bpf_programs'
+        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
+        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
+    }
+
+    for (const auto& location : locations) {
+        if (createSysFsBpfSubDir(location.prefix)) return 1;
+    }
+    for (const auto& location : locations) {
+        if (loadAllElfObjects(bpfloader_ver, location) != 0) return 2;
+    }
+    return 0;
+}
+SRC
+    fi
     if [ ! -f system/logging/logd/Android.bp ]; then
       cat > system/logging/logd/Android.bp <<'SRC'
 cc_binary {
@@ -1096,6 +1154,22 @@ grep -Fq 'if (saved_errno == ENOENT && IsRoydContainerWithoutSelinux()) {' \
   "$tmp/src/system/logging/logd/main.cpp"
 grep -Fq 'PLOG(FATAL) << "failed to set background scheduling policy";' \
   "$tmp/src/system/logging/logd/main.cpp"
+grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'const bool preserveHostBpfSysctls = isRoydContainerWithoutSelinux();' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'if (runningAsRoot && !preserveHostBpfSysctls) {' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'if (isAtLeastU && !preserveHostBpfSysctls) {' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n")' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'if (loadAllElfObjects(bpfloader_ver, location) != 0) return 2;' \
+  "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

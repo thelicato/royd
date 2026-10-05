@@ -5,6 +5,7 @@
 .PHONY: android15-debug-kernel-config-container-test
 .PHONY: android15-installd-app-data-container-test
 .PHONY: android15-logd-scheduling-container-test
+.PHONY: android15-netbpfload-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -258,6 +259,9 @@ android15-installd-app-data-container-test:
 
 android15-logd-scheduling-container-test:
 	./android/scripts/android15-logd-scheduling-container-test.sh
+
+android15-netbpfload-container-test:
+	./android/scripts/android15-netbpfload-container-test.sh
 
 android-display-contract-test:
 	./android/scripts/display-contract-test.sh
