@@ -97,6 +97,13 @@ grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/au
   fail 'Android 15 product does not install the module-owned AIDL Audio VINTF fragment'
 ! grep -Fq '<name>android.hardware.audio.' "$manifest" || \
   fail 'Android 15 central device manifest duplicates the Audio APEX declarations'
+# The AOSP software KeyMint reference module owns its early-HAL init rule,
+# hardware-keystore permission and KeyMint, SharedSecret and SecureClock VINTF
+# fragments. Keep those declarations out of royd's central device manifest.
+grep -Fxq 'PRODUCT_PACKAGES += android.hardware.security.keymint-service' "$work/vendor/royd/version.mk" || \
+  fail 'Android 15 product does not install the module-owned software KeyMint service'
+! grep -Fq '<name>android.hardware.security.' "$manifest" || \
+  fail 'Android 15 central device manifest duplicates the KeyMint module declarations'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"
@@ -109,6 +116,8 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
   fail 'Android 14 unexpectedly selected Android 15 AIDL Power'
 ! grep -Fq 'ROYD_AUDIO_SERVICE :=' "$work/vendor/royd/version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 AIDL Audio'
+! grep -Fq 'ROYD_KEYMINT_SERVICE :=' "$work/vendor/royd/version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 software KeyMint'
 ! grep -Fq 'dalvik-heap.mk' "$work/device/royd/container_version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 Dalvik heap policy'
 

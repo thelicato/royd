@@ -34,6 +34,7 @@ graphics_mapper=${ANDROID_GRAPHICS_MAPPER:-}
 health_service=${ANDROID_HEALTH_SERVICE:-}
 power_service=${ANDROID_POWER_SERVICE:-}
 audio_service=${ANDROID_AUDIO_SERVICE:-}
+keymint_service=${ANDROID_KEYMINT_SERVICE:-}
 dalvik_heap_profile=${ANDROID_DALVIK_HEAP_PROFILE:-}
 software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
@@ -89,6 +90,10 @@ esac
 case "$audio_service" in
   ''|com.android.hardware.audio) ;;
   *) fail "unsupported Android audio service: $audio_service" ;;
+esac
+case "$keymint_service" in
+  ''|android.hardware.security.keymint-service) ;;
+  *) fail "unsupported Android KeyMint service: $keymint_service" ;;
 esac
 case "$dalvik_heap_profile" in
   ''|phone-hdpi-512) ;;
@@ -168,6 +173,10 @@ fi
 if [ -n "$audio_service" ]; then
   printf 'ROYD_AUDIO_SERVICE := %s\n' "$audio_service" >> "$vendor_dst/version.mk"
   printf '$(call inherit-product, vendor/royd/audio/aosp-aidl.mk)\n' >> "$vendor_dst/version.mk"
+fi
+if [ -n "$keymint_service" ]; then
+  printf 'ROYD_KEYMINT_SERVICE := %s\n' "$keymint_service" >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_PACKAGES += %s\n' "$keymint_service" >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"

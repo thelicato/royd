@@ -2,6 +2,10 @@
 
 royd currently has two runtime security modes. `privileged` is the development baseline. `experimental` exists to measure and reduce the runtime privilege surface, but it is not yet a supported minimum.
 
+## Android key storage
+
+Android 15 installs AOSP's `android.hardware.security.keymint-service` as the container baseline. It is AOSP's explicitly insecure reference implementation: KeyMint and its trusted-application logic run together as ordinary vendor userspace, not inside a trusted execution environment. It satisfies Keystore2's mandatory default KeyMint service dependency, but it does not provide hardware-backed key protection. Do not use this baseline to claim resistance against a compromised container or host.
+
 ## Privileged mode
 
 Use the baseline directly with:
