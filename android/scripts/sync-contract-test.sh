@@ -871,6 +871,42 @@ static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, u
 }
 SRC
     fi
+    if [ ! -f system/core/init/util.cpp ]; then
+      cat > system/core/init/util.cpp <<'SRC'
+#include <android-base/unique_fd.h>
+#include <cutils/sockets.h>
+#include <selinux/android.h>
+
+#if defined(__ANDROID__)
+#include <fs_mgr.h>
+#endif
+SRC
+      padding=0
+      while [ "$padding" -lt 641 ]; do
+        printf '%s\n' '// sync fixture padding' >> system/core/init/util.cpp
+        padding=$((padding + 1))
+      done
+      cat >> system/core/init/util.cpp <<'SRC'
+// access any fds that it opens, including the one opened below for /dev/null.  Therefore,
+// SetStdioToDevNull() must be called again in second stage init.
+void SetStdioToDevNull(char** argv) {
+    // Make stdin/stdout/stderr all point to /dev/null.
+    int fd = open("/dev/null", O_RDWR);  // NOLINT(android-cloexec-open)
+    if (fd == -1) {
+        int saved_errno = errno;
+        android::base::InitLogging(argv, &android::base::KernelLogger, InitAborter);
+        errno = saved_errno;
+        PLOG(FATAL) << "Couldn't open /dev/null";
+    }
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    if (fd > STDERR_FILENO) close(fd);
+}
+
+void InitKernelLogging(char** argv) {
+SRC
+    fi
     if [ ! -f system/core/init/service.cpp ]; then
       cat > system/core/init/service.cpp <<'SRC'
 #include <inttypes.h>
@@ -1295,6 +1331,13 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   exit 1
 }
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
+grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
+grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \
+  "$tmp/src/system/core/init/util.cpp"
+grep -Fq 'strcmp(royd_container, "1") == 0 && is_selinux_enabled() <= 0;' \
+  "$tmp/src/system/core/init/util.cpp"
+grep -Fq 'if (!preserve_container_output) {' "$tmp/src/system/core/init/util.cpp"
+grep -Fq 'dup2(fd, STDIN_FILENO);' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'mSkipSelinux = IsRoydContainerWithoutSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'CHECK(selinux_status_open(true /*fallback*/) >= 0);' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'selinux_check_access' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"

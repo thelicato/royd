@@ -1,0 +1,37 @@
+diff --git a/system/core/init/util.cpp b/system/core/init/util.cpp
+--- a/system/core/init/util.cpp
++++ b/system/core/init/util.cpp
+@@ -39,6 +39,7 @@
+ #include <android-base/unique_fd.h>
+ #include <cutils/sockets.h>
+ #include <selinux/android.h>
++#include <selinux/selinux.h>
+ 
+ #if defined(__ANDROID__)
+ #include <fs_mgr.h>
+@@ -649,7 +650,12 @@ static void InitAborter(const char* abort_message) {
+ // access any fds that it opens, including the one opened below for /dev/null.  Therefore,
+ // SetStdioToDevNull() must be called again in second stage init.
+ void SetStdioToDevNull(char** argv) {
+-    // Make stdin/stdout/stderr all point to /dev/null.
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    const bool preserve_container_output = royd_container != nullptr &&
++            strcmp(royd_container, "1") == 0 && is_selinux_enabled() <= 0;
++
++    // Stdin must always point to /dev/null. The explicitly gated container keeps the OCI
++    // stdout and stderr pipes inherited from the runtime so /proc/1/fd can carry diagnostics.
+     int fd = open("/dev/null", O_RDWR);  // NOLINT(android-cloexec-open)
+     if (fd == -1) {
+         int saved_errno = errno;
+@@ -658,7 +664,9 @@ void SetStdioToDevNull(char** argv) {
+         PLOG(FATAL) << "Couldn't open /dev/null";
+     }
+     dup2(fd, STDIN_FILENO);
+-    dup2(fd, STDOUT_FILENO);
+-    dup2(fd, STDERR_FILENO);
++    if (!preserve_container_output) {
++        dup2(fd, STDOUT_FILENO);
++        dup2(fd, STDERR_FILENO);
++    }
+     if (fd > STDERR_FILENO) close(fd);
+ }
