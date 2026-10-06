@@ -21,7 +21,85 @@ case "$1" in
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
-      system/logging/logd packages/modules/Connectivity/bpf/loader system/netd/server
+      system/logging/logd packages/modules/Connectivity/bpf/loader \
+      packages/modules/Connectivity/service/jni system/netd/server
+    if [ ! -f packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp ]; then
+      cat > packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp <<'SRC'
+/*
+ */
+#define LOG_TAG "jniClatCoordinator"
+
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <linux/if_packet.h>
+#include <linux/if_tun.h>
+#include <linux/ioctl.h>
+#include <log/log.h>
+#include <nativehelper/JNIHelp.h>
+#include <net/if.h>
+#include <spawn.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/xattr.h>
+#include <string>
+#include <unistd.h>
+
+namespace android {
+
+static bool fatal = false;
+
+#define ALOGF(s ...) do { ALOGE(s); fatal = true; } while(0)
+
+enum verify { VERIFY_DIR, VERIFY_BIN, VERIFY_PROG, VERIFY_MAP_RO, VERIFY_MAP_RW };
+
+static void verifyPerms(const char * const path,
+                        const mode_t mode, const uid_t uid, const gid_t gid,
+                        const char * const ctxt,
+                        const verify vtype) {
+    struct stat s = {};
+
+    if (lstat(path, &s)) ALOGF("lstat '%s' errno=%d", path, errno);
+    if (s.st_mode != mode) ALOGF("'%s' mode is 0%o != 0%o", path, s.st_mode, mode);
+    if (s.st_uid != uid) ALOGF("'%s' uid is %d != %d", path, s.st_uid, uid);
+    if (s.st_gid != gid) ALOGF("'%s' gid is %d != %d", path, s.st_gid, gid);
+
+    char b[255] = {};
+    int v = lgetxattr(path, "security.selinux", &b, sizeof(b));
+    if (v < 0) ALOGF("lgetxattr '%s' errno=%d", path, errno);
+    if (strncmp(ctxt, b, sizeof(b))) ALOGF("context of '%s' is '%s' != '%s'", path, b, ctxt);
+
+    int fd = -1;
+
+    switch (vtype) {
+      case VERIFY_DIR: return;
+      case VERIFY_BIN: return;
+      case VERIFY_PROG:   fd = bpf::retrieveProgram(path); break;
+      case VERIFY_MAP_RO: fd = bpf::mapRetrieveRO(path); break;
+      case VERIFY_MAP_RW: fd = bpf::mapRetrieveLocklessRW(path); break;
+    }
+
+    if (fd < 0) ALOGF("bpf_obj_get '%s' failed, errno=%d", path, errno);
+
+    if (fd >= 0) close(fd);
+}
+
+#undef ALOGF
+
+static void verifyClatPerms() {
+    // We might run as part of tests instead of as part of system server
+    if (getuid() != AID_SYSTEM) return;
+
+    // First verify the clatd directory and binary,
+    // since this is built into the apex file system image,
+    // failures here are 99% likely to be build problems.
+
+    if (fatal) abort();
+}
+SRC
+    fi
     if [ ! -f system/netd/server/Android.bp ]; then
       cat > system/netd/server/Android.bp <<'SRC'
 cc_library_static {
@@ -1262,6 +1340,16 @@ grep -Fq 'if (isRoydContainerWithoutSelinux()) {' \
 grep -Fq 'ROYD: continuing without legacy iptables bandwidth rules because' \
   "$tmp/src/system/netd/server/Controllers.cpp"
 grep -Fq 'exit(1);' "$tmp/src/system/netd/server/Controllers.cpp"
+grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
+grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
+grep -Fq 'ROYD: skipping CLAT SELinux context verification because' \
+  "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
+grep -Fq 'case VERIFY_PROG:   fd = bpf::retrieveProgram(path); break;' \
+  "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
+grep -Fq 'if (fatal) abort();' \
+  "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

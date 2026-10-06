@@ -1,0 +1,54 @@
+diff --git a/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp b/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
+--- a/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
++++ b/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
+@@ -25,6 +25,8 @@
+ #include <nativehelper/JNIHelp.h>
+ #include <net/if.h>
+ #include <spawn.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <sys/wait.h>
+@@ -47,6 +49,12 @@ namespace android {
+ 
+ static bool fatal = false;
+ 
++static bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && strcmp(roydContainer, "1") == 0 &&
++            access("/sys/fs/selinux/enforce", F_OK) != 0;
++}
++
+ #define ALOGF(s ...) do { ALOGE(s); fatal = true; } while(0)
+ 
+ enum verify { VERIFY_DIR, VERIFY_BIN, VERIFY_PROG, VERIFY_MAP_RO, VERIFY_MAP_RW };
+@@ -67,10 +75,12 @@ static void verifyPerms(const char * const path,
+     if (s.st_uid != uid) ALOGF("'%s' uid is %d != %d", path, s.st_uid, uid);
+     if (s.st_gid != gid) ALOGF("'%s' gid is %d != %d", path, s.st_gid, gid);
+ 
+-    char b[255] = {};
+-    int v = lgetxattr(path, "security.selinux", &b, sizeof(b));
+-    if (v < 0) ALOGF("lgetxattr '%s' errno=%d", path, errno);
+-    if (strncmp(ctxt, b, sizeof(b))) ALOGF("context of '%s' is '%s' != '%s'", path, b, ctxt);
++    if (!isRoydContainerWithoutSelinux()) {
++        char b[255] = {};
++        int v = lgetxattr(path, "security.selinux", &b, sizeof(b));
++        if (v < 0) ALOGF("lgetxattr '%s' errno=%d", path, errno);
++        if (strncmp(ctxt, b, sizeof(b))) ALOGF("context of '%s' is '%s' != '%s'", path, b, ctxt);
++    }
+ 
+     int fd = -1;
+ 
+@@ -101,6 +111,11 @@ static void verifyClatPerms() {
+     // We might run as part of tests instead of as part of system server
+     if (getuid() != AID_SYSTEM) return;
+ 
++    if (isRoydContainerWithoutSelinux()) {
++        ALOGW("ROYD: skipping CLAT SELinux context verification because ROYD_CONTAINER=1 and "
++              "kernel SELinux is disabled");
++    }
++
+     // First verify the clatd directory and binary,
+     // since this is built into the apex file system image,
+     // failures here are 99% likely to be build problems.

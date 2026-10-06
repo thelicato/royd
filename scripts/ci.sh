@@ -36,6 +36,7 @@ run ./android/scripts/android15-logd-scheduling-container-test.sh
 run ./android/scripts/android15-netbpfload-container-test.sh
 run ./android/scripts/android15-memfd-container-test.sh
 run ./android/scripts/android15-netd-iptables-container-test.sh
+run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh
