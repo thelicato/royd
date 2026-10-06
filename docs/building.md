@@ -116,7 +116,7 @@ make android-package-x86_64
 make runtime-import-x86_64
 ```
 
-The package step uses the rootfs source declared by the selected Android version. Android 10 and newer use `system.img` as the OCI root; Android 8 and 9 retain ramdisk-root assembly. Required and optional partition images are then merged at their normal mount points. For system-root images, packaging materialises `/etc` and retains explicit links to Android's process-group configuration because Docker replaces the stock `/etc -> /system/etc` symlink when mounting its generated network files. Android sparse images are converted using the AOSP-built `simg2img` tool before read-only mounting. The result is `.work/runtime/royd-<arch>-<profile>.tar`.
+The package step uses the rootfs source declared by the selected Android version. Android 10 and newer use `system.img` as the OCI root; Android 8 and 9 retain ramdisk-root assembly. Required and optional partition images are then merged at their normal mount points. For system-root images, packaging materialises `/etc` and copies Android's process-group configuration into it as regular files. Docker replaces the stock `/etc -> /system/etc` symlink when mounting its generated network files, while Android's libbase file helpers deliberately reject symlinks for these configuration reads. Android sparse images are converted using the AOSP-built `simg2img` tool before read-only mounting. The result is `.work/runtime/royd-<arch>-<profile>.tar`.
 
 ## Dependency policy
 

@@ -117,7 +117,8 @@ materialise_processgroup_etc() {
   for config in cgroups.json task_profiles.json; do
     tar -tf "$output" "./system/etc/$config" >/dev/null 2>&1 || \
       fail "Android process-group configuration not found at /system/etc/$config"
-    ln -s "/system/etc/$config" "$overlay/etc/$config"
+    tar -xOf "$output" "./system/etc/$config" > "$overlay/etc/$config"
+    chmod 0644 "$overlay/etc/$config"
   done
 
   etc_type=$(tar -tvf "$output" ./etc 2>/dev/null | awk 'NR == 1 { print substr($1, 1, 1) }')
@@ -129,7 +130,7 @@ materialise_processgroup_etc() {
     *) fail "packaged Android /etc has unsupported archive type: $etc_type" ;;
   esac
 
-  printf '%s\n' 'Materialising Android process-group configuration under OCI /etc'
+  printf '%s\n' 'Copying Android process-group configuration into OCI /etc'
   if [ "$etc_type" = d ]; then
     sudo tar --numeric-owner --owner=0 --group=0 -C "$overlay" -rf "$output" \
       ./etc/cgroups.json ./etc/task_profiles.json

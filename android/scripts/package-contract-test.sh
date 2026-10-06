@@ -172,12 +172,20 @@ tar -xf "$archive15" -C "$modern_root"
   printf '%s\n' 'error: modern packaged /etc is not an OCI-compatible real directory' >&2
   exit 1
 }
-[ "$(readlink "$modern_root/etc/cgroups.json")" = /system/etc/cgroups.json ] || {
-  printf '%s\n' 'error: modern packaged /etc/cgroups.json does not target /system/etc/cgroups.json' >&2
+[ -f "$modern_root/etc/cgroups.json" ] && [ ! -L "$modern_root/etc/cgroups.json" ] || {
+  printf '%s\n' 'error: modern packaged /etc/cgroups.json is not a regular file' >&2
   exit 1
 }
-[ "$(readlink "$modern_root/etc/task_profiles.json")" = /system/etc/task_profiles.json ] || {
-  printf '%s\n' 'error: modern packaged /etc/task_profiles.json does not target /system/etc/task_profiles.json' >&2
+[ -f "$modern_root/etc/task_profiles.json" ] && [ ! -L "$modern_root/etc/task_profiles.json" ] || {
+  printf '%s\n' 'error: modern packaged /etc/task_profiles.json is not a regular file' >&2
+  exit 1
+}
+cmp -s "$modern_root/etc/cgroups.json" "$modern_root/system/etc/cgroups.json" || {
+  printf '%s\n' 'error: modern packaged /etc/cgroups.json differs from /system/etc/cgroups.json' >&2
+  exit 1
+}
+cmp -s "$modern_root/etc/task_profiles.json" "$modern_root/system/etc/task_profiles.json" || {
+  printf '%s\n' 'error: modern packaged /etc/task_profiles.json differs from /system/etc/task_profiles.json' >&2
   exit 1
 }
 [ -f "$modern_root/system/bin/sh" ] && [ ! -L "$modern_root/system/bin" ] || {
