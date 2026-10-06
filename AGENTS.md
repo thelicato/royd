@@ -239,6 +239,7 @@ The following decisions are currently agreed:
 - Memory claims must be based on the repository measurement workflow. Reports must identify the exact image, image-profile policy digest, HAL/graphics/display configuration, security mode, and named workload. Custom workload commands require an explicit workload name.
 - Project logo: keep the canonical SVG at repository root as `logo.svg` and reference it from the main README, with the logo centred and the project name shown below it.
 - Runtime validation: keep boot smoke tests usable with Docker alone and commands available inside the Android container; ADB must not be required for basic validation.
+- Runtime graphics assertions: select the expected graphics properties from the running Android SDK and requested backend. Android 15 software images require the AIDL allocator V2, stable-C mapper V5, ANGLE over `vulkan.pastel`, and composer3 contract without legacy gralloc, EGL, or hwcomposer selectors; older configured software releases retain their versioned legacy expectations.
 - OCI image identity: use canonical tags derived from AOSP ref, image profile, HAL profile, and architecture; keep short `royd:dev*` tags only as local aliases.
 - Packaged images: include immutable `/royd-release` metadata and verify the sidecar archive digest before import.
 - Android build contract: keep no-kernel/no-bootloader mode, required ext4 partition images, and container copy-out paths explicit in `android/build-contract.env`; validate them statically and against resolved AOSP build variables before full compilation.

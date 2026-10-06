@@ -19,6 +19,8 @@ The test creates a temporary Docker volume and privileged container, waits for `
 - `ro.config.low_ram` is enabled.
 - the royd logcat forwarding service is running.
 
+Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
+
 The temporary container and volume are removed when the test exits, including after failure.
 
 ## Two-instance smoke test

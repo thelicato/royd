@@ -55,6 +55,7 @@ run ./runtime/scripts/container-evidence-test.sh
 run ./runtime/scripts/kernel-evidence-test.sh
 run ./runtime/scripts/rootless-probe-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
+run ./runtime/scripts/assert-runtime-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/security-capability-sweep-test.sh
 run ./runtime/scripts/security-evidence-test.sh
