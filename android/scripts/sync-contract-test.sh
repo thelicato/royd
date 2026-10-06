@@ -1170,6 +1170,9 @@ grep -Fq 'writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")' \
   "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
 grep -Fq 'if (loadAllElfObjects(bpfloader_ver, location) != 0) return 2;' \
   "$tmp/src/packages/modules/Connectivity/bpf/loader/NetBpfLoad.cpp"
+grep -Fq 'on post-fs-data && property:ro.build.version.sdk=35' \
+  "$tmp/src/vendor/royd/init.royd.rc"
+grep -Fq 'setprop sys.use_memfd true' "$tmp/src/vendor/royd/init.royd.rc"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a
