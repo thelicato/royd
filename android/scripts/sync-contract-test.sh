@@ -21,7 +21,88 @@ case "$1" in
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
-      system/logging/logd packages/modules/Connectivity/bpf/loader
+      system/logging/logd packages/modules/Connectivity/bpf/loader system/netd/server
+    if [ ! -f system/netd/server/Android.bp ]; then
+      cat > system/netd/server/Android.bp <<'SRC'
+cc_library_static {
+    name: "libnetd_server",
+    shared_libs: [
+        "libnetdutils",
+        "libpcap",
+        "libssl",
+        "libsysutils",
+        "netd_event_listener_interface-V1-cpp",
+    ],
+}
+SRC
+    fi
+    if [ ! -f system/netd/server/Controllers.cpp ]; then
+      cat > system/netd/server/Controllers.cpp <<'SRC'
+/*
+ */
+
+#include <cinttypes>
+#include <regex>
+#include <set>
+#include <string>
+
+#include <android-base/stringprintf.h>
+#include <android-base/strings.h>
+#include <netdutils/Stopwatch.h>
+
+#define LOG_TAG "Netd"
+#include <log/log.h>
+
+#include "ConnmarkFlags.h"
+#include "Controllers.h"
+#include "IdletimerController.h"
+#include "NetworkController.h"
+#include "RouteController.h"
+#include "XfrmController.h"
+#include "oem_iptables_hook.h"
+
+namespace android {
+namespace net {
+
+using android::base::Join;
+using android::base::StringAppendF;
+using android::base::StringPrintf;
+using android::netdutils::Stopwatch;
+
+auto Controllers::execIptablesRestore  = ::execIptablesRestore;
+auto Controllers::execIptablesRestoreWithOutput = ::execIptablesRestoreWithOutput;
+
+netdutils::Log gLog("netd");
+netdutils::Log gUnsolicitedLog("netdUnsolicited");
+
+namespace {
+
+static constexpr char CONNMARK_MANGLE_INPUT[] = "connmark_mangle_INPUT";
+static constexpr char CONNMARK_MANGLE_OUTPUT[] = "connmark_mangle_OUTPUT";
+
+}  // namespace
+
+void Controllers::init() {
+    initIptablesRules();
+    Stopwatch s;
+
+    if (int ret = bandwidthCtrl.enableBandwidthControl()) {
+        gLog.error("Failed to initialize BandwidthController (%s)", strerror(-ret));
+        // A failure to init almost definitely means that iptables failed to load
+        // our static ruleset, which then basically means network accounting will not work.
+        // As such simply exit netd.  This may crash loop the system, but by failing
+        // to bootup we will trigger rollback and thus this offers us protection against
+        // a mainline update breaking things.
+        exit(1);
+    }
+    gLog.info("Enabling bandwidth control: %" PRId64 "us", s.getTimeAndResetUs());
+
+    if (int ret = RouteController::Init(NetworkController::LOCAL_NET_ID)) {
+        gLog.error("Failed to initialize RouteController (%s)", strerror(-ret));
+    }
+}
+SRC
+    fi
     if [ ! -f packages/modules/Connectivity/bpf/loader/Android.bp ]; then
       cat > packages/modules/Connectivity/bpf/loader/Android.bp <<'SRC'
 cc_binary {
@@ -1173,6 +1254,14 @@ grep -Fq 'if (loadAllElfObjects(bpfloader_ver, location) != 0) return 2;' \
 grep -Fq 'on post-fs-data && property:ro.build.version.sdk=35' \
   "$tmp/src/vendor/royd/init.royd.rc"
 grep -Fq 'setprop sys.use_memfd true' "$tmp/src/vendor/royd/init.royd.rc"
+grep -Fq '"libselinux",' "$tmp/src/system/netd/server/Android.bp"
+grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/system/netd/server/Controllers.cpp"
+grep -Fq 'if (isRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/system/netd/server/Controllers.cpp"
+grep -Fq 'ROYD: continuing without legacy iptables bandwidth rules because' \
+  "$tmp/src/system/netd/server/Controllers.cpp"
+grep -Fq 'exit(1);' "$tmp/src/system/netd/server/Controllers.cpp"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

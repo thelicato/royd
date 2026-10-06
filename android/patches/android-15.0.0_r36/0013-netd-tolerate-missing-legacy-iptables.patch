@@ -1,0 +1,67 @@
+diff --git a/system/netd/server/Android.bp b/system/netd/server/Android.bp
+--- a/system/netd/server/Android.bp
++++ b/system/netd/server/Android.bp
+@@ -64,5 +64,6 @@ cc_library_static {
+         "libnetdutils",
+         "libpcap",
++        "libselinux",
+         "libssl",
+         "libsysutils",
+         "netd_event_listener_interface-V1-cpp",
+diff --git a/system/netd/server/Controllers.cpp b/system/netd/server/Controllers.cpp
+--- a/system/netd/server/Controllers.cpp
++++ b/system/netd/server/Controllers.cpp
+@@ -16,13 +16,16 @@
+  */
+ 
+ #include <cinttypes>
++#include <cstdlib>
++#include <cstring>
+ #include <regex>
+ #include <set>
+ #include <string>
+ 
+ #include <android-base/stringprintf.h>
+ #include <android-base/strings.h>
+ #include <netdutils/Stopwatch.h>
++#include <selinux/selinux.h>
+ 
+ #define LOG_TAG "Netd"
+ #include <log/log.h>
+@@ -53,6 +56,12 @@ netdutils::Log gUnsolicitedLog("netdUnsolicited");
+ 
+ namespace {
+ 
++static bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && strcmp(roydContainer, "1") == 0 &&
++            is_selinux_enabled() <= 0;
++}
++
+ static constexpr char CONNMARK_MANGLE_INPUT[] = "connmark_mangle_INPUT";
+ static constexpr char CONNMARK_MANGLE_OUTPUT[] = "connmark_mangle_OUTPUT";
+ 
+@@ -320,12 +329,17 @@ void Controllers::init() {
+ 
+     if (int ret = bandwidthCtrl.enableBandwidthControl()) {
+         gLog.error("Failed to initialize BandwidthController (%s)", strerror(-ret));
+-        // A failure to init almost definitely means that iptables failed to load
+-        // our static ruleset, which then basically means network accounting will not work.
+-        // As such simply exit netd.  This may crash loop the system, but by failing
+-        // to bootup we will trigger rollback and thus this offers us protection against
+-        // a mainline update breaking things.
+-        exit(1);
++        if (isRoydContainerWithoutSelinux()) {
++            ALOGW("ROYD: continuing without legacy iptables bandwidth rules because "
++                  "ROYD_CONTAINER=1 and kernel SELinux is disabled");
++        } else {
++            // A failure to init almost definitely means that iptables failed to load
++            // our static ruleset, which then basically means network accounting will not work.
++            // As such simply exit netd.  This may crash loop the system, but by failing
++            // to bootup we will trigger rollback and thus this offers us protection against
++            // a mainline update breaking things.
++            exit(1);
++        }
+     }
+     gLog.info("Enabling bandwidth control: %" PRId64 "us", s.getTimeAndResetUs());
+ 
