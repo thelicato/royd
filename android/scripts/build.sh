@@ -20,6 +20,10 @@ jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '4')}
 
 [ -d "$src/build" ] || fail "Android source tree not found at $src; run android/scripts/sync.sh first"
 
+# A rebuild may follow a repository update without another repo sync. Apply any
+# append-only extension of the repository-owned patch set before compilation.
+"$script_dir/apply-patches.sh" "$src"
+
 if [ "${ROYD_CLEAN_BUILD:-0}" = 1 ]; then
   printf 'Removing previous Android build output for clean validation: %s/out\n' "$src"
   rm -rf "$src/out"

@@ -8,6 +8,15 @@ trap 'rm -rf "$tmp"' EXIT INT TERM
 mkdir -p "$tmp/repo" "$tmp/src/build"
 cp -a "$android_dir" "$tmp/repo/android"
 
+cat > "$tmp/repo/android/scripts/apply-patches.sh" <<'MOCK'
+#!/bin/sh
+set -eu
+src=$1
+printf '%s\n' "$src" >> "$ROYD_PATCH_LOG"
+touch "$src/.royd-patches-applied"
+MOCK
+chmod +x "$tmp/repo/android/scripts/apply-patches.sh"
+
 for script in config-check.sh build.sh; do
   target="$tmp/repo/android/scripts/$script"
   [ "$(head -n 1 "$target")" = '#!/usr/bin/env bash' ] || {
@@ -57,22 +66,32 @@ function get_build_var {
 }
 
 function m {
+  test -f "$ROYD_PATCH_MARKER"
   printf '%s\n' "$*" >> "$ROYD_M_LOG"
 }
 MOCK
 
 : > "$tmp/m.log"
+: > "$tmp/patch.log"
 ROYD_ANDROID_VERSION=15 \
 ROYD_ANDROID_SRC="$tmp/src" \
 ROYD_M_LOG="$tmp/m.log" \
+ROYD_PATCH_LOG="$tmp/patch.log" \
+ROYD_PATCH_MARKER="$tmp/src/.royd-patches-applied" \
   "$tmp/repo/android/scripts/config-check.sh" x86_64 >/dev/null
 
 ROYD_ANDROID_VERSION=15 \
 ROYD_ANDROID_SRC="$tmp/src" \
 ROYD_M_LOG="$tmp/m.log" \
+ROYD_PATCH_LOG="$tmp/patch.log" \
+ROYD_PATCH_MARKER="$tmp/src/.royd-patches-applied" \
 JOBS=3 \
   "$tmp/repo/android/scripts/build.sh" x86_64 standard >/dev/null
 
+grep -Fqx -- "$tmp/src" "$tmp/patch.log" || {
+  printf '%s\n' 'error: Android build did not apply repository-owned patches to its source tree' >&2
+  exit 1
+}
 grep -Fqx -- '-j3' "$tmp/m.log" || {
   printf '%s\n' 'error: mock AOSP build command was not reached under the Bash envsetup contract' >&2
   exit 1

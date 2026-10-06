@@ -10,7 +10,7 @@ The default is Android 15, x86_64, the standard graphical image, software graphi
 ./build.sh --android 15 --arch x86_64 --sync-jobs 1 --jobs "$(nproc)"
 ```
 
-Use `--incremental` to keep Android build output or `--skip-sync` to reuse an existing `.work/android-src-<version>` checkout. Run `./build.sh --help` for all controls. The helper is orchestration only: the Android scripts and compatibility metadata remain authoritative, and the helper does not patch source or weaken validation.
+Use `--incremental` to keep Android build output or `--skip-sync` to reuse an existing `.work/android-src-<version>` checkout. Every build checks and applies repository-owned AOSP patches before compilation, including append-only patch-set extensions pulled after the last source sync. Run `./build.sh --help` for all controls. The helper is orchestration only: the Android scripts and compatibility metadata remain authoritative, and the helper does not weaken validation.
 
 ## Android version selection
 
