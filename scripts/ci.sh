@@ -10,6 +10,7 @@ run() {
 }
 
 run ./scripts/check-repo.sh
+run ./scripts/check-repo-test.sh
 run ./scripts/check-runtime.sh
 run ./scripts/build-helper-test.sh
 run ./android/scripts/version-test.sh
