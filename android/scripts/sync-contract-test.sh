@@ -22,7 +22,8 @@ case "$1" in
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
       system/logging/logd packages/modules/Connectivity/bpf/loader \
-      packages/modules/Connectivity/service/jni system/netd/server
+      packages/modules/Connectivity/service/jni \
+      packages/modules/Connectivity/service/src/com/android/server system/netd/server
     if [ ! -f packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp ]; then
       cat > packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp <<'SRC'
 /*
@@ -97,6 +98,71 @@ static void verifyClatPerms() {
     // failures here are 99% likely to be build problems.
 
     if (fatal) abort();
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java ]; then
+      cat > packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java <<'SRC'
+package com.android.server;
+
+import static android.net.INetd.PERMISSION_NONE;
+import static android.net.INetd.PERMISSION_UNINSTALLED;
+import static android.net.INetd.PERMISSION_UPDATE_DEVICE_STATS;
+import static android.system.OsConstants.EINVAL;
+import static android.system.OsConstants.ENODEV;
+import static android.system.OsConstants.ENOENT;
+import static android.system.OsConstants.EOPNOTSUPP;
+
+import static com.android.server.ConnectivityStatsLog.NETWORK_BPF_MAP_INFO;
+
+import com.android.net.module.util.bpf.CookieTagMapValue;
+import com.android.net.module.util.bpf.IngressDiscardKey;
+import com.android.net.module.util.bpf.IngressDiscardValue;
+
+import java.io.FileDescriptor;
+import java.io.IOException;
+import java.net.InetAddress;
+
+public class BpfNetMaps {
+    static {
+        if (SdkLevel.isAtLeastT()) {
+            System.loadLibrary("service-connectivity");
+        }
+    }
+
+    private static final String TAG = "BpfNetMaps";
+    private final INetd mNetd;
+    private final Dependencies mDeps;
+    // Use legacy netd for releases before T.
+    private static boolean sInitialized = false;
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    public void swapActiveStatsMap() {
+        throwIfPreT("swapActiveStatsMap is not available on pre-T devices");
+
+        try {
+            synchronized (sCurrentStatsMapConfigLock) {
+                final long config = sConfigurationMap.getValue(
+                        CURRENT_STATS_MAP_CONFIGURATION_KEY).val;
+                final long newConfig = (config == STATS_SELECT_MAP_A)
+                        ? STATS_SELECT_MAP_B : STATS_SELECT_MAP_A;
+                sConfigurationMap.updateEntry(CURRENT_STATS_MAP_CONFIGURATION_KEY,
+                        new U32(newConfig));
+            }
+        } catch (ErrnoException e) {
+            throw new ServiceSpecificException(e.errno, "Failed to swap active stats map");
+        }
+
+        // After changing the config, it's needed to make sure all the current running eBPF
+        // programs are finished and all the CPUs are aware of this config change before the old
+        // map is modified. So special hack is needed here to wait for the kernel to do a
+        // synchronize_rcu(). Once the kernel called synchronize_rcu(), the updated config will
+        // be available to all cores and the next eBPF programs triggered inside the kernel will
+        // use the new map configuration. So once this function returns it is safe to modify the
+        // old stats map without concerning about race between the kernel and userspace.
+        final int err = mDeps.synchronizeKernelRCU();
+        maybeThrow(err, "synchronizeKernelRCU failed");
+    }
 }
 SRC
     fi
@@ -1350,6 +1416,20 @@ grep -Fq 'case VERIFY_PROG:   fd = bpf::retrieveProgram(path); break;' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (fatal) abort();' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
+grep -Fq 'import static android.system.OsConstants.EAFNOSUPPORT;' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'private static boolean isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'private static volatile boolean sRoydKernelRcuUnavailable = false;' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'if (probeErr == -EAFNOSUPPORT) {' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'ROYD: leaving the active network stats map unchanged because' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'sConfigurationMap.updateEntry(CURRENT_STATS_MAP_CONFIGURATION_KEY,' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'maybeThrow(err, "synchronizeKernelRCU failed");' \
+  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

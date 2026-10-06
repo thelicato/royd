@@ -9,6 +9,7 @@
 .PHONY: android15-memfd-container-test
 .PHONY: android15-netd-iptables-container-test
 .PHONY: android15-clat-bpf-container-test
+.PHONY: android15-network-stats-rcu-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -274,6 +275,9 @@ android15-netd-iptables-container-test:
 
 android15-clat-bpf-container-test:
 	./android/scripts/android15-clat-bpf-container-test.sh
+
+android15-network-stats-rcu-container-test:
+	./android/scripts/android15-network-stats-rcu-container-test.sh
 
 android-display-contract-test:
 	./android/scripts/display-contract-test.sh
