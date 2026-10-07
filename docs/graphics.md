@@ -54,3 +54,5 @@ The `headless` HAL profile does not remove SurfaceFlinger or the allocator/compo
 An experimental host GPU path is configured for Android 10 and newer. It uses AOSP Mesa for EGL/GLES, minigbm for DRM-backed allocation, and an explicit `/dev/dri` runtime device contract. Software rendering remains the default.
 
 The available backends are `host-gpu-generic` and the x86_64-only `host-gpu-intel`. Android 15 selects the modern composer3 service when either backend is requested, but the host-GPU allocator path is not yet qualified against Android 15's modern allocator/mapper contract. Do not treat that combination as build- or runtime-supported until later validation closes the gap. See [`host-gpu.md`](host-gpu.md).
+
+Qualifying this Android 15 host-GPU path is required for competitive interactive performance on machines with suitable DRM render nodes. Adding RAM alone cannot remove the CPU cost of ANGLE over SwiftShader. Software and host-GPU benchmarks must therefore be reported separately.

@@ -59,6 +59,12 @@ Before publishing a minimum RAM figure, repeat the test across multiple boots an
 
 Every generated sweep includes the image ID, Android version and AOSP ref, Android image profile, package-policy identifier and SHA-256, HAL profile, graphics backend, exact display dimensions/density/frame rate, security mode, workload name and command, boot timeout, and settle interval. Figures without that provenance should not be published as royd memory results.
 
+## Competitive performance comparison
+
+Performance comparisons against another Android container runtime must control the host, Android version and architecture, renderer, display dimensions and frame rate, CPU and memory limits, storage state, scrcpy codec and bit rate, and application workload. Report at least boot-to-home time, application launch latency, rendered frame timing, encoder throughput, host CPU time, peak and settled memory, and workload success or failure.
+
+The current Android 15 software profile is a portable compatibility baseline. It must not be described as matching a competing runtime until an identical-host comparison demonstrates that result. Software and host-GPU results belong in separate comparison groups. A high-resource royd profile must also be compared with the low-memory profile so increased responsiveness is not mistaken for an uncontrolled memory regression.
+
 
 ## Android image profile comparison
 
