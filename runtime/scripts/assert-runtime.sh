@@ -148,6 +148,32 @@ for display_property in width height dpi fps; do
 done
 
 if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
+  appwidget_status=$(docker exec "$container" service check appwidget 2>/dev/null | tr -d '\r')
+  if [ "$appwidget_status" != 'Service appwidget: found' ]; then
+    printf 'error: Android 15 AppWidget service is unavailable in %s: %s\n' \
+      "$container" "${appwidget_status:-<empty>}" >&2
+    exit 1
+  fi
+  docker exec "$container" pm list features 2>/dev/null | \
+    grep -Fxq 'feature:android.software.app_widgets' || {
+    printf 'error: Android 15 app-widget feature is not declared in %s\n' "$container" >&2
+    exit 1
+  }
+  docker exec "$container" sh -c '
+    # royd-runtime-launcher-test
+    input keyevent KEYCODE_WAKEUP
+    wm dismiss-keyguard
+    input keyevent KEYCODE_HOME
+    sleep 2
+    first=$(pidof com.android.launcher3) || exit 1
+    sleep 4
+    second=$(pidof com.android.launcher3) || exit 1
+    [ "$first" = "$second" ]
+  ' || {
+    printf 'error: Android 15 Launcher3 did not remain stable after unlock in %s\n' "$container" >&2
+    exit 1
+  }
+
   capture_width=$(( (display_width + 7) / 8 * 8 ))
   docker exec "$container" sh -c '
     capture=/data/local/tmp/royd-runtime-video-test.mp4

@@ -30,6 +30,7 @@ grep -Fxq 'ANDROID_POWER_SERVICE=android.hardware.power-service.example' "$versi
 grep -Fxq 'ANDROID_AUDIO_SERVICE=com.android.hardware.audio' "$version_env" || fail 'Android 15 audio service contract drifted'
 grep -Fxq 'ANDROID_KEYMINT_SERVICE=android.hardware.security.keymint-service' "$version_env" || fail 'Android 15 KeyMint service contract drifted'
 grep -Fxq 'ANDROID_CODEC2_HAL=aidl' "$version_env" || fail 'Android 15 Codec2 HAL contract drifted'
+grep -Fxq 'ANDROID_APP_WIDGETS=1' "$version_env" || fail 'Android 15 app-widget feature contract drifted'
 grep -Fxq 'ANDROID_DALVIK_HEAP_PROFILE=phone-hdpi-512' "$version_env" || fail 'Android 15 Dalvik heap profile contract drifted'
 grep -Fxq 'ANDROID_GRAPHICS_COMPOSER=aidl4-client' "$version_env" || fail 'Android 15 does not select the current composer3 source ABI'
 grep -Fxq 'ANDROID_GRAPHICS_ALLOCATOR=aidl2-stablec5-memfd' "$version_env" || fail 'Android 15 allocator contract drifted'
@@ -117,6 +118,8 @@ grep -Fxq 'ROYD_CODEC2_HAL := aidl' "$work/vendor/royd/version.mk" || fail 'inst
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the Codec2 AIDL software store'
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the local Codec2 AIDL input surface'
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the gralloc-backed Codec2 linear pool'
+grep -Fxq 'ROYD_APP_WIDGETS := true' "$work/vendor/royd/version.mk" || fail 'installed Android 15 graphical product omits its app-widget selector'
+grep -Fxq 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml' "$work/vendor/royd/version.mk" || fail 'installed Android 15 graphical product omits the app-widget feature declaration'
 grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'installed Android 15 product omits the AIDL audio APEX'
 grep -Fxq '    ro.boot.audio.tinyalsa.ignore_output=true \' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio output does not select the stub driver'
 grep -Fxq '    ro.boot.audio.tinyalsa.simulate_input=true' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio input does not select the stub driver'
@@ -140,5 +143,11 @@ grep -Fxq 'PRODUCT_COMPRESSED_APEX := false' "$work/device/royd/container_versio
 grep -Fxq '$(call inherit-product, frameworks/native/build/phone-hdpi-512-dalvik-heap.mk)' "$work/device/royd/container_version.mk" || fail 'Android 15 product omits its low-memory Dalvik heap profile'
 ! grep -Fq 'default_art_config.mk' "$work/device/royd/container_version.mk" || fail 'Android 15 product redundantly inherits default_art_config.mk'
 ! grep -R -Fq 'PRODUCT_ENFORCE_VINTF_MANIFEST := false' "$work/device/royd" "$work/vendor/royd" || fail 'normal VINTF validation is disabled'
+
+rm -rf "$work/device/royd" "$work/vendor/royd"
+ROYD_ANDROID_VERSION=15 ROYD_HAL_PROFILE=headless \
+  "$script_dir/install-royd.sh" "$work" standard >/dev/null
+! grep -Fq 'ROYD_APP_WIDGETS :=' "$work/vendor/royd/version.mk" || fail 'Android 15 headless product unexpectedly enables app widgets'
+! grep -Fq 'android.software.app_widgets.xml' "$work/vendor/royd/version.mk" || fail 'Android 15 headless product unexpectedly installs the app-widget feature'
 
 printf '%s\n' 'Android 15 build-readiness contract test passed'

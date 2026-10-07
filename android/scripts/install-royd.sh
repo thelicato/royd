@@ -36,6 +36,7 @@ power_service=${ANDROID_POWER_SERVICE:-}
 audio_service=${ANDROID_AUDIO_SERVICE:-}
 keymint_service=${ANDROID_KEYMINT_SERVICE:-}
 codec2_hal=${ANDROID_CODEC2_HAL:-}
+app_widgets=${ANDROID_APP_WIDGETS:-0}
 dalvik_heap_profile=${ANDROID_DALVIK_HEAP_PROFILE:-}
 software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
@@ -99,6 +100,10 @@ esac
 case "$codec2_hal" in
   ''|aidl) ;;
   *) fail "unsupported Android Codec2 HAL: $codec2_hal" ;;
+esac
+case "$app_widgets" in
+  0|1) ;;
+  *) fail "unsupported Android app-widget feature selector: $app_widgets" ;;
 esac
 case "$dalvik_heap_profile" in
   ''|phone-hdpi-512) ;;
@@ -190,6 +195,10 @@ if [ -n "$codec2_hal" ]; then
   # Keep BufferQueue pools and replace the unavailable ION/dma-buf-heap linear
   # pool with AOSP's gralloc-backed BLOB allocator (bits 18 and 19).
   printf 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432\n' >> "$vendor_dst/version.mk"
+fi
+if [ "$app_widgets" = 1 ] && [ "$hal_profile" = graphical ]; then
+  printf 'ROYD_APP_WIDGETS := true\n' >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml\n' >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"

@@ -66,6 +66,13 @@ for version in 8.0 8.1 9 10 11 12 13 14 16 17; do
   [ -z "$codec2_hal" ] || { printf 'error: Android %s unexpectedly selects Android 15 Codec2 AIDL\n' "$version" >&2; exit 1; }
 done
 
+app_widgets=$(sh -c '. "$1"; printf "%s" "${ANDROID_APP_WIDGETS:-}"' sh "$android_dir/versions/15.env")
+[ "$app_widgets" = 1 ] || { printf '%s\n' 'error: Android 15 app-widget feature selection mismatch' >&2; exit 1; }
+for version in 8.0 8.1 9 10 11 12 13 14 16 17; do
+  app_widgets=$(sh -c '. "$1"; printf "%s" "${ANDROID_APP_WIDGETS:-}"' sh "$android_dir/versions/$version.env")
+  [ -z "$app_widgets" ] || { printf 'error: Android %s unexpectedly selects the Android 15 app-widget feature\n' "$version" >&2; exit 1; }
+done
+
 expected=$(
   cat <<'EOF2'
 8.0

@@ -96,8 +96,24 @@ case "$1" in
       [ "${MOCK_BAD_CODECS:-0}" = 1 ] || printf '%s\n' '    name: c2.android.opus.encoder'
       exit 0
     fi
+    if [ "$1" = service ] && [ "$2" = check ] && [ "$3" = appwidget ]; then
+      if [ "${MOCK_BAD_APPWIDGET:-0}" = 1 ]; then
+        printf '%s\n' 'Service appwidget: not found'
+      else
+        printf '%s\n' 'Service appwidget: found'
+      fi
+      exit 0
+    fi
+    if [ "$1" = pm ] && [ "$2" = list ] && [ "$3" = features ]; then
+      [ "${MOCK_BAD_APPWIDGET_FEATURE:-0}" = 1 ] || \
+        printf '%s\n' 'feature:android.software.app_widgets'
+      exit 0
+    fi
     if [ "$1" = sh ] && [ "$2" = -c ]; then
       case "$3" in
+        *royd-runtime-launcher-test*)
+          [ "${MOCK_BAD_LAUNCHER:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-video-test*)
           [ "${MOCK_BAD_CAPTURE:-0}" != 1 ] || exit 1
           ;;
@@ -166,5 +182,26 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CAPTURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 graphical capture produced no H.264 frames' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
+    "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 AppWidget service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 AppWidget service is unavailable' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET_FEATURE=1 \
+    "$script_dir/assert-runtime.sh" bad-appwidget-feature >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 app-widget feature' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 app-widget feature is not declared' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_LAUNCHER=1 \
+    "$script_dir/assert-runtime.sh" bad-launcher >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unstable Android 15 Launcher3 process' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 Launcher3 did not remain stable after unlock' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'
