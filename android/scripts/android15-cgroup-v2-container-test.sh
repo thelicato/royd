@@ -6,12 +6,14 @@ patch="$root/android/patches/android-15.0.0_r36/0017-libprocessgroup-use-contain
 fix_patch="$root/android/patches/android-15.0.0_r36/0018-libprocessgroup-fix-cgroup-name-comparison.patch"
 netd_patch="$root/android/patches/android-15.0.0_r36/0019-connectivity-allow-delegated-cgroup-bpf-root.patch"
 memcg_patch="$root/android/patches/android-15.0.0_r36/0020-libprocessgroup-delegate-memory-controller.patch"
+path_patch="$root/android/patches/android-15.0.0_r36/0021-libprocessgroup-normalize-delegated-task-path.patch"
 cgroups="$root/android/royd/vendor/royd/cgroups.json"
 
 [ -f "$patch" ] || { echo 'missing Android 15 libprocessgroup cgroup-v2 patch' >&2; exit 1; }
 [ -f "$fix_patch" ] || { echo 'missing Android 15 libprocessgroup comparison fix' >&2; exit 1; }
 [ -f "$netd_patch" ] || { echo 'missing Android 15 delegated cgroup netd patch' >&2; exit 1; }
 [ -f "$memcg_patch" ] || { echo 'missing Android 15 delegated memory-controller patch' >&2; exit 1; }
+[ -f "$path_patch" ] || { echo 'missing Android 15 delegated task-path patch' >&2; exit 1; }
 [ -f "$cgroups" ] || { echo 'missing royd cgroup-v2 descriptor' >&2; exit 1; }
 [ "$(grep -c '^diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp' "$patch")" -eq 1 ]
 [ "$(grep -c '^diff --git ' "$patch")" -eq 1 ]
@@ -44,6 +46,14 @@ grep -F 'const std::string procs_path = init_path + "/cgroup.procs";' "$memcg_pa
 grep -F '"+memory", "/sys/fs/cgroup/cgroup.subtree_control"' "$memcg_patch" >/dev/null
 grep -F 'Failed to delegate the memory controller to' "$memcg_patch" >/dev/null
 grep -F 'with init leaf' "$memcg_patch" >/dev/null
+[ "$(grep -c '^diff --git a/system/core/libprocessgroup/cgroup_map.cpp' "$path_patch")" -eq 1 ]
+[ "$(grep -c '^diff --git ' "$path_patch")" -eq 1 ]
+grep -F 'const char* royd_container = getenv("ROYD_CONTAINER");' "$path_patch" >/dev/null
+grep -F 'access("/sys/fs/selinux/enforce", F_OK) != 0 &&' "$path_patch" >/dev/null
+grep -F '!strcmp(path(), "/sys/fs/cgroup/royd")) {' "$path_patch" >/dev/null
+grep -F 'if (*group == "royd") {' "$path_patch" >/dev/null
+grep -F 'group->compare(0, 5, "royd/") == 0' "$path_patch" >/dev/null
+grep -F 'group->erase(0, 5);' "$path_patch" >/dev/null
 
 # The gated branch returns before the unchanged stock mount in the source.
 grep -F '+        return true;' "$patch" >/dev/null

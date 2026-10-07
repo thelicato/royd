@@ -25,7 +25,7 @@ case "$1" in
       packages/modules/Connectivity/bpf/netd \
       packages/modules/Connectivity/service/jni \
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
-      system/core/libprocessgroup/setup
+      system/core/libprocessgroup/setup system/core/libprocessgroup
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
 #include <dirent.h>
@@ -59,6 +59,54 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
               "memory_recursiveprot") < 0) {
         return false;
     }
+    return true;
+}
+SRC
+    fi
+    if [ ! -f system/core/libprocessgroup/cgroup_map.cpp ]; then
+      cat > system/core/libprocessgroup/cgroup_map.cpp <<'SRC'
+//#define LOG_NDEBUG 0
+#define LOG_TAG "libprocessgroup"
+
+#include <errno.h>
+#include <unistd.h>
+
+#include <regex>
+
+bool CgroupControllerWrapper::GetTaskGroup(pid_t tid, std::string* group) const {
+    std::string file_name = StringPrintf("/proc/%d/cgroup", tid);
+    std::string content;
+    if (!android::base::ReadFileToString(file_name, &content)) {
+        PLOG(ERROR) << "Failed to read " << file_name;
+        return false;
+    }
+
+    // if group is null and tid exists return early because
+    // user is not interested in cgroup membership
+    if (group == nullptr) {
+        return true;
+    }
+
+    std::string cg_tag;
+
+    if (version() == 2) {
+        cg_tag = "0::";
+    } else {
+        cg_tag = StringPrintf(":%s:", name());
+    }
+    size_t start_pos = content.find(cg_tag);
+    if (start_pos == std::string::npos) {
+        return false;
+    }
+
+    start_pos += cg_tag.length() + 1;  // skip '/'
+    size_t end_pos = content.find('\n', start_pos);
+    if (end_pos == std::string::npos) {
+        *group = content.substr(start_pos, std::string::npos);
+    } else {
+        *group = content.substr(start_pos, end_pos - start_pos);
+    }
+
     return true;
 }
 SRC
@@ -1559,6 +1607,14 @@ grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'mount("none", controller->path(), "cgroup2"' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
+  "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
+grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \
+  "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
+grep -Fq 'group->compare(0, 5, "royd/") == 0' \
+  "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
+grep -Fq 'group->erase(0, 5);' \
+  "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq 'static bool isRoydDelegatedCgroup(const char* cg2_path) {' \
   "$tmp/src/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp"
 grep -Fq '!isRoydDelegatedCgroup(cg2_path)) {' \

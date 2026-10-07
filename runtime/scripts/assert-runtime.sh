@@ -193,6 +193,24 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
   }
 
   docker exec "$container" sh -c '
+    # royd-runtime-memcg-path-test
+    launcher=$(pidof com.android.launcher3) || exit 1
+    launcher_group=$(sed -n "s/^0:://p" "/proc/$launcher/cgroup")
+    memory_low=$(cat "/sys/fs/cgroup$launcher_group/memory.low") || exit 1
+    case "$memory_low" in
+      ""|*[!0-9]*) exit 1 ;;
+    esac
+    [ "$memory_low" -gt 0 ]
+  ' || {
+    printf 'error: Android 15 per-process memory.low policy is not active in %s\n' "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Fq '/sys/fs/cgroup/royd/royd/'; then
+    printf 'error: Android 15 duplicated its delegated cgroup root in %s\n' "$container" >&2
+    exit 1
+  fi
+
+  docker exec "$container" sh -c '
     # royd-runtime-webview-cgroup-test
     before=$(pidof system_server) || exit 1
     trap '\''am force-stop org.chromium.webview_shell >/dev/null 2>&1 || true'\'' EXIT INT TERM

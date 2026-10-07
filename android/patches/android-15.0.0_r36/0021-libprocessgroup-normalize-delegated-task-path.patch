@@ -1,0 +1,33 @@
+diff --git a/system/core/libprocessgroup/cgroup_map.cpp b/system/core/libprocessgroup/cgroup_map.cpp
+--- a/system/core/libprocessgroup/cgroup_map.cpp
++++ b/system/core/libprocessgroup/cgroup_map.cpp
+@@ -17,7 +17,9 @@
+ //#define LOG_NDEBUG 0
+ #define LOG_TAG "libprocessgroup"
+ 
+ #include <errno.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <unistd.h>
+ 
+ #include <regex>
+@@ -122,6 +124,19 @@ bool CgroupControllerWrapper::GetTaskGroup(pid_t tid, std::string* group) const {
+     } else {
+         *group = content.substr(start_pos, end_pos - start_pos);
+     }
++
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    if (version() == 2 && royd_container != nullptr && !strcmp(royd_container, "1") &&
++        access("/sys/fs/selinux/enforce", F_OK) != 0 &&
++        !strcmp(path(), "/sys/fs/cgroup/royd")) {
++        // /proc reports the cgroup namespace-absolute path. Return a path relative to the
++        // configured controller root, as callers expect for a conventional root mount.
++        if (*group == "royd") {
++            group->clear();
++        } else if (group->compare(0, 5, "royd/") == 0) {
++            group->erase(0, 5);
++        }
++    }
+ 
+     return true;
+ }

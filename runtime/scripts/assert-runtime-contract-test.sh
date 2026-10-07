@@ -120,6 +120,9 @@ case "$1" in
         *royd-runtime-launcher-test*)
           [ "${MOCK_BAD_LAUNCHER:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-memcg-path-test*)
+          [ "${MOCK_BAD_MEMCG_PATH:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
@@ -133,6 +136,9 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
+      printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
+    fi
     if [ "$MOCK_SDK" = 35 ]; then
       printf '%s\n' '[royd] graphics: allocator aidl2-stablec5-memfd and mapper stablec5-royd ready'
     else
@@ -212,6 +218,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_LAUNCHER=1 \
   exit 1
 fi
 grep -Fq 'Android 15 Launcher3 did not remain stable after unlock' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_MEMCG_PATH=1 \
+    "$script_dir/assert-runtime.sh" bad-memcg-path >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an inactive Android 15 memory.low policy' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 per-process memory.low policy is not active' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_DUPLICATE_CGROUP_ROOT=1 \
+    "$script_dir/assert-runtime.sh" duplicate-cgroup-root >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a duplicated Android 15 cgroup root' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 duplicated its delegated cgroup root' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
     "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then
