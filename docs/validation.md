@@ -25,7 +25,7 @@ Android 15 runtime assertions also require the AIDL Codec2 software store to exp
 
 The Android 15 graphical product installs only AOSP's app-widget feature declaration rather than the broad handheld hardware declaration. Runtime assertions require the resulting AppWidget service, unlock the display, select Home and confirm that the same Launcher3 process remains alive across a stability interval before recording the display capture.
 
-Android 15 delegates `/sys/fs/cgroup/royd` to the Android system UID while leaving Docker's cgroup root unchanged, then moves Android init into that subtree before services start. Runtime assertions verify PID 1 membership, launch the WebView shell and require `system_server` to remain alive, covering the isolated-process group path used by WebView and other app zygotes.
+Android 15 delegates `/sys/fs/cgroup/royd` to the Android system UID while leaving Docker's cgroup root unchanged, then moves Android init into that subtree before services start. Netd attaches Android's network BPF programs to the delegated root rather than rejecting the non-standard cgroup path. Runtime assertions verify PID 1 membership and a running netd, launch the WebView shell and require `system_server` to remain alive, covering the isolated-process group path used by WebView and other app zygotes.
 
 On Android 15 containers, init retains the OCI stdout and stderr descriptors while still attaching stdin to `/dev/null`. Repository-owned startup diagnostics, the boot watchdog and the `logcat` forwarding service write through PID 1, so `docker logs` does not depend on ADB or a host-side logging supervisor.
 

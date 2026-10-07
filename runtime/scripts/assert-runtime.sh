@@ -117,6 +117,7 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  assert_property init.svc.netd running
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432

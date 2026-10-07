@@ -24,6 +24,9 @@ case "$1" in
         sys.boot_completed) value=1 ;;
         ro.config.low_ram) value=true ;;
         init.svc.royd-logcat|init.svc.adbd) value=running ;;
+        init.svc.netd)
+          [ "${MOCK_BAD_NETD:-0}" = 1 ] && value=restarting || value=running
+          ;;
         service.adb.tcp.port) value=5555 ;;
         media.c2.hal.selection) [ "$MOCK_SDK" = 35 ] && value=aidl || value= ;;
         debug.stagefright.c2inputsurface)
@@ -223,5 +226,12 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_WEBVIEW_CGROUP=1 \
   exit 1
 fi
 grep -Fq 'Android 15 WebView process groups restarted system_server' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_NETD=1 \
+    "$script_dir/assert-runtime.sh" bad-netd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a restarting Android 15 netd' >&2
+  exit 1
+fi
+grep -Fq 'init.svc.netd expected running, got restarting' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

@@ -1,0 +1,39 @@
+diff --git a/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp b/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp
+--- a/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp
++++ b/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp
+@@ -17,6 +17,8 @@
+ 
+ #include <linux/bpf.h>
+ #include <inttypes.h>
++#include <stdlib.h>
++#include <unistd.h>
+ 
+ #include <android-base/unique_fd.h>
+ #include <android-modules-utils/sdk_level.h>
+@@ -69,6 +71,13 @@ static Status checkProgramAccessible(const char* programPath) {
+     return netdutils::status::ok;
+ }
+ 
++static bool isRoydDelegatedCgroup(const char* cg2_path) {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return cg2_path != nullptr && !strcmp(cg2_path, "/sys/fs/cgroup/royd") &&
++            roydContainer != nullptr && !strcmp(roydContainer, "1") &&
++            access("/sys/fs/selinux/enforce", F_OK) != 0;
++}
++
+ static Status initPrograms(const char* cg2_path) {
+     if (!cg2_path) return Status("cg2_path is NULL");
+ 
+@@ -87,9 +96,11 @@ static Status initPrograms(const char* cg2_path) {
+     }
+ 
+     // U mandates this mount point (though it should also be the case on T)
+-    if (modules::sdklevel::IsAtLeastU() && !!strcmp(cg2_path, "/sys/fs/cgroup")) {
++    if (modules::sdklevel::IsAtLeastU() && !!strcmp(cg2_path, "/sys/fs/cgroup") &&
++        !isRoydDelegatedCgroup(cg2_path)) {
+         return Status("U+ platform with cg2_path != /sys/fs/cgroup is unsupported");
+     }
++    if (isRoydDelegatedCgroup(cg2_path)) ALOGI("ROYD: attaching network BPF to %s", cg2_path);
+ 
+     unique_fd cg_fd(open(cg2_path, O_DIRECTORY | O_RDONLY | O_CLOEXEC));
+     if (!cg_fd.ok()) {

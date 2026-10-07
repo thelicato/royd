@@ -22,6 +22,7 @@ case "$1" in
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
       system/logging/logd packages/modules/Connectivity/bpf/loader \
+      packages/modules/Connectivity/bpf/netd \
       packages/modules/Connectivity/service/jni \
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
       system/core/libprocessgroup/setup
@@ -59,6 +60,44 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
         return false;
     }
     return true;
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/bpf/netd/BpfHandler.cpp ]; then
+      cat > packages/modules/Connectivity/bpf/netd/BpfHandler.cpp <<'SRC'
+// sync fixture
+
+#include <linux/bpf.h>
+#include <inttypes.h>
+
+#include <android-base/unique_fd.h>
+#include <android-modules-utils/sdk_level.h>
+
+static Status checkProgramAccessible(const char* programPath) {
+    return netdutils::status::ok;
+}
+
+static Status initPrograms(const char* cg2_path) {
+    if (!cg2_path) return Status("cg2_path is NULL");
+
+    // This code was mainlined in T, so this should be trivially satisfied.
+    if (!modules::sdklevel::IsAtLeastT()) return Status("S- platform is unsupported");
+
+    // U bumps the kernel requirement up to 4.14
+    if (modules::sdklevel::IsAtLeastU() && !bpf::isAtLeastKernelVersion(4, 14, 0)) {
+        return Status("U+ platform with kernel version < 4.14.0 is unsupported");
+    }
+
+    // U mandates this mount point (though it should also be the case on T)
+    if (modules::sdklevel::IsAtLeastU() && !!strcmp(cg2_path, "/sys/fs/cgroup")) {
+        return Status("U+ platform with cg2_path != /sys/fs/cgroup is unsupported");
+    }
+
+    unique_fd cg_fd(open(cg2_path, O_DIRECTORY | O_RDONLY | O_CLOEXEC));
+    if (!cg_fd.ok()) {
+        return Status("Open the cgroup directory failed");
+    }
+    return netdutils::status::ok;
 }
 SRC
     fi
@@ -1510,6 +1549,12 @@ grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'mount("none", controller->path(), "cgroup2"' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'static bool isRoydDelegatedCgroup(const char* cg2_path) {' \
+  "$tmp/src/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp"
+grep -Fq '!isRoydDelegatedCgroup(cg2_path)) {' \
+  "$tmp/src/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp"
+grep -Fq 'ROYD: attaching network BPF to %s' \
+  "$tmp/src/packages/modules/Connectivity/bpf/netd/BpfHandler.cpp"
 grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' \
   "$tmp/src/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
 ! grep -Fq 'eventfd(' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
