@@ -1447,6 +1447,8 @@ grep -Fq 'exec -- /system/bin/ip rule add pref 31999 lookup main' \
   "$tmp/src/vendor/royd/init.royd.rc"
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' \
   "$tmp/src/vendor/royd/version.mk"
+grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' \
+  "$tmp/src/vendor/royd/version.mk"
 grep -Fq '"libselinux",' "$tmp/src/system/netd/server/Android.bp"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/system/netd/server/Controllers.cpp"

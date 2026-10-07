@@ -112,6 +112,7 @@ grep -Fxq 'ROYD_KEYMINT_SERVICE := android.hardware.security.keymint-service' "$
 grep -Fxq 'PRODUCT_PACKAGES += android.hardware.security.keymint-service' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits the software KeyMint service'
 grep -Fxq 'ROYD_CODEC2_HAL := aidl' "$work/vendor/royd/version.mk" || fail 'installed Android 15 Codec2 HAL selector mismatch'
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the Codec2 AIDL software store'
+grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the local Codec2 AIDL input surface'
 grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'installed Android 15 product omits the AIDL audio APEX'
 grep -Fxq '    ro.boot.audio.tinyalsa.ignore_output=true \' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio output does not select the stub driver'
 grep -Fxq '    ro.boot.audio.tinyalsa.simulate_input=true' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio input does not select the stub driver'

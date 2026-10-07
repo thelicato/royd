@@ -26,6 +26,15 @@ case "$1" in
         init.svc.royd-logcat|init.svc.adbd) value=running ;;
         service.adb.tcp.port) value=5555 ;;
         media.c2.hal.selection) [ "$MOCK_SDK" = 35 ] && value=aidl || value= ;;
+        debug.stagefright.c2inputsurface)
+          if [ "${MOCK_BAD_INPUT_SURFACE:-0}" = 1 ]; then
+            value=
+          elif [ "$MOCK_SDK" = 35 ]; then
+            value=-1
+          else
+            value=
+          fi
+          ;;
         vendor.royd.graphics.mode) value=software ;;
         ro.vendor.royd.graphics_backend) value=software ;;
         ro.vendor.royd.hal_profile) value=graphical ;;
@@ -122,5 +131,12 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CODECS=1 \
   exit 1
 fi
 grep -Fq 'software Codec2 store omits c2.android.opus.encoder' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_INPUT_SURFACE=1 \
+    "$script_dir/assert-runtime.sh" bad-input-surface >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unavailable Android 15 Codec2 input surface' >&2
+  exit 1
+fi
+grep -Fq 'debug.stagefright.c2inputsurface expected -1, got <empty>' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

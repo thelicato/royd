@@ -118,6 +118,7 @@ assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
   assert_property media.c2.hal.selection aidl
+  assert_property debug.stagefright.c2inputsurface -1
   codec_store=$(docker exec "$container" \
     dumpsys android.hardware.media.c2.IComponentStore/software 2>/dev/null) || {
     printf 'error: Android 15 software Codec2 store is unavailable in %s\n' "$container" >&2

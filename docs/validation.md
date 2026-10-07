@@ -21,7 +21,7 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
-Android 15 runtime assertions also require the AIDL Codec2 software store to expose H.264 video and Opus audio encoders. These components provide the default scrcpy streaming codecs without requiring host media hardware.
+Android 15 runtime assertions also require the AIDL Codec2 software store to expose H.264 video and Opus audio encoders. The product selects Stagefright's local AIDL GraphicBufferSource path for encoder input surfaces because it does not install the remote Codec2 input-surface or legacy OMX services. These components provide the default scrcpy streaming codecs without requiring host media hardware.
 
 On Android 15 containers, init retains the OCI stdout and stderr descriptors while still attaching stdin to `/dev/null`. Repository-owned startup diagnostics, the boot watchdog and the `logcat` forwarding service write through PID 1, so `docker logs` does not depend on ADB or a host-side logging supervisor.
 
