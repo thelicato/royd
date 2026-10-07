@@ -116,6 +116,21 @@ assert_property vendor.royd.host.memfd available
 assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
+if [ "$sdk" = 35 ]; then
+  assert_property media.c2.hal.selection aidl
+  codec_store=$(docker exec "$container" \
+    dumpsys android.hardware.media.c2.IComponentStore/software 2>/dev/null) || {
+    printf 'error: Android 15 software Codec2 store is unavailable in %s\n' "$container" >&2
+    exit 1
+  }
+  for component in c2.android.avc.encoder c2.android.opus.encoder; do
+    printf '%s\n' "$codec_store" | grep -Fq "name: $component" || {
+      printf 'error: Android 15 software Codec2 store omits %s in %s\n' "$component" "$container" >&2
+      exit 1
+    }
+  done
+fi
+
 for display_property in width height dpi fps; do
   value=$(docker exec "$container" getprop "vendor.royd.display.$display_property" 2>/dev/null | tr -d '\r')
   case "$value" in

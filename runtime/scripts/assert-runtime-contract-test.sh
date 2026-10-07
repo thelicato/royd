@@ -25,6 +25,7 @@ case "$1" in
         ro.config.low_ram) value=true ;;
         init.svc.royd-logcat|init.svc.adbd) value=running ;;
         service.adb.tcp.port) value=5555 ;;
+        media.c2.hal.selection) [ "$MOCK_SDK" = 35 ] && value=aidl || value= ;;
         vendor.royd.graphics.mode) value=software ;;
         ro.vendor.royd.graphics_backend) value=software ;;
         ro.vendor.royd.hal_profile) value=graphical ;;
@@ -71,6 +72,12 @@ case "$1" in
       printf '%s\n' "$value"
       exit 0
     fi
+    if [ "$1" = dumpsys ] && \
+        [ "$2" = android.hardware.media.c2.IComponentStore/software ]; then
+      printf '%s\n' '    name: c2.android.avc.encoder'
+      [ "${MOCK_BAD_CODECS:-0}" = 1 ] || printf '%s\n' '    name: c2.android.opus.encoder'
+      exit 0
+    fi
     if [ "$1" = sh ] && [ "$2" = -c ]; then
       exit 0
     fi
@@ -108,5 +115,12 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ALLOCATOR=1 \
   exit 1
 fi
 grep -Fq 'vendor.royd.graphics.allocator expected aidl2-stablec5-memfd, got wrong' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CODECS=1 \
+    "$script_dir/assert-runtime.sh" bad-codecs >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an incomplete Android 15 Codec2 store' >&2
+  exit 1
+fi
+grep -Fq 'software Codec2 store omits c2.android.opus.encoder' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

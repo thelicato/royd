@@ -59,6 +59,13 @@ check_version 15 android-15.0.0_r36 royd_x86_64-bp1a-userdebug royd_arm64-bp1a-u
 check_version 16 android-16.0.0_r4 royd_x86_64-bp4a-userdebug royd_arm64-bp4a-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd '' ''
 check_version 17 android-17.0.0_r1 royd_x86_64-cp2a-userdebug royd_arm64-cp2a-userdebug configured modern "system vendor system_ext product" native-memfd 2.4 1 gralloc0-memfd '' ''
 
+codec2_hal=$(sh -c '. "$1"; printf "%s" "${ANDROID_CODEC2_HAL:-}"' sh "$android_dir/versions/15.env")
+[ "$codec2_hal" = aidl ] || { printf '%s\n' 'error: Android 15 Codec2 HAL selection mismatch' >&2; exit 1; }
+for version in 8.0 8.1 9 10 11 12 13 14 16 17; do
+  codec2_hal=$(sh -c '. "$1"; printf "%s" "${ANDROID_CODEC2_HAL:-}"' sh "$android_dir/versions/$version.env")
+  [ -z "$codec2_hal" ] || { printf 'error: Android %s unexpectedly selects Android 15 Codec2 AIDL\n' "$version" >&2; exit 1; }
+done
+
 expected=$(
   cat <<'EOF2'
 8.0

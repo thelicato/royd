@@ -104,6 +104,13 @@ grep -Fxq 'PRODUCT_PACKAGES += android.hardware.security.keymint-service' "$work
   fail 'Android 15 product does not install the module-owned software KeyMint service'
 ! grep -Fq '<name>android.hardware.security.' "$manifest" || \
   fail 'Android 15 central device manifest duplicates the KeyMint module declarations'
+# The media software-codec APEX contributes the software component-store
+# framework declarations. Select its AIDL implementation without duplicating
+# those declarations in the device manifest.
+grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' "$work/vendor/royd/version.mk" || \
+  fail 'Android 15 product does not select the AIDL software Codec2 store'
+! grep -Fq '<name>android.hardware.media.c2</name>' "$manifest" || \
+  fail 'Android 15 central device manifest duplicates the software Codec2 declarations'
 
 # Other configured versions must not silently inherit Android 15's target FCM.
 rm -rf "$work/device/royd" "$work/vendor/royd"
@@ -118,6 +125,8 @@ ROYD_ANDROID_VERSION=14 "$script_dir/install-royd.sh" "$work" standard >/dev/nul
   fail 'Android 14 unexpectedly selected Android 15 AIDL Audio'
 ! grep -Fq 'ROYD_KEYMINT_SERVICE :=' "$work/vendor/royd/version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 software KeyMint'
+! grep -Fq 'ROYD_CODEC2_HAL :=' "$work/vendor/royd/version.mk" || \
+  fail 'Android 14 unexpectedly selected Android 15 Codec2 AIDL'
 ! grep -Fq 'dalvik-heap.mk' "$work/device/royd/container_version.mk" || \
   fail 'Android 14 unexpectedly selected Android 15 Dalvik heap policy'
 

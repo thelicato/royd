@@ -21,6 +21,8 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+Android 15 runtime assertions also require the AIDL Codec2 software store to expose H.264 video and Opus audio encoders. These components provide the default scrcpy streaming codecs without requiring host media hardware.
+
 On Android 15 containers, init retains the OCI stdout and stderr descriptors while still attaching stdin to `/dev/null`. Repository-owned startup diagnostics, the boot watchdog and the `logcat` forwarding service write through PID 1, so `docker logs` does not depend on ADB or a host-side logging supervisor.
 
 Android 15 also installs a final main-table policy fallback before Android's terminal unreachable rule. Earlier Android VPN, explicit, local and default-network rules remain authoritative, while fresh replies through Docker's OCI-provided `eth0` route continue to work after boot. Runtime qualification verifies this path with a new host-side ADB connection.
