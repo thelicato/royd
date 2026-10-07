@@ -23,7 +23,45 @@ case "$1" in
       system/security/keystore2/src frameworks/base/core/jni frameworks/native/cmds/installd \
       system/logging/logd packages/modules/Connectivity/bpf/loader \
       packages/modules/Connectivity/service/jni \
-      packages/modules/Connectivity/service/src/com/android/server system/netd/server
+      packages/modules/Connectivity/service/src/com/android/server system/netd/server \
+      system/core/libprocessgroup/setup
+    if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
+      cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <grp.h>
+#include <pwd.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <optional>
+
+static bool IsOptionalController(const CgroupController* controller) {
+    return controller->flags() & CGROUPRC_CONTROLLER_FLAG_OPTIONAL;
+}
+
+static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+    const CgroupController* controller = descriptor.controller();
+
+    // /sys/fs/cgroup is created by cgroup2 with specific selinux permissions,
+    // try to create again in case the mount point is changed
+    if (!Mkdir(controller->path(), 0, "", "")) {
+        LOG(ERROR) << "Failed to create directory for " << controller->name() << " cgroup";
+        return false;
+    }
+
+    // The memory_recursiveprot mount option has been introduced by kernel commit
+    if (mount("none", controller->path(), "cgroup2", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+              "memory_recursiveprot") < 0) {
+        return false;
+    }
+    return true;
+}
+SRC
+    fi
     if [ ! -f packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp ]; then
       cat > packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp <<'SRC'
 /*
@@ -1454,6 +1492,20 @@ grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' \
 grep -Fxq 'ROYD_APP_WIDGETS := true' "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml' \
   "$tmp/src/vendor/royd/version.mk"
+grep -Fxq 'ROYD_CGROUP2_SUBTREE := /sys/fs/cgroup/royd' \
+  "$tmp/src/vendor/royd/version.mk"
+grep -Fxq 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VENDOR)/etc/cgroups.json' \
+  "$tmp/src/vendor/royd/version.mk"
+grep -Fq 'static bool IsRoydContainerCgroup(const CgroupController* controller) {' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'android::base::WriteStringToFile(std::to_string(getpid()), procs_path)' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'mount("none", controller->path(), "cgroup2"' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' \
   "$tmp/src/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
 ! grep -Fq 'eventfd(' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"

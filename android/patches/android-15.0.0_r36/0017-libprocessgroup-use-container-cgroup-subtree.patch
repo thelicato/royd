@@ -1,0 +1,67 @@
+diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+--- a/system/core/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -20,6 +20,8 @@
+ #include <fcntl.h>
+ #include <grp.h>
+ #include <pwd.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <sys/mount.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+@@ -138,9 +140,54 @@ static bool IsOptionalController(const CgroupController* controller) {
+     return controller->flags() & CGROUPRC_CONTROLLER_FLAG_OPTIONAL;
+ }
+ 
++static bool IsRoydContainerCgroup(const CgroupController* controller) {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++            access("/sys/fs/selinux/enforce", F_OK) != 0 &&
++            strcmp(controller->name(), CGROUPV2_HIERARCHY_NAME) == 0 &&
++            strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&
++            access("/sys/fs/cgroup/cgroup.controllers", F_OK) == 0;
++}
++
++static bool ChangePathModeAndOwner(const std::string& path, mode_t mode,
++                                   const std::string& uid, const std::string& gid) {
++    passwd* uid_pwd = getpwnam(uid.c_str());
++    if (!uid_pwd) {
++        PLOG(ERROR) << "Unable to decode UID for '" << uid << "'";
++        return false;
++    }
++    group* gid_pwd = getgrnam(gid.c_str());
++    if (!gid_pwd) {
++        PLOG(ERROR) << "Unable to decode GID for '" << gid << "'";
++        return false;
++    }
++    if (chown(path.c_str(), uid_pwd->pw_uid, gid_pwd->gr_gid) < 0 ||
++        chmod(path.c_str(), mode) < 0) {
++        PLOG(ERROR) << "Change of ownership or mode failed for " << path;
++        return false;
++    }
++    return true;
++}
++
+ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+     const CgroupController* controller = descriptor.controller();
+ 
++    if (IsRoydContainerCgroup(controller)) {
++        if (!Mkdir(controller->path(), descriptor.mode(), descriptor.uid(), descriptor.gid()) ||
++            !ChangePathModeAndOwner(controller->path(), descriptor.mode(), descriptor.uid(),
++                                    descriptor.gid())) {
++            LOG(ERROR) << "Failed to prepare delegated royd cgroup v2 subtree";
++            return false;
++        }
++        const std::string procs_path = std::string(controller->path()) + "/cgroup.procs";
++        if (!android::base::WriteStringToFile(std::to_string(getpid()), procs_path)) {
++            PLOG(ERROR) << "Failed to move Android init into " << controller->path();
++            return false;
++        }
++        LOG(INFO) << "ROYD: using delegated cgroup v2 subtree at " << controller->path();
++        return true;
++    }
++
+     // /sys/fs/cgroup is created by cgroup2 with specific selinux permissions,
+     // try to create again in case the mount point is changed
+     if (!Mkdir(controller->path(), 0, "", "")) {

@@ -111,8 +111,14 @@ case "$1" in
     fi
     if [ "$1" = sh ] && [ "$2" = -c ]; then
       case "$3" in
+        *royd-runtime-cgroup-test*)
+          [ "${MOCK_BAD_CGROUP:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-launcher-test*)
           [ "${MOCK_BAD_LAUNCHER:-0}" != 1 ] || exit 1
+          ;;
+        *royd-runtime-webview-cgroup-test*)
+          [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
         *royd-runtime-video-test*)
           [ "${MOCK_BAD_CAPTURE:-0}" != 1 ] || exit 1
@@ -203,5 +209,19 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_LAUNCHER=1 \
   exit 1
 fi
 grep -Fq 'Android 15 Launcher3 did not remain stable after unlock' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
+    "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unavailable Android 15 cgroup-v2 subtree' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 delegated cgroup-v2 subtree is not ready' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_WEBVIEW_CGROUP=1 \
+    "$script_dir/assert-runtime.sh" bad-webview-cgroup >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a WebView system_server restart' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 WebView process groups restarted system_server' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

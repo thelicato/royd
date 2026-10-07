@@ -131,6 +131,15 @@ if [ "$sdk" = 35 ]; then
       exit 1
     }
   done
+  docker exec "$container" sh -c '
+    # royd-runtime-cgroup-test
+    test "$(stat -c %u:%g:%a /sys/fs/cgroup/royd)" = 1000:1000:775
+    test -f /sys/fs/cgroup/royd/cgroup.procs
+    test "$(cat /proc/1/cgroup)" = 0::/royd
+  ' || {
+    printf 'error: Android 15 delegated cgroup-v2 subtree is not ready in %s\n' "$container" >&2
+    exit 1
+  }
 fi
 
 for display_property in width height dpi fps; do
@@ -171,6 +180,20 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     [ "$first" = "$second" ]
   ' || {
     printf 'error: Android 15 Launcher3 did not remain stable after unlock in %s\n' "$container" >&2
+    exit 1
+  }
+
+  docker exec "$container" sh -c '
+    # royd-runtime-webview-cgroup-test
+    before=$(pidof system_server) || exit 1
+    trap '\''am force-stop org.chromium.webview_shell >/dev/null 2>&1 || true'\'' EXIT INT TERM
+    am start -W -n org.chromium.webview_shell/.WebViewBrowserActivity >/dev/null
+    sleep 4
+    after=$(pidof system_server) || exit 1
+    [ "$before" = "$after" ]
+    pidof org.chromium.webview_shell >/dev/null
+  ' || {
+    printf 'error: Android 15 WebView process groups restarted system_server in %s\n' "$container" >&2
     exit 1
   }
 

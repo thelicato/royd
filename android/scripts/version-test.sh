@@ -73,6 +73,13 @@ for version in 8.0 8.1 9 10 11 12 13 14 16 17; do
   [ -z "$app_widgets" ] || { printf 'error: Android %s unexpectedly selects the Android 15 app-widget feature\n' "$version" >&2; exit 1; }
 done
 
+cgroup2_subtree=$(sh -c '. "$1"; printf "%s" "${ANDROID_CGROUP2_SUBTREE:-}"' sh "$android_dir/versions/15.env")
+[ "$cgroup2_subtree" = /sys/fs/cgroup/royd ] || { printf '%s\n' 'error: Android 15 cgroup-v2 subtree selection mismatch' >&2; exit 1; }
+for version in 8.0 8.1 9 10 11 12 13 14 16 17; do
+  cgroup2_subtree=$(sh -c '. "$1"; printf "%s" "${ANDROID_CGROUP2_SUBTREE:-}"' sh "$android_dir/versions/$version.env")
+  [ -z "$cgroup2_subtree" ] || { printf 'error: Android %s unexpectedly selects the Android 15 cgroup-v2 subtree\n' "$version" >&2; exit 1; }
+done
+
 expected=$(
   cat <<'EOF2'
 8.0

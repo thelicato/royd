@@ -37,6 +37,7 @@ audio_service=${ANDROID_AUDIO_SERVICE:-}
 keymint_service=${ANDROID_KEYMINT_SERVICE:-}
 codec2_hal=${ANDROID_CODEC2_HAL:-}
 app_widgets=${ANDROID_APP_WIDGETS:-0}
+cgroup2_subtree=${ANDROID_CGROUP2_SUBTREE:-}
 dalvik_heap_profile=${ANDROID_DALVIK_HEAP_PROFILE:-}
 software_egl=${ANDROID_SOFTWARE_EGL:-swiftshader}
 modern_graphics_src="$android_dir/graphics/allocator-aidl2"
@@ -104,6 +105,10 @@ esac
 case "$app_widgets" in
   0|1) ;;
   *) fail "unsupported Android app-widget feature selector: $app_widgets" ;;
+esac
+case "$cgroup2_subtree" in
+  ''|/sys/fs/cgroup/royd) ;;
+  *) fail "unsupported Android cgroup-v2 subtree: $cgroup2_subtree" ;;
 esac
 case "$dalvik_heap_profile" in
   ''|phone-hdpi-512) ;;
@@ -199,6 +204,10 @@ fi
 if [ "$app_widgets" = 1 ] && [ "$hal_profile" = graphical ]; then
   printf 'ROYD_APP_WIDGETS := true\n' >> "$vendor_dst/version.mk"
   printf 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml\n' >> "$vendor_dst/version.mk"
+fi
+if [ -n "$cgroup2_subtree" ]; then
+  printf 'ROYD_CGROUP2_SUBTREE := %s\n' "$cgroup2_subtree" >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VENDOR)/etc/cgroups.json\n' >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"

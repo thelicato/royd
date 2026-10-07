@@ -1,0 +1,14 @@
+{
+  "Cgroups2": {
+    "Path": "/sys/fs/cgroup/royd",
+    "Mode": "0775",
+    "UID": "system",
+    "GID": "system",
+    "Controllers": [
+      {
+        "Controller": "freezer",
+        "Path": "."
+      }
+    ]
+  }
+}
