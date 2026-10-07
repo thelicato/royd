@@ -187,6 +187,9 @@ if [ -n "$codec2_hal" ]; then
   printf 'ROYD_CODEC2_HAL := %s\n' "$codec2_hal" >> "$vendor_dst/version.mk"
   printf 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=%s\n' "$codec2_hal" >> "$vendor_dst/version.mk"
   printf 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1\n' >> "$vendor_dst/version.mk"
+  # Keep BufferQueue pools and replace the unavailable ION/dma-buf-heap linear
+  # pool with AOSP's gralloc-backed BLOB allocator (bits 18 and 19).
+  printf 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432\n' >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"
 printf 'ROYD_GRAPHICS_ALLOCATOR := %s\n' "$graphics_allocator" >> "$vendor_dst/version.mk"

@@ -126,7 +126,6 @@ class ComposerClient final : public c3::BnComposerClient {
     ndk::ScopedAStatus badConfig() const;
     ndk::ScopedAStatus unsupported() const;
     int64_t nowNanos() const;
-    ndk::ScopedFileDescriptor makeSignalledFence() const;
     void vsyncLoop();
 
     int32_t mWidth;

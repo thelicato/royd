@@ -6,7 +6,6 @@
 #pragma clang diagnostic pop
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <sys/eventfd.h>
 
 #include <algorithm>
 #include <chrono>
@@ -70,10 +69,6 @@ int64_t ComposerClient::nowNanos() const {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::steady_clock::now().time_since_epoch())
             .count();
-}
-
-ndk::ScopedFileDescriptor ComposerClient::makeSignalledFence() const {
-    return ndk::ScopedFileDescriptor(eventfd(1, EFD_CLOEXEC | EFD_NONBLOCK));
 }
 
 ndk::ScopedAStatus ComposerClient::createLayer(int64_t display, int32_t bufferSlotCount,
@@ -179,7 +174,8 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
                 writer.setPresentOrValidateResult(command.display,
                                                    c3::PresentOrValidate::Result::Validated);
             } else {
-                writer.setPresentFence(command.display, makeSignalledFence());
+                // Client composition completed synchronously. Omit the optional
+                // present fence instead of returning a non-sync-file descriptor.
                 writer.setReleaseFences(command.display, {}, {});
                 writer.setPresentOrValidateResult(command.display,
                                                    c3::PresentOrValidate::Result::Presented);
@@ -193,7 +189,7 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
                                 c3::IComposerClient::EX_NOT_VALIDATED);
                 continue;
             }
-            writer.setPresentFence(command.display, makeSignalledFence());
+            // No fence result means that presentation completed synchronously.
             writer.setReleaseFences(command.display, {}, {});
             mValidated = false;
         }

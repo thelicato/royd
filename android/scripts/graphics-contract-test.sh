@@ -73,12 +73,13 @@ grep -Fq 'descriptor.width & 1' "$allocator" || fail 'YV12 allocator must reject
 grep -Fq 'descriptor.height & 1' "$allocator" || fail 'YV12 allocator must reject odd heights'
 grep -Fq 'align16(static_cast<uint64_t>(descriptor.width), &stride)' "$allocator" || fail 'YV12 allocator must align the Y stride to 16 pixels'
 grep -Fq 'align16(stride / 2, &chromaStride)' "$allocator" || fail 'YV12 allocator must align chroma stride to 16 pixels'
+grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' "$allocator" || fail 'allocator must support software video-encoder input surfaces'
 grep -Fq "return fourcc('Y', 'V', '1', '2');" "$mapper" || fail 'mapper must report YV12 as DRM YVU420'
 grep -Fq 'crPlane.horizontalSubsampling = 2;' "$mapper" || fail 'YV12 Cr plane must report 4:2:0 horizontal subsampling'
 grep -Fq 'crPlane.verticalSubsampling = 2;' "$mapper" || fail 'YV12 Cr plane must report 4:2:0 vertical subsampling'
 grep -Fq 'cbPlane.offsetInBytes = ySize + chromaSize;' "$mapper" || fail 'YV12 Cb plane must follow the Cr plane'
 ! grep -Fq 'return encode(static_cast<uint32_t>(0));' "$mapper" || fail 'mapper must not publish zero as the generic pixel-format FOURCC'
-for unsupported_usage in FRONT_BUFFER VIDEO_ENCODER CAMERA_OUTPUT CAMERA_INPUT SENSOR_DIRECT_DATA; do
+for unsupported_usage in FRONT_BUFFER CAMERA_OUTPUT CAMERA_INPUT SENSOR_DIRECT_DATA; do
   ! grep -Fq "BufferUsage::$unsupported_usage" "$allocator" || fail "allocator must not advertise unvalidated $unsupported_usage usage"
 done
 for type in DATASPACE BLEND_MODE SMPTE2086 CTA861_3; do
@@ -106,6 +107,8 @@ grep -Fq 'command.brightness.has_value()' "$composer_cpp" || fail 'composer3 mus
 grep -Fq 'case c3::PowerMode::DOZE:' "$composer_cpp" || fail 'composer3 must explicitly reject unsupported doze power modes'
 grep -Fq 'case c3::PowerMode::ON_SUSPEND:' "$composer_cpp" || fail 'composer3 must explicitly reject unsupported suspend power mode'
 grep -Fq 'dataspace != common::Dataspace::SRGB_LINEAR' "$composer_cpp" || fail 'composer3 must reject unsupported saturation-matrix dataspaces'
+! grep -Fq 'eventfd(' "$composer_cpp" || fail 'composer3 must not publish eventfd descriptors as sync_file fences'
+! grep -Fq 'setPresentFence' "$composer_cpp" || fail 'synchronous composer3 must omit its optional present-fence result'
 ! grep -ERiq 'cuttlefish|goldfish|ranchu|qemu' "$composer" || fail 'modern composer contains a prohibited runtime dependency/reference'
 
 grep -Fq 'ifeq ($(ROYD_GRAPHICS_ALLOCATOR),aidl2-stablec5-memfd)' "$android_dir/graphics/software.mk"

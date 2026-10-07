@@ -119,6 +119,7 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
+  assert_property debug.stagefright.c2-poolmask 786432
   codec_store=$(docker exec "$container" \
     dumpsys android.hardware.media.c2.IComponentStore/software 2>/dev/null) || {
     printf 'error: Android 15 software Codec2 store is unavailable in %s\n' "$container" >&2
@@ -140,7 +141,27 @@ for display_property in width height dpi fps; do
       exit 1
       ;;
   esac
+  case "$display_property" in
+    width) display_width=$value ;;
+    height) display_height=$value ;;
+  esac
 done
+
+if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
+  capture_width=$(( (display_width + 7) / 8 * 8 ))
+  docker exec "$container" sh -c '
+    capture=/data/local/tmp/royd-runtime-video-test.mp4
+    trap '\''rm -f "$capture"'\'' EXIT INT TERM
+    rm -f "$capture"
+    cmd power wakeup
+    sleep 1
+    screenrecord --display-id 0 --size "${1}x${2}" --time-limit 2 "$capture" >/dev/null 2>&1
+    test -s "$capture"
+  ' sh "$capture_width" "$display_height" || {
+    printf 'error: Android 15 graphical capture produced no H.264 frames in %s\n' "$container" >&2
+    exit 1
+  }
+fi
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
   printf 'error: conventional Binder device paths are not ready in %s\n' "$container" >&2

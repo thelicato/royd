@@ -92,6 +92,9 @@ grep -Fq 'stem: "android.hardware.graphics.allocator-service"' "$allocator/Andro
 grep -Fq 'init_rc: ["allocator/android.hardware.graphics.allocator-service.royd.rc"]' "$allocator/Android.bp" || fail 'allocator init rc must have a royd-specific install basename'
 grep -Fq '/vendor/bin/hw/android.hardware.graphics.allocator-service' "$allocator_rc" || fail 'allocator init path does not match Soong stem'
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$mapper_contexts" || fail 'mapper service-context instance mismatch'
+grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' "$allocator/allocator/Allocator.cpp" || fail 'allocator omits software video-encoder surfaces'
+! grep -Fq 'eventfd(' "$composer_cpp" || fail 'composer publishes non-sync-file eventfd descriptors as present fences'
+! grep -Fq 'setPresentFence' "$composer_cpp" || fail 'synchronous composer publishes an unnecessary present-fence result'
 
 # Exercise the installer against a mock AOSP root and verify package selection
 # without mutating an Android source checkout.
@@ -113,6 +116,7 @@ grep -Fxq 'PRODUCT_PACKAGES += android.hardware.security.keymint-service' "$work
 grep -Fxq 'ROYD_CODEC2_HAL := aidl' "$work/vendor/royd/version.mk" || fail 'installed Android 15 Codec2 HAL selector mismatch'
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the Codec2 AIDL software store'
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the local Codec2 AIDL input surface'
+grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not select the gralloc-backed Codec2 linear pool'
 grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'installed Android 15 product omits the AIDL audio APEX'
 grep -Fxq '    ro.boot.audio.tinyalsa.ignore_output=true \' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio output does not select the stub driver'
 grep -Fxq '    ro.boot.audio.tinyalsa.simulate_input=true' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio input does not select the stub driver'

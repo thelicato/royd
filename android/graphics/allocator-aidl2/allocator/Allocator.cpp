@@ -66,16 +66,18 @@ bool usageSupported(BufferUsage usage) {
     }
 
     // Keep the advertised contract deliberately narrow. These usages cover CPU
-    // access, software RenderEngine buffers and SurfaceFlinger client targets.
-    // Other standard usage bits are rejected until royd implements and validates
-    // their stronger semantics.
+    // access, software RenderEngine buffers, SurfaceFlinger client targets and
+    // surfaces consumed by Android's software video encoders. Other standard
+    // usage bits are rejected until royd implements and validates their stronger
+    // semantics.
     const uint64_t known = static_cast<uint64_t>(BufferUsage::CPU_READ_MASK) |
             static_cast<uint64_t>(BufferUsage::CPU_WRITE_MASK) |
             static_cast<uint64_t>(BufferUsage::GPU_TEXTURE) |
             static_cast<uint64_t>(BufferUsage::GPU_RENDER_TARGET) |
             static_cast<uint64_t>(BufferUsage::COMPOSER_OVERLAY) |
             static_cast<uint64_t>(BufferUsage::COMPOSER_CLIENT_TARGET) |
-            static_cast<uint64_t>(BufferUsage::COMPOSER_CURSOR);
+            static_cast<uint64_t>(BufferUsage::COMPOSER_CURSOR) |
+            static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER);
     return (value & ~known) == 0;
 }
 

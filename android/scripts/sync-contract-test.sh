@@ -1449,6 +1449,12 @@ grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += media.c2.hal.selection=aidl' \
   "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' \
   "$tmp/src/vendor/royd/version.mk"
+grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' \
+  "$tmp/src/vendor/royd/version.mk"
+grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' \
+  "$tmp/src/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
+! grep -Fq 'eventfd(' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
+! grep -Fq 'setPresentFence' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
 grep -Fq '"libselinux",' "$tmp/src/system/netd/server/Android.bp"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/system/netd/server/Controllers.cpp"

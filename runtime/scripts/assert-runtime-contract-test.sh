@@ -35,6 +35,15 @@ case "$1" in
             value=
           fi
           ;;
+        debug.stagefright.c2-poolmask)
+          if [ "${MOCK_BAD_POOL_MASK:-0}" = 1 ]; then
+            value=327680
+          elif [ "$MOCK_SDK" = 35 ]; then
+            value=786432
+          else
+            value=
+          fi
+          ;;
         vendor.royd.graphics.mode) value=software ;;
         ro.vendor.royd.graphics_backend) value=software ;;
         ro.vendor.royd.hal_profile) value=graphical ;;
@@ -88,6 +97,11 @@ case "$1" in
       exit 0
     fi
     if [ "$1" = sh ] && [ "$2" = -c ]; then
+      case "$3" in
+        *royd-runtime-video-test*)
+          [ "${MOCK_BAD_CAPTURE:-0}" != 1 ] || exit 1
+          ;;
+      esac
       exit 0
     fi
     printf 'unexpected docker exec command for %s: %s\n' "$container" "$*" >&2
@@ -138,5 +152,19 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_INPUT_SURFACE=1 \
   exit 1
 fi
 grep -Fq 'debug.stagefright.c2inputsurface expected -1, got <empty>' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_POOL_MASK=1 \
+    "$script_dir/assert-runtime.sh" bad-pool-mask >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted the unavailable Android 15 dma-buf linear pool' >&2
+  exit 1
+fi
+grep -Fq 'debug.stagefright.c2-poolmask expected 786432, got 327680' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CAPTURE=1 \
+    "$script_dir/assert-runtime.sh" bad-capture >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an empty Android 15 display capture' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 graphical capture produced no H.264 frames' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'
