@@ -11,6 +11,7 @@
 .PHONY: android15-clat-bpf-container-test
 .PHONY: android15-network-stats-rcu-container-test
 .PHONY: android15-init-stdio-container-test
+.PHONY: android15-oci-network-route-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -285,6 +286,9 @@ android15-network-stats-rcu-container-test:
 
 android15-init-stdio-container-test:
 	./android/scripts/android15-init-stdio-container-test.sh
+
+android15-oci-network-route-test:
+	./android/scripts/android15-oci-network-route-test.sh
 
 android-display-contract-test:
 	./android/scripts/display-contract-test.sh

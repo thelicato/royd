@@ -40,6 +40,7 @@ run ./android/scripts/android15-netd-iptables-container-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/android15-network-stats-rcu-container-test.sh
 run ./android/scripts/android15-init-stdio-container-test.sh
+run ./android/scripts/android15-oci-network-route-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh

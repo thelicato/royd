@@ -23,6 +23,8 @@ Graphics assertions follow the selected Android release contract. Android 15 val
 
 On Android 15 containers, init retains the OCI stdout and stderr descriptors while still attaching stdin to `/dev/null`. Repository-owned startup diagnostics, the boot watchdog and the `logcat` forwarding service write through PID 1, so `docker logs` does not depend on ADB or a host-side logging supervisor.
 
+Android 15 also installs a final main-table policy fallback before Android's terminal unreachable rule. Earlier Android VPN, explicit, local and default-network rules remain authoritative, while fresh replies through Docker's OCI-provided `eth0` route continue to work after boot. Runtime qualification verifies this path with a new host-side ADB connection.
+
 The temporary container and volume are removed when the test exits, including after failure.
 
 ## Two-instance smoke test
