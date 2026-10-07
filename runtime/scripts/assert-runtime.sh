@@ -135,8 +135,16 @@ if [ "$sdk" = 35 ]; then
   docker exec "$container" sh -c '
     # royd-runtime-cgroup-test
     test "$(stat -c %u:%g:%a /sys/fs/cgroup/royd)" = 1000:1000:775
-    test -f /sys/fs/cgroup/royd/cgroup.procs
-    test "$(cat /proc/1/cgroup)" = 0::/royd
+    test "$(cat /proc/1/cgroup)" = 0::/royd/init
+    grep -qw memory /sys/fs/cgroup/royd/cgroup.controllers
+    grep -qw memory /sys/fs/cgroup/royd/cgroup.subtree_control
+    system_server=$(pidof system_server) || exit 1
+    system_group=$(sed -n "s/^0:://p" "/proc/$system_server/cgroup")
+    case "$system_group" in
+      /royd/uid_1000/pid_*) ;;
+      *) exit 1 ;;
+    esac
+    test -f "/sys/fs/cgroup$system_group/memory.low"
   ' || {
     printf 'error: Android 15 delegated cgroup-v2 subtree is not ready in %s\n' "$container" >&2
     exit 1

@@ -207,6 +207,7 @@ if [ "$app_widgets" = 1 ] && [ "$hal_profile" = graphical ]; then
 fi
 if [ -n "$cgroup2_subtree" ]; then
   printf 'ROYD_CGROUP2_SUBTREE := %s\n' "$cgroup2_subtree" >> "$vendor_dst/version.mk"
+  printf 'PRODUCT_MEMCG_V2_FORCE_ENABLED := true\n' >> "$vendor_dst/version.mk"
   printf 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VENDOR)/etc/cgroups.json\n' >> "$vendor_dst/version.mk"
 fi
 printf 'ROYD_SOFTWARE_EGL := %s\n' "$software_egl" >> "$vendor_dst/version.mk"

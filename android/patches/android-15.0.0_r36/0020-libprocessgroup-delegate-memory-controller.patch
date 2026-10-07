@@ -1,0 +1,29 @@
+diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+--- a/system/core/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -180,12 +180,22 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+             LOG(ERROR) << "Failed to prepare delegated royd cgroup v2 subtree";
+             return false;
+         }
+-        const std::string procs_path = std::string(controller->path()) + "/cgroup.procs";
++        const std::string init_path = std::string(controller->path()) + "/init";
++        if (!Mkdir(init_path, 0, "", "")) {
++            LOG(ERROR) << "Failed to prepare Android init cgroup at " << init_path;
++            return false;
++        }
++        const std::string procs_path = init_path + "/cgroup.procs";
+         if (!android::base::WriteStringToFile(std::to_string(getpid()), procs_path)) {
+-            PLOG(ERROR) << "Failed to move Android init into " << controller->path();
++            PLOG(ERROR) << "Failed to move Android init into " << init_path;
+             return false;
+         }
+-        LOG(INFO) << "ROYD: using delegated cgroup v2 subtree at " << controller->path();
++        if (!android::base::WriteStringToFile(
++                    "+memory", "/sys/fs/cgroup/cgroup.subtree_control")) {
++            PLOG(WARNING) << "Failed to delegate the memory controller to " << controller->path();
++        }
++        LOG(INFO) << "ROYD: using delegated cgroup v2 subtree at " << controller->path()
++                  << " with init leaf " << init_path;
+         return true;
+     }
+ 

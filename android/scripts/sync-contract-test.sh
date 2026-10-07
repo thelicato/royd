@@ -1533,6 +1533,8 @@ grep -Fxq 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app
   "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'ROYD_CGROUP2_SUBTREE := /sys/fs/cgroup/royd' \
   "$tmp/src/vendor/royd/version.mk"
+grep -Fxq 'PRODUCT_MEMCG_V2_FORCE_ENABLED := true' \
+  "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VENDOR)/etc/cgroups.json' \
   "$tmp/src/vendor/royd/version.mk"
 grep -Fq 'static bool IsRoydContainerCgroup(const CgroupController* controller) {' \
@@ -1544,6 +1546,14 @@ grep -Fq 'controller->name() == CGROUPV2_HIERARCHY_NAME &&' \
 grep -Fq 'strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'android::base::WriteStringToFile(std::to_string(getpid()), procs_path)' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'const std::string init_path = std::string(controller->path()) + "/init";' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'const std::string procs_path = init_path + "/cgroup.procs";' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq '"+memory", "/sys/fs/cgroup/cgroup.subtree_control"' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'Failed to delegate the memory controller to' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"

@@ -122,6 +122,7 @@ grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' "$
 grep -Fxq 'ROYD_APP_WIDGETS := true' "$work/vendor/royd/version.mk" || fail 'installed Android 15 graphical product omits its app-widget selector'
 grep -Fxq 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml' "$work/vendor/royd/version.mk" || fail 'installed Android 15 graphical product omits the app-widget feature declaration'
 grep -Fxq 'ROYD_CGROUP2_SUBTREE := /sys/fs/cgroup/royd' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits its cgroup-v2 subtree selector'
+grep -Fxq 'PRODUCT_MEMCG_V2_FORCE_ENABLED := true' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product does not force the unified memory controller'
 grep -Fxq 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VENDOR)/etc/cgroups.json' "$work/vendor/royd/version.mk" || fail 'installed Android 15 product omits its cgroup-v2 descriptor'
 grep -Fxq 'PRODUCT_PACKAGES += com.android.hardware.audio' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'installed Android 15 product omits the AIDL audio APEX'
 grep -Fxq '    ro.boot.audio.tinyalsa.ignore_output=true \' "$work/vendor/royd/audio/aosp-aidl.mk" || fail 'AIDL audio output does not select the stub driver'

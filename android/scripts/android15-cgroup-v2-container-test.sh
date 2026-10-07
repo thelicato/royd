@@ -5,11 +5,13 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 patch="$root/android/patches/android-15.0.0_r36/0017-libprocessgroup-use-container-cgroup-subtree.patch"
 fix_patch="$root/android/patches/android-15.0.0_r36/0018-libprocessgroup-fix-cgroup-name-comparison.patch"
 netd_patch="$root/android/patches/android-15.0.0_r36/0019-connectivity-allow-delegated-cgroup-bpf-root.patch"
+memcg_patch="$root/android/patches/android-15.0.0_r36/0020-libprocessgroup-delegate-memory-controller.patch"
 cgroups="$root/android/royd/vendor/royd/cgroups.json"
 
 [ -f "$patch" ] || { echo 'missing Android 15 libprocessgroup cgroup-v2 patch' >&2; exit 1; }
 [ -f "$fix_patch" ] || { echo 'missing Android 15 libprocessgroup comparison fix' >&2; exit 1; }
 [ -f "$netd_patch" ] || { echo 'missing Android 15 delegated cgroup netd patch' >&2; exit 1; }
+[ -f "$memcg_patch" ] || { echo 'missing Android 15 delegated memory-controller patch' >&2; exit 1; }
 [ -f "$cgroups" ] || { echo 'missing royd cgroup-v2 descriptor' >&2; exit 1; }
 [ "$(grep -c '^diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp' "$patch")" -eq 1 ]
 [ "$(grep -c '^diff --git ' "$patch")" -eq 1 ]
@@ -35,11 +37,22 @@ grep -F 'roydContainer != nullptr && !strcmp(roydContainer, "1") &&' "$netd_patc
 grep -F 'access("/sys/fs/selinux/enforce", F_OK) != 0;' "$netd_patch" >/dev/null
 grep -F '!isRoydDelegatedCgroup(cg2_path)) {' "$netd_patch" >/dev/null
 grep -F 'ROYD: attaching network BPF to %s' "$netd_patch" >/dev/null
+[ "$(grep -c '^diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp' "$memcg_patch")" -eq 1 ]
+[ "$(grep -c '^diff --git ' "$memcg_patch")" -eq 1 ]
+grep -F 'const std::string init_path = std::string(controller->path()) + "/init";' "$memcg_patch" >/dev/null
+grep -F 'const std::string procs_path = init_path + "/cgroup.procs";' "$memcg_patch" >/dev/null
+grep -F '"+memory", "/sys/fs/cgroup/cgroup.subtree_control"' "$memcg_patch" >/dev/null
+grep -F 'Failed to delegate the memory controller to' "$memcg_patch" >/dev/null
+grep -F 'with init leaf' "$memcg_patch" >/dev/null
 
 # The gated branch returns before the unchanged stock mount in the source.
 grep -F '+        return true;' "$patch" >/dev/null
 if grep -Eq '^[+-].*mount\("none", controller->path\(\), "cgroup2"' "$patch"; then
   echo 'libprocessgroup patch changes the stock cgroup2 mount' >&2
+  exit 1
+fi
+if grep -Eq '^[+-].*mount\("none", controller->path\(\), "cgroup2"' "$memcg_patch"; then
+  echo 'memory-controller patch changes the stock cgroup2 mount' >&2
   exit 1
 fi
 
