@@ -1498,6 +1498,10 @@ grep -Fxq 'PRODUCT_COPY_FILES += vendor/royd/cgroups.json:$(TARGET_COPY_OUT_VEND
   "$tmp/src/vendor/royd/version.mk"
 grep -Fq 'static bool IsRoydContainerCgroup(const CgroupController* controller) {' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'controller->name() == CGROUPV2_HIERARCHY_NAME &&' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+! grep -Fq 'strcmp(controller->name(), CGROUPV2_HIERARCHY_NAME)' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'android::base::WriteStringToFile(std::to_string(getpid()), procs_path)' \

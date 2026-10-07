@@ -1,0 +1,12 @@
+diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+--- a/system/core/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -144,7 +144,7 @@ static bool IsRoydContainerCgroup(const CgroupController* controller) {
+     const char* royd_container = getenv("ROYD_CONTAINER");
+     return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
+             access("/sys/fs/selinux/enforce", F_OK) != 0 &&
+-            strcmp(controller->name(), CGROUPV2_HIERARCHY_NAME) == 0 &&
++            controller->name() == CGROUPV2_HIERARCHY_NAME &&
+             strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&
+             access("/sys/fs/cgroup/cgroup.controllers", F_OK) == 0;
+ }
