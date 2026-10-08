@@ -27,6 +27,9 @@ case "$1" in
         init.svc.netd)
           [ "${MOCK_BAD_NETD:-0}" = 1 ] && value=restarting || value=running
           ;;
+        service.sf.present_timestamp)
+          [ "${MOCK_BAD_PRESENT_TIMESTAMP:-0}" = 1 ] && value=1 || value=0
+          ;;
         service.adb.tcp.port) value=5555 ;;
         media.c2.hal.selection) [ "$MOCK_SDK" = 35 ] && value=aidl || value= ;;
         debug.stagefright.c2inputsurface)
@@ -207,6 +210,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INVALID_PRESENT_FENCE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 SurfaceFlinger received an invalid present fence' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PRESENT_TIMESTAMP=1 \
+    "$script_dir/assert-runtime.sh" reliable-present-timestamp >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted Android 15 present-fence tracking' >&2
+  exit 1
+fi
+grep -Fq 'service.sf.present_timestamp expected 0, got 1' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

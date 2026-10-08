@@ -135,7 +135,6 @@ class ComposerClient final : public c3::BnComposerClient {
     int64_t mNextLayer = 1;
     std::unordered_map<int64_t, c3::Composition> mLayers;
     std::vector<int64_t> mPendingClientLayers;
-    ndk::ScopedFileDescriptor mClientTargetFence;
     bool mValidated = false;
 
     std::mutex mMutex;

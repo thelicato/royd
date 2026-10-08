@@ -1624,12 +1624,9 @@ grep -Fq 'ROYD: attaching network BPF to %s' \
 grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' \
   "$tmp/src/vendor/royd/graphics_allocator/allocator/Allocator.cpp"
 ! grep -Fq 'eventfd(' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
-grep -Fq 'const int acquireFence = command.clientTarget->buffer.fence.get();' \
+grep -Fq 'c3::Capability::PRESENT_FENCE_IS_NOT_RELIABLE' \
   "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
-grep -Fq 'fcntl(fence, F_DUPFD_CLOEXEC, 0)' \
-  "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
-grep -Fq 'writer.setPresentFence(command.display, std::move(fence));' \
-  "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
+! grep -Fq 'setPresentFence' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
 grep -Fq '"libselinux",' "$tmp/src/system/netd/server/Android.bp"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/system/netd/server/Controllers.cpp"

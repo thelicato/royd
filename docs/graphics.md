@@ -25,7 +25,7 @@ For `android-15.0.0_r36`, AOSP `base_system.mk` already installs `libEGL_angle`,
 
 Android 15 uses repository-owned memfd-backed allocation and a composer3 service built against the current V4 source interface. Android 15 stable-AIDL release handling falls that interface back to the latest frozen V3 wire contract when unfrozen AIDL is disabled. The composer exposes one fixed internal display, advertises no virtual displays or hardware overlay capability, and requests `Composition::CLIENT` for layers it cannot compose. SurfaceFlinger and RenderEngine therefore remain responsible for the actual software composition.
 
-Because this client-only display has no physical scan-out, RenderEngine completion is also presentation completion. The composer retains the client-target acquire `sync_file` and returns a duplicate as the present fence. It never fabricates a fence from `eventfd`, and runtime qualification rejects SurfaceFlinger invalid-present-fence diagnostics.
+Because this client-only display has no physical scan-out, it cannot provide a physical presentation timestamp. RenderEngine supplies an empty client-target acquire fence when its synchronous work is already complete. The composer therefore advertises `PRESENT_FENCE_IS_NOT_RELIABLE` and omits the present-fence result, which makes SurfaceFlinger disable presentation-latency tracking for this display. It never fabricates a fence from `eventfd`, and runtime qualification rejects invalid-present-fence diagnostics.
 
 The service reports the configured virtual display dimensions and synthetic vsync timing. It does not provide physical scan-out, readback, HDR conversion, display brightness control, doze modes, or other capabilities that royd has not implemented and validated.
 
