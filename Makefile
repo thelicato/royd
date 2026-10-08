@@ -16,6 +16,7 @@
 .PHONY: android15-dropbox-boot-container-test
 .PHONY: android15-tether-stats-container-test
 .PHONY: android15-inet-diag-container-test
+.PHONY: android15-preboot-service-wtf-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -302,6 +303,9 @@ android15-tether-stats-container-test:
 
 android15-inet-diag-container-test:
 	./android/scripts/android15-inet-diag-container-test.sh
+
+android15-preboot-service-wtf-container-test:
+	./android/scripts/android15-preboot-service-wtf-container-test.sh
 
 android15-oci-network-route-test:
 	./android/scripts/android15-oci-network-route-test.sh

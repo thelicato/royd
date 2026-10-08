@@ -1,0 +1,53 @@
+diff --git a/frameworks/base/core/java/android/app/SystemServiceRegistry.java b/frameworks/base/core/java/android/app/SystemServiceRegistry.java
+--- a/frameworks/base/core/java/android/app/SystemServiceRegistry.java
++++ b/frameworks/base/core/java/android/app/SystemServiceRegistry.java
+@@ -204,9 +204,11 @@ import android.os.ProfilingFrameworkInitializer;
+ import android.os.RecoverySystem;
+ import android.os.SecurityStateManager;
++import android.os.SELinux;
+ import android.os.ServiceManager;
+ import android.os.ServiceManager.ServiceNotFoundException;
+ import android.os.StatsFrameworkInitializer;
+ import android.os.SystemConfigManager;
++import android.os.SystemProperties;
+ import android.os.SystemUpdateManager;
+ import android.os.SystemVibrator;
+ import android.os.SystemVibratorManager;
+@@ -306,6 +308,11 @@ public final class SystemServiceRegistry {
+     /** @hide */
+     public static boolean sEnableServiceNotFoundWtf = false;
+ 
++    private static boolean shouldSuppressRoydPreBootServiceNotFound() {
++        return "1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                && !SystemProperties.getBoolean("sys.boot_completed", false);
++    }
++
+     /**
+      * After {@link Build.VERSION_CODES.VANILLA_ICE_CREAM}, Wear devices will be allowed to publish
+      * no {@link GameManager} instance. This is because the respective system service is no longer
+@@ -1952,6 +1960,9 @@ public final class SystemServiceRegistry {
+                     }
+                     break;
+             }
++            if (shouldSuppressRoydPreBootServiceNotFound()) {
++                return null;
++            }
+             Slog.wtf(TAG, "Manager wrapper not available: " + name);
+             return null;
+         }
+@@ -2424,9 +2435,15 @@ public final class SystemServiceRegistry {
+ 
+     /** @hide */
+     public static void onServiceNotFound(ServiceNotFoundException e) {
++        // ServiceNotFoundException is expected when early boot clients race service publication.
++        // Avoid container-only WTF and DropBox work while preserving the null lookup result.
++        if (shouldSuppressRoydPreBootServiceNotFound()) {
++            return;
++        }
++
+         // We're mostly interested in tracking down long-lived core system
+         // components that might stumble if they obtain bad references; just
+         // emit a tidy log message for normal apps
+         if (android.os.Process.myUid() < android.os.Process.FIRST_APPLICATION_UID) {
+             Log.wtf(TAG, e.getMessage(), e);
+         } else {

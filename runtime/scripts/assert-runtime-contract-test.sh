@@ -114,6 +114,11 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
+        jobscheduler|uimode)
+          [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
+            printf 'Service %s: not found\n' "$3" || \
+            printf 'Service %s: found\n' "$3"
+          ;;
         *) printf 'unexpected service: %s\n' "$3" >&2; exit 1 ;;
       esac
       exit 0
@@ -156,6 +161,10 @@ case "$1" in
     if [ "${MOCK_INET_DIAG_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'NetlinkUtils: Received unexpected netlink message: NetlinkErrorMessage'
       printf '%s\n' 'InetDiagMessage: Failed to send netlink dump request or receive messages: read failed: EAGAIN'
+    fi
+    if [ "${MOCK_PREBOOT_SERVICE_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'SystemServiceRegistry: No service published for: jobscheduler'
+      printf '%s\n' 'SystemServiceRegistry: Manager wrapper not available: wifi'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -263,6 +272,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INET_DIAG_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 repeated unavailable inet-diag socket dumps' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_PREBOOT_SERVICE_WTF=1 \
+    "$script_dir/assert-runtime.sh" preboot-service-wtf >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted Android 15 pre-boot service WTFs' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 emitted pre-boot missing-service WTF diagnostics' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
+    "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 JobScheduler service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 required service jobscheduler is unavailable' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

@@ -119,6 +119,14 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
+  for required_service in jobscheduler uimode; do
+    service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
+    if [ "$service_status" != "Service $required_service: found" ]; then
+      printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
+        "$required_service" "$container" "${service_status:-<empty>}" >&2
+      exit 1
+    fi
+  done
   dropbox_status=$(docker exec "$container" service check dropbox 2>/dev/null | tr -d '\r')
   if [ "$dropbox_status" != 'Service dropbox: found' ]; then
     printf 'error: Android 15 DropBox service is unavailable in %s: %s\n' \
@@ -138,6 +146,12 @@ if [ "$sdk" = 35 ]; then
   if docker logs "$container" 2>&1 | grep -Eq \
       'NetlinkUtils: Received unexpected netlink message: NetlinkErrorMessage|InetDiagMessage: Failed to send netlink dump request or receive messages:.*EAGAIN'; then
     printf 'error: Android 15 repeated unavailable inet-diag socket dumps in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'SystemServiceRegistry: (No service published for:|Manager wrapper not available:)'; then
+    printf 'error: Android 15 emitted pre-boot missing-service WTF diagnostics in %s\n' \
       "$container" >&2
     exit 1
   fi

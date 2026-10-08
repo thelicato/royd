@@ -27,7 +27,8 @@ case "$1" in
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
       packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink \
       system/core/libprocessgroup/setup system/core/libprocessgroup \
-      frameworks/base/services/core/java/com/android/server/am
+      frameworks/base/services/core/java/com/android/server/am \
+      frameworks/base/core/java/android/app
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
 #include <dirent.h>
@@ -110,6 +111,72 @@ bool CgroupControllerWrapper::GetTaskGroup(pid_t tid, std::string* group) const 
     }
 
     return true;
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/core/java/android/app/SystemServiceRegistry.java ]; then
+      cat > frameworks/base/core/java/android/app/SystemServiceRegistry.java <<'SRC'
+import android.os.ProfilingFrameworkInitializer;
+import android.os.RecoverySystem;
+import android.os.SecurityStateManager;
+import android.os.ServiceManager;
+import android.os.ServiceManager.ServiceNotFoundException;
+import android.os.StatsFrameworkInitializer;
+import android.os.SystemConfigManager;
+import android.os.SystemUpdateManager;
+import android.os.SystemVibrator;
+import android.os.SystemVibratorManager;
+import android.os.UserHandle;
+import android.os.UserManager;
+import android.os.Vibrator;
+
+public final class SystemServiceRegistry {
+    private static final String TAG = "SystemServiceRegistry";
+
+    /** @hide */
+    public static boolean sEnableServiceNotFoundWtf = false;
+
+    /**
+     * After {@link Build.VERSION_CODES.VANILLA_ICE_CREAM}, Wear devices will be allowed to publish
+     * no {@link GameManager} instance. This is because the respective system service is no longer
+     * started for Wear devices given that the applications of the service do not currently apply to
+     * Wear.
+     */
+    static final long NULL_GAME_MANAGER_IN_WEAR = 340929737;
+
+    public static Object getSystemService(@NonNull ContextImpl ctx, String name) {
+        final ServiceFetcher<?> fetcher = getSystemServiceFetcher(name);
+        if (fetcher == null) {
+            return null;
+        }
+
+        final Object ret = fetcher.getService(ctx);
+        if (sEnableServiceNotFoundWtf && ret == null) {
+            switch (name) {
+                case Context.TEXT_SERVICES_MANAGER_SERVICE:
+                    if (android.server.Flags.removeTextService()
+                            && hasSystemFeatureOpportunistic(ctx, PackageManager.FEATURE_WATCH)) {
+                        return null;
+                    }
+                    break;
+            }
+            Slog.wtf(TAG, "Manager wrapper not available: " + name);
+            return null;
+        }
+        return ret;
+    }
+
+    /** @hide */
+    public static void onServiceNotFound(ServiceNotFoundException e) {
+        // We're mostly interested in tracking down long-lived core system
+        // components that might stumble if they obtain bad references; just
+        // emit a tidy log message for normal apps
+        if (android.os.Process.myUid() < android.os.Process.FIRST_APPLICATION_UID) {
+            Log.wtf(TAG, e.getMessage(), e);
+        } else {
+            Log.w(TAG, e.getMessage());
+        }
+    }
 }
 SRC
     fi
@@ -1825,6 +1892,20 @@ grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'mount("none", controller->path(), "cgroup2"' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'import android.os.SELinux;' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+grep -Fq 'import android.os.SystemProperties;' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+grep -Fq 'private static boolean shouldSuppressRoydPreBootServiceNotFound() {' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+grep -Fq '!SystemProperties.getBoolean("sys.boot_completed", false);' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+[ "$(grep -c 'if (shouldSuppressRoydPreBootServiceNotFound()) {' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java")" -eq 2 ]
+grep -Fq 'Slog.wtf(TAG, "Manager wrapper not available: " + name);' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+grep -Fq 'Log.wtf(TAG, e.getMessage(), e);' \
+  "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
 grep -Fq 'import android.os.SELinux;' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
 grep -Fq '"1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()' \
