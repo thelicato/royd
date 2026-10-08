@@ -21,6 +21,8 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+The Android 15 client-only composer returns the client-target acquire `sync_file` as its presentation-completion fence. Runtime qualification rejects invalid-present-fence diagnostics so an omitted or fabricated fence cannot silently degrade SurfaceFlinger frame tracking.
+
 Android 15 runtime assertions also require the AIDL Codec2 software store to expose H.264 video and Opus audio encoders. The product selects Stagefright's local AIDL GraphicBufferSource path for encoder input surfaces because it does not install the remote Codec2 input-surface or legacy OMX services. Codec2 uses its BufferQueue and gralloc-backed BLOB pools because OCI does not provide Android's ION or dma-buf system heap. The memfd allocator supports the software encoder's surface and BLOB output usage, and the runtime check records a short non-empty H.264 display capture to verify the complete SurfaceFlinger-to-Codec2 path. These components provide the default scrcpy streaming codecs without requiring host media hardware.
 
 The Android 15 graphical product installs only AOSP's app-widget feature declaration rather than the broad handheld hardware declaration. Runtime assertions require the resulting AppWidget service, unlock the display, select Home and confirm that the same Launcher3 process remains alive across a stability interval before recording the display capture.

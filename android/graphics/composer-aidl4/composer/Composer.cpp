@@ -4,6 +4,8 @@
 #pragma clang diagnostic ignored "-Wsign-compare"
 #include <android/hardware/graphics/composer3/ComposerServiceWriter.h>
 #pragma clang diagnostic pop
+#include <fcntl.h>
+
 #include <cutils/properties.h>
 #include <log/log.h>
 
@@ -31,6 +33,11 @@ int32_t propertyInt(const char* name, int32_t fallback) {
 
 ndk::ScopedAStatus serviceError(int32_t error) {
     return ndk::ScopedAStatus::fromServiceSpecificError(error);
+}
+
+ndk::ScopedFileDescriptor duplicateFence(int fence) {
+    if (fence < 0) return {};
+    return ndk::ScopedFileDescriptor(fcntl(fence, F_DUPFD_CLOEXEC, 0));
 }
 
 }  // namespace
@@ -142,6 +149,36 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
             continue;
         }
 
+        if (command.clientTarget.has_value()) {
+            const int acquireFence = command.clientTarget->buffer.fence.get();
+            if (acquireFence >= 0) {
+                auto fence = duplicateFence(acquireFence);
+                if (fence.get() < 0) {
+                    PLOG(ERROR) << "Failed to retain client-target acquire fence";
+                    writer.setError(static_cast<int32_t>(commandIndex),
+                                    c3::IComposerClient::EX_NO_RESOURCES);
+                    continue;
+                }
+                mClientTargetFence = std::move(fence);
+            }
+        }
+
+        auto setPresentFence = [&] {
+            if (mClientTargetFence.get() < 0) {
+                ALOGW("client-composed frame has no acquire sync fence");
+                return true;
+            }
+            auto fence = duplicateFence(mClientTargetFence.get());
+            if (fence.get() < 0) {
+                PLOG(ERROR) << "Failed to duplicate client-target fence for presentation";
+                writer.setError(static_cast<int32_t>(commandIndex),
+                                c3::IComposerClient::EX_NO_RESOURCES);
+                return false;
+            }
+            writer.setPresentFence(command.display, std::move(fence));
+            return true;
+        };
+
         if (command.acceptDisplayChanges) {
             for (const int64_t layer : mPendingClientLayers) {
                 auto found = mLayers.find(layer);
@@ -174,8 +211,9 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
                 writer.setPresentOrValidateResult(command.display,
                                                    c3::PresentOrValidate::Result::Validated);
             } else {
-                // Client composition completed synchronously. Omit the optional
-                // present fence instead of returning a non-sync-file descriptor.
+                // There is no physical scan-out. The client-target acquire fence is
+                // the real completion fence for this client-composed presentation.
+                if (!setPresentFence()) continue;
                 writer.setReleaseFences(command.display, {}, {});
                 writer.setPresentOrValidateResult(command.display,
                                                    c3::PresentOrValidate::Result::Presented);
@@ -189,7 +227,7 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
                                 c3::IComposerClient::EX_NOT_VALIDATED);
                 continue;
             }
-            // No fence result means that presentation completed synchronously.
+            if (!setPresentFence()) continue;
             writer.setReleaseFences(command.display, {}, {});
             mValidated = false;
         }

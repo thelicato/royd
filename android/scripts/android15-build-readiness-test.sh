@@ -96,7 +96,9 @@ grep -Fq '/vendor/bin/hw/android.hardware.graphics.allocator-service' "$allocato
 grep -Fxq 'mapper/royd    u:object_r:hal_graphics_mapper_service:s0' "$mapper_contexts" || fail 'mapper service-context instance mismatch'
 grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' "$allocator/allocator/Allocator.cpp" || fail 'allocator omits software video-encoder surfaces'
 ! grep -Fq 'eventfd(' "$composer_cpp" || fail 'composer publishes non-sync-file eventfd descriptors as present fences'
-! grep -Fq 'setPresentFence' "$composer_cpp" || fail 'synchronous composer publishes an unnecessary present-fence result'
+grep -Fq 'const int acquireFence = command.clientTarget->buffer.fence.get();' "$composer_cpp" || fail 'composer does not retain the client-target acquire fence'
+grep -Fq 'fcntl(fence, F_DUPFD_CLOEXEC, 0)' "$composer_cpp" || fail 'composer does not duplicate real sync-file fences safely'
+grep -Fq 'writer.setPresentFence(command.display, std::move(fence));' "$composer_cpp" || fail 'composer does not publish the client-target completion fence'
 
 # Exercise the installer against a mock AOSP root and verify package selection
 # without mutating an Android source checkout.

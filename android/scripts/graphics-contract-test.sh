@@ -108,7 +108,9 @@ grep -Fq 'case c3::PowerMode::DOZE:' "$composer_cpp" || fail 'composer3 must exp
 grep -Fq 'case c3::PowerMode::ON_SUSPEND:' "$composer_cpp" || fail 'composer3 must explicitly reject unsupported suspend power mode'
 grep -Fq 'dataspace != common::Dataspace::SRGB_LINEAR' "$composer_cpp" || fail 'composer3 must reject unsupported saturation-matrix dataspaces'
 ! grep -Fq 'eventfd(' "$composer_cpp" || fail 'composer3 must not publish eventfd descriptors as sync_file fences'
-! grep -Fq 'setPresentFence' "$composer_cpp" || fail 'synchronous composer3 must omit its optional present-fence result'
+grep -Fq 'const int acquireFence = command.clientTarget->buffer.fence.get();' "$composer_cpp" || fail 'composer3 must retain the client-target acquire fence'
+grep -Fq 'fcntl(fence, F_DUPFD_CLOEXEC, 0)' "$composer_cpp" || fail 'composer3 must duplicate real sync-file fences with close-on-exec'
+grep -Fq 'writer.setPresentFence(command.display, std::move(fence));' "$composer_cpp" || fail 'composer3 must publish the client-target completion fence'
 ! grep -ERiq 'cuttlefish|goldfish|ranchu|qemu' "$composer" || fail 'modern composer contains a prohibited runtime dependency/reference'
 
 grep -Fq 'ifeq ($(ROYD_GRAPHICS_ALLOCATOR),aidl2-stablec5-memfd)' "$android_dir/graphics/software.mk"

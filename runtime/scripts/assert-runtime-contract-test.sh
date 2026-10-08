@@ -139,6 +139,9 @@ case "$1" in
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
+    if [ "${MOCK_INVALID_PRESENT_FENCE:-0}" = 1 ]; then
+      printf '%s\n' 'Scheduler: trackPendingFrame: Invalid present fence'
+    fi
     if [ "$MOCK_SDK" = 35 ]; then
       printf '%s\n' '[royd] graphics: allocator aidl2-stablec5-memfd and mapper stablec5-royd ready'
     else
@@ -197,6 +200,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CAPTURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 graphical capture produced no H.264 frames' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INVALID_PRESENT_FENCE=1 \
+    "$script_dir/assert-runtime.sh" invalid-present-fence >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an invalid Android 15 present fence' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 SurfaceFlinger received an invalid present fence' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

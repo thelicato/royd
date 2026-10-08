@@ -237,6 +237,11 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     printf 'error: Android 15 graphical capture produced no H.264 frames in %s\n' "$container" >&2
     exit 1
   }
+  if docker logs "$container" 2>&1 | grep -Fq 'Invalid present fence'; then
+    printf 'error: Android 15 SurfaceFlinger received an invalid present fence in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
 fi
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
