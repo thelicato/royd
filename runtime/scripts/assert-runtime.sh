@@ -149,9 +149,8 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'SystemServiceRegistry: (No service published for:|Manager wrapper not available:)'; then
-    printf 'error: Android 15 emitted pre-boot missing-service WTF diagnostics in %s\n' \
+  if docker logs "$container" 2>&1 | grep -Eq 'am_wtf.*SystemServiceRegistry'; then
+    printf 'error: Android 15 emitted missing-service WTF diagnostics in %s\n' \
       "$container" >&2
     exit 1
   fi

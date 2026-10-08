@@ -26,6 +26,7 @@ case "$1" in
       packages/modules/Connectivity/service/jni \
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
       packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink \
+      packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering \
       system/core/libprocessgroup/setup system/core/libprocessgroup \
       frameworks/base/services/core/java/com/android/server/am \
       frameworks/base/core/java/android/app
@@ -529,6 +530,42 @@ StatusOr<TetherController::TetherStatsList> TetherController::getTetherStats() {
     }
 
     return statsList;
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java ]; then
+      cat > packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java <<'SRC'
+package com.android.networkstack.tethering;
+
+import android.content.Context;
+import android.content.pm.PackageManager;
+
+import com.android.networkstack.tethering.util.PrefixUtils;
+import com.android.networkstack.tethering.util.VersionedBroadcastListener;
+import com.android.networkstack.tethering.wear.WearableConnectionManager;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+
+public class Tethering {
+    private Context mContext;
+
+    private void disableUsbIpServing(boolean forNcmFunction) {
+    }
+
+    private boolean isEthernetSupported() {
+        return mContext.getSystemService(Context.ETHERNET_SERVICE) != null;
+    }
+
+    void setUsbTethering(boolean enable, IIntResultListener listener) {
+        mHandler.post(() -> {
+        });
+    }
+
+    private boolean hasSystemFeature(final String feature) {
+        return mContext.getPackageManager().hasSystemFeature(feature);
+    }
 }
 SRC
     fi
@@ -1962,6 +1999,14 @@ grep -Fq 'sRoydInetDiagUnavailable = true;' \
   "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java"
 grep -Fq 'skipping subsequent socket-destruction dumps' \
   "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java"
+grep -Fq 'private static boolean isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+grep -Fq '!hasSystemFeature(PackageManager.FEATURE_ETHERNET)' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+grep -Fq '!hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+grep -Fq 'return mContext.getSystemService(Context.ETHERNET_SERVICE) != null;' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

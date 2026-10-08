@@ -162,9 +162,12 @@ case "$1" in
       printf '%s\n' 'NetlinkUtils: Received unexpected netlink message: NetlinkErrorMessage'
       printf '%s\n' 'InetDiagMessage: Failed to send netlink dump request or receive messages: read failed: EAGAIN'
     fi
-    if [ "${MOCK_PREBOOT_SERVICE_WTF:-0}" = 1 ]; then
-      printf '%s\n' 'SystemServiceRegistry: No service published for: jobscheduler'
-      printf '%s\n' 'SystemServiceRegistry: Manager wrapper not available: wifi'
+    if [ "${MOCK_SERVICE_REGISTRY_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'am_wtf: [0,1000,system_server,-1,SystemServiceRegistry,No service published for: jobscheduler]'
+      printf '%s\n' 'am_wtf: [0,1073,com.android.networkstack.process,-1,SystemServiceRegistry,No service published for: ethernet]'
+    fi
+    if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
+      printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -195,6 +198,8 @@ chmod +x "$tmp/docker"
 
 PATH="$tmp:$PATH" MOCK_SDK=35 "$script_dir/assert-runtime.sh" android15 >/dev/null
 PATH="$tmp:$PATH" MOCK_SDK=34 "$script_dir/assert-runtime.sh" android14 >/dev/null
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OPTIONAL_SERVICE_WARNING=1 \
+  "$script_dir/assert-runtime.sh" optional-service-warning >/dev/null
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ALLOCATOR=1 \
     "$script_dir/assert-runtime.sh" bad-allocator >"$tmp/error" 2>&1; then
@@ -273,12 +278,12 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INET_DIAG_FAILURE=1 \
 fi
 grep -Fq 'Android 15 repeated unavailable inet-diag socket dumps' "$tmp/error"
 
-if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_PREBOOT_SERVICE_WTF=1 \
-    "$script_dir/assert-runtime.sh" preboot-service-wtf >"$tmp/error" 2>&1; then
-  printf '%s\n' 'error: runtime assertion accepted Android 15 pre-boot service WTFs' >&2
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_REGISTRY_WTF=1 \
+    "$script_dir/assert-runtime.sh" service-registry-wtf >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted Android 15 service-registry WTFs' >&2
   exit 1
 fi
-grep -Fq 'Android 15 emitted pre-boot missing-service WTF diagnostics' "$tmp/error"
+grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then
