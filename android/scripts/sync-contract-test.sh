@@ -403,6 +403,67 @@ void Controllers::init() {
 }
 SRC
     fi
+    if [ ! -f system/netd/server/TetherController.cpp ]; then
+      cat > system/netd/server/TetherController.cpp <<'SRC'
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <netdb.h>
+#include <spawn.h>
+#include <string.h>
+
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <array>
+#include <cstdlib>
+#include <regex>
+#include <string>
+#include <vector>
+
+namespace android {
+namespace net {
+
+namespace {
+
+const char BP_TOOLS_MODE[] = "bp-tools";
+const char IPV4_FORWARDING_PROC_FILE[] = "/proc/sys/net/ipv4/ip_forward";
+const char IPV6_FORWARDING_PROC_FILE[] = "/proc/sys/net/ipv6/conf/all/forwarding";
+const char SEPARATOR[] = "|";
+constexpr const char kTcpBeLiberal[] = "/proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal";
+
+// Chosen to match AID_DNS_TETHER, as made "friendly" by fs_config_generator.py.
+constexpr const char kDnsmasqUsername[] = "dns_tether";
+
+}  // namespace
+
+StatusOr<TetherController::TetherStatsList> TetherController::getTetherStats() {
+    TetherStatsList statsList;
+    std::string parsedIptablesOutput;
+
+    for (const IptablesTarget target : {V4, V6}) {
+        std::string statsString;
+        if (int ret = iptablesRestoreFunction(target, GET_TETHER_STATS_COMMAND, &statsString)) {
+            return statusFromErrno(-ret, StringPrintf("failed to fetch tether stats (%d): %d",
+                                                      target, ret));
+        }
+
+        if (int ret = addForwardChainStats(statsList, statsString, parsedIptablesOutput)) {
+            return statusFromErrno(-ret, StringPrintf("failed to parse %s tether stats:\n%s",
+                                                      target == V4 ? "IPv4": "IPv6",
+                                                      parsedIptablesOutput.c_str()));
+        }
+    }
+
+    return statsList;
+}
+SRC
+    fi
     if [ ! -f packages/modules/Connectivity/bpf/loader/Android.bp ]; then
       cat > packages/modules/Connectivity/bpf/loader/Android.bp <<'SRC'
 cc_binary {
@@ -1674,6 +1735,14 @@ grep -Fq 'if (isRoydContainerWithoutSelinux()) {' \
 grep -Fq 'ROYD: continuing without legacy iptables bandwidth rules because' \
   "$tmp/src/system/netd/server/Controllers.cpp"
 grep -Fq 'exit(1);' "$tmp/src/system/netd/server/Controllers.cpp"
+grep -Fq 'bool isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/system/netd/server/TetherController.cpp"
+grep -Fq 'if (mFwdIfaces.empty() && isRoydContainerWithoutSelinux()) {' \
+  "$tmp/src/system/netd/server/TetherController.cpp"
+grep -Fq 'for (const IptablesTarget target : {V4, V6}) {' \
+  "$tmp/src/system/netd/server/TetherController.cpp"
+grep -Fq 'failed to fetch tether stats' \
+  "$tmp/src/system/netd/server/TetherController.cpp"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

@@ -130,6 +130,11 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Fq 'failed to fetch tether stats'; then
+    printf 'error: Android 15 repeatedly queried unavailable idle tether counters in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432

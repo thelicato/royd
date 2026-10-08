@@ -1,0 +1,40 @@
+diff --git a/system/netd/server/TetherController.cpp b/system/netd/server/TetherController.cpp
+--- a/system/netd/server/TetherController.cpp
++++ b/system/netd/server/TetherController.cpp
+@@ -24,6 +24,7 @@
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <sys/wait.h>
++#include <unistd.h>
+ 
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+@@ -77,5 +78,11 @@ const char IPV6_FORWARDING_PROC_FILE[] = "/proc/sys/net/ipv6/conf/all/forwarding
+ const char SEPARATOR[] = "|";
+ constexpr const char kTcpBeLiberal[] = "/proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal";
+ 
++bool isRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && strcmp(roydContainer, "1") == 0 &&
++            access("/sys/fs/selinux/enforce", F_OK) != 0;
++}
++
+ // Chosen to match AID_DNS_TETHER, as made "friendly" by fs_config_generator.py.
+ constexpr const char kDnsmasqUsername[] = "dns_tether";
+@@ -903,9 +910,16 @@ int TetherController::addForwardChainStats(TetherStatsList& statsList,
+ 
+ StatusOr<TetherController::TetherStatsList> TetherController::getTetherStats() {
+     TetherStatsList statsList;
++
++    // This container has no legacy netfilter tables. Before any forwarding pair exists there can
++    // be no tether counters to preserve, so avoid an expensive failing iptables query on every
++    // NetworkStats poll. Once a pair has existed, retain the stock query and error handling.
++    if (mFwdIfaces.empty() && isRoydContainerWithoutSelinux()) {
++        return statsList;
++    }
+     std::string parsedIptablesOutput;
+ 
+     for (const IptablesTarget target : {V4, V6}) {
+         std::string statsString;
+         if (int ret = iptablesRestoreFunction(target, GET_TETHER_STATS_COMMAND, &statsString)) {
+             return statusFromErrno(-ret, StringPrintf("failed to fetch tether stats (%d): %d",

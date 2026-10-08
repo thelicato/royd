@@ -150,6 +150,9 @@ case "$1" in
     if [ "${MOCK_EARLY_DROPBOX_RECURSION:-0}" = 1 ]; then
       printf '%s\n' 'SystemServiceRegistry: No service published for: dropbox'
     fi
+    if [ "${MOCK_TETHER_STATS_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'NetworkStats: [Operation not permitted] : failed to fetch tether stats (0): -1'
+    fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
@@ -242,6 +245,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_EARLY_DROPBOX_RECURSION=1 \
   exit 1
 fi
 grep -Fq 'Android 15 recursively reported the unpublished DropBox service' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_TETHER_STATS_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" tether-stats >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted repeated Android 15 tether-stat failures' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 repeatedly queried unavailable idle tether counters' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then
