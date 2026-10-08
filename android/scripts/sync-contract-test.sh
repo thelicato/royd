@@ -25,6 +25,7 @@ case "$1" in
       packages/modules/Connectivity/bpf/netd \
       packages/modules/Connectivity/service/jni \
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
+      packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink \
       system/core/libprocessgroup/setup system/core/libprocessgroup \
       frameworks/base/services/core/java/com/android/server/am
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
@@ -461,6 +462,131 @@ StatusOr<TetherController::TetherStatsList> TetherController::getTetherStats() {
     }
 
     return statsList;
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java ]; then
+      cat > packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java <<'SRC'
+package com.android.net.module.util.netlink;
+
+import static android.net.util.SocketUtils.makeNetlinkSocketAddress;
+import static android.system.OsConstants.AF_NETLINK;
+import static android.system.OsConstants.EIO;
+import static android.system.OsConstants.EPROTO;
+import static android.system.OsConstants.ETIMEDOUT;
+import static android.system.OsConstants.NETLINK_INET_DIAG;
+import static android.system.OsConstants.NETLINK_ROUTE;
+import static android.system.OsConstants.SOCK_CLOEXEC;
+import static android.system.OsConstants.SOCK_DGRAM;
+import static android.system.OsConstants.SOL_SOCKET;
+import static android.system.OsConstants.SO_RCVBUF;
+import static android.system.OsConstants.SO_RCVTIMEO;
+import static android.system.OsConstants.SO_SNDTIMEO;
+
+import static com.android.net.module.util.netlink.NetlinkConstants.hexify;
+import static com.android.net.module.util.netlink.NetlinkConstants.NLMSG_DONE;
+import static com.android.net.module.util.netlink.NetlinkConstants.RTNL_FAMILY_IP6MR;
+import static com.android.net.module.util.netlink.StructNlMsgHdr.NLM_F_DUMP;
+import static com.android.net.module.util.netlink.StructNlMsgHdr.NLM_F_REQUEST;
+
+import android.net.util.SocketUtils;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
+import android.system.StructTimeval;
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.io.FileDescriptor;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+
+public class NetlinkUtils {
+    private static final String TAG = "NetlinkUtils";
+    /** Corresponds to enum from bionic/libc/include/netinet/tcp.h. */
+    private static final int TCP_ESTABLISHED = 1;
+    private static final int TCP_SYN_SENT = 2;
+    private static final int TCP_SYN_RECV = 3;
+
+    private static <T extends NetlinkMessage> void getAndProcessNetlinkDumpMessagesWithFd(
+            FileDescriptor fd, byte[] dumpRequestMessage, int nlFamily, Class<T> msgClass,
+            Consumer<T> func)
+            throws SocketException, InterruptedIOException, ErrnoException {
+        while (true) {
+            final ByteBuffer buf = recvMessage(
+                    fd, NetlinkUtils.DEFAULT_RECV_BUFSIZE, IO_TIMEOUT_MS);
+
+            while (buf.remaining() > 0) {
+                final int position = buf.position();
+                final NetlinkMessage nlMsg = NetlinkMessage.parse(buf, nlFamily);
+                if (nlMsg == null) {
+                    buf.position(position);
+                    Log.e(TAG, "Failed to parse netlink message: " + hexify(buf));
+                    break;
+                }
+
+                if (nlMsg.getHeader().nlmsg_type == NLMSG_DONE) {
+                    return;
+                }
+
+                if (!msgClass.isInstance(nlMsg)) {
+                    Log.wtf(TAG, "Received unexpected netlink message: " + nlMsg);
+                    continue;
+                }
+            }
+        }
+    }
+}
+SRC
+    fi
+    if [ ! -f packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java ]; then
+      cat > packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java <<'SRC'
+package com.android.net.module.util.netlink;
+
+import java.io.FileDescriptor;
+import java.io.InterruptedIOException;
+import java.net.SocketException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+public class InetDiagMessage extends NetlinkMessage {
+    public static final String TAG = "InetDiagMessage";
+    private static final int TIMEOUT_MS = 500;
+
+    private static int processNetlinkDumpAndDestroySockets(byte[] dumpReq,
+            FileDescriptor destroyFd, int proto, Predicate<InetDiagMessage> filter)
+            throws SocketException, InterruptedIOException, ErrnoException {
+        AtomicInteger destroyedSockets = new AtomicInteger(0);
+        Consumer<InetDiagMessage> handleNlDumpMsg = (diagMsg) -> {
+            if (filter.test(diagMsg)) {
+                try {
+                    sendNetlinkDestroyRequest(destroyFd, proto, diagMsg);
+                    destroyedSockets.getAndIncrement();
+                } catch (InterruptedIOException | ErrnoException e) {
+                    if (!(e instanceof ErrnoException
+                            && ((ErrnoException) e).errno == ENOENT)) {
+                        Log.e(TAG, "Failed to destroy socket: diagMsg=" + diagMsg + ", " + e);
+                    }
+                }
+            }
+        };
+
+        NetlinkUtils.<InetDiagMessage>getAndProcessNetlinkDumpMessages(dumpReq,
+                NETLINK_INET_DIAG, InetDiagMessage.class, handleNlDumpMsg);
+        return destroyedSockets.get();
+    }
 }
 SRC
     fi
@@ -1743,6 +1869,18 @@ grep -Fq 'for (const IptablesTarget target : {V4, V6}) {' \
   "$tmp/src/system/netd/server/TetherController.cpp"
 grep -Fq 'failed to fetch tether stats' \
   "$tmp/src/system/netd/server/TetherController.cpp"
+grep -Fq 'static boolean isRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java"
+grep -Fq 'error.error == -ENOENT' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java"
+grep -Fq 'error.msg.nlmsg_type == SOCK_DIAG_BY_FAMILY' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java"
+grep -Fq 'private static volatile boolean sRoydInetDiagUnavailable = false;' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java"
+grep -Fq 'sRoydInetDiagUnavailable = true;' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java"
+grep -Fq 'skipping subsequent socket-destruction dumps' \
+  "$tmp/src/packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/InetDiagMessage.java"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

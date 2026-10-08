@@ -153,6 +153,10 @@ case "$1" in
     if [ "${MOCK_TETHER_STATS_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'NetworkStats: [Operation not permitted] : failed to fetch tether stats (0): -1'
     fi
+    if [ "${MOCK_INET_DIAG_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'NetlinkUtils: Received unexpected netlink message: NetlinkErrorMessage'
+      printf '%s\n' 'InetDiagMessage: Failed to send netlink dump request or receive messages: read failed: EAGAIN'
+    fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
@@ -252,6 +256,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_TETHER_STATS_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 repeatedly queried unavailable idle tether counters' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INET_DIAG_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" inet-diag >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted repeated Android 15 inet-diag timeouts' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 repeated unavailable inet-diag socket dumps' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then
