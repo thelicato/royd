@@ -25,7 +25,8 @@ case "$1" in
       packages/modules/Connectivity/bpf/netd \
       packages/modules/Connectivity/service/jni \
       packages/modules/Connectivity/service/src/com/android/server system/netd/server \
-      system/core/libprocessgroup/setup system/core/libprocessgroup
+      system/core/libprocessgroup/setup system/core/libprocessgroup \
+      frameworks/base/services/core/java/com/android/server/am
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
 #include <dirent.h>
@@ -108,6 +109,36 @@ bool CgroupControllerWrapper::GetTaskGroup(pid_t tid, std::string* group) const 
     }
 
     return true;
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java <<'SRC'
+import android.os.RemoteCallback;
+import android.os.RemoteCallbackList;
+import android.os.RemoteException;
+import android.os.ResultReceiver;
+import android.os.ServiceManager;
+import android.os.SharedMemory;
+import android.os.ShellCallback;
+
+public class ActivityManagerService {
+    @SuppressWarnings("DoNotCall")
+    public void addErrorToDropBox() {
+        // NOTE -- this must never acquire the ActivityManagerService lock,
+        // otherwise the watchdog may be prevented from resetting the system.
+
+        // Bail early if not published yet
+        final DropBoxManager dbox;
+        try {
+            dbox = mContext.getSystemService(DropBoxManager.class);
+        } catch (Exception e) {
+            return;
+        }
+
+        final String dropboxTag = processClass(process) + "_" + eventType;
+        if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
+    }
 }
 SRC
     fi
@@ -1607,6 +1638,14 @@ grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'mount("none", controller->path(), "cgroup2"' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'import android.os.SELinux;' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
+grep -Fq '"1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
+grep -Fq 'ServiceManager.checkService(Context.DROPBOX_SERVICE) == null' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
+grep -Fq 'dbox = mContext.getSystemService(DropBoxManager.class);' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
 grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
   "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \

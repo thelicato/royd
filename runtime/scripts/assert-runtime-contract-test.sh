@@ -102,12 +102,20 @@ case "$1" in
       [ "${MOCK_BAD_CODECS:-0}" = 1 ] || printf '%s\n' '    name: c2.android.opus.encoder'
       exit 0
     fi
-    if [ "$1" = service ] && [ "$2" = check ] && [ "$3" = appwidget ]; then
-      if [ "${MOCK_BAD_APPWIDGET:-0}" = 1 ]; then
-        printf '%s\n' 'Service appwidget: not found'
-      else
-        printf '%s\n' 'Service appwidget: found'
-      fi
+    if [ "$1" = service ] && [ "$2" = check ]; then
+      case "$3" in
+        appwidget)
+          [ "${MOCK_BAD_APPWIDGET:-0}" = 1 ] && \
+            printf '%s\n' 'Service appwidget: not found' || \
+            printf '%s\n' 'Service appwidget: found'
+          ;;
+        dropbox)
+          [ "${MOCK_BAD_DROPBOX:-0}" = 1 ] && \
+            printf '%s\n' 'Service dropbox: not found' || \
+            printf '%s\n' 'Service dropbox: found'
+          ;;
+        *) printf 'unexpected service: %s\n' "$3" >&2; exit 1 ;;
+      esac
       exit 0
     fi
     if [ "$1" = pm ] && [ "$2" = list ] && [ "$3" = features ]; then
@@ -139,6 +147,9 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_EARLY_DROPBOX_RECURSION:-0}" = 1 ]; then
+      printf '%s\n' 'SystemServiceRegistry: No service published for: dropbox'
+    fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
@@ -217,6 +228,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PRESENT_TIMESTAMP=1 \
   exit 1
 fi
 grep -Fq 'service.sf.present_timestamp expected 0, got 1' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_DROPBOX=1 \
+    "$script_dir/assert-runtime.sh" bad-dropbox >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 DropBox service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 DropBox service is unavailable' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_EARLY_DROPBOX_RECURSION=1 \
+    "$script_dir/assert-runtime.sh" recursive-dropbox >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted recursive Android 15 DropBox reporting' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 recursively reported the unpublished DropBox service' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

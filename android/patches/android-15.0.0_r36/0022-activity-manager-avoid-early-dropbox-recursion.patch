@@ -1,0 +1,30 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java b/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
+--- a/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
++++ b/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
+@@ -346,6 +346,7 @@ import android.os.RemoteCallback;
+ import android.os.RemoteCallbackList;
+ import android.os.RemoteException;
+ import android.os.ResultReceiver;
++import android.os.SELinux;
+ import android.os.ServiceManager;
+ import android.os.SharedMemory;
+ import android.os.ShellCallback;
+@@ -9814,10 +9815,18 @@ public class ActivityManagerService extends IActivityManager.Stub
+         // NOTE -- this must never acquire the ActivityManagerService lock,
+         // otherwise the watchdog may be prevented from resetting the system.
+ 
++        // Container-specific WTFs can occur before SystemServer publishes DropBox. Avoid asking
++        // SystemServiceRegistry for the absent service because that missing-service WTF would be
++        // reported through this method again. Normal persistence resumes once DropBox exists.
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                && ServiceManager.checkService(Context.DROPBOX_SERVICE) == null) {
++            return;
++        }
++
+         // Bail early if not published yet
+         final DropBoxManager dbox;
+         try {
+             dbox = mContext.getSystemService(DropBoxManager.class);
+         } catch (Exception e) {
+             return;
+         }

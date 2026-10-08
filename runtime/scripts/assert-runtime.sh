@@ -119,6 +119,17 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
+  dropbox_status=$(docker exec "$container" service check dropbox 2>/dev/null | tr -d '\r')
+  if [ "$dropbox_status" != 'Service dropbox: found' ]; then
+    printf 'error: Android 15 DropBox service is unavailable in %s: %s\n' \
+      "$container" "${dropbox_status:-<empty>}" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq 'No service published for: dropbox'; then
+    printf 'error: Android 15 recursively reported the unpublished DropBox service in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432
