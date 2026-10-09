@@ -1396,6 +1396,46 @@ static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, u
 }
 SRC
     fi
+    if [ ! -f system/core/init/init.cpp ]; then
+      cat > system/core/init/init.cpp <<'SRC'
+#include <processgroup/processgroup.h>
+#include <processgroup/setup.h>
+#include <selinux/android.h>
+#include <unwindstack/AndroidUnwinder.h>
+
+static void MountExtraFilesystems() {
+#define CHECKCALL(x) \
+    if ((x) != 0) PLOG(FATAL) << #x " failed.";
+
+    CHECKCALL(mount("tmpfs", "/apex", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                    "mode=0755,uid=0,gid=0"));
+#undef CHECKCALL
+}
+
+static void RecordStageBoottimes(const boot_clock::time_point& second_stage_start_time) {
+    int64_t first_stage_start_time_ns = -1;
+    if (auto first_stage_start_time_str = getenv(kEnvFirstStageStartedAt);
+        first_stage_start_time_str) {
+        SetProperty("ro.boottime.init", first_stage_start_time_str);
+    }
+}
+
+int SecondStageMain(int argc, char** argv) {
+    if (setenv("PATH", _PATH_DEFPATH, 1) != 0) {
+        PLOG(FATAL) << "Could not set $PATH to '" << _PATH_DEFPATH << "' in second stage";
+    }
+
+    // Init should not crash because of a dependence on any other process, therefore we ignore
+    // SIGPIPE and handle EPIPE at the call site directly.
+    PropertyInit();
+    MountExtraFilesystems();
+    if (!SetupMountNamespaces()) {
+        PLOG(FATAL) << "SetupMountNamespaces failed";
+    }
+    return 0;
+}
+SRC
+    fi
     if [ ! -f system/core/init/util.cpp ]; then
       cat > system/core/init/util.cpp <<'SRC'
 #include <android-base/unique_fd.h>
@@ -1863,6 +1903,20 @@ grep -Fq 'strcmp(royd_container, "1") == 0 && is_selinux_enabled() <= 0;' \
   "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'if (!preserve_container_output) {' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'dup2(fd, STDIN_FILENO);' "$tmp/src/system/core/init/util.cpp"
+grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/init.cpp"
+grep -Fq 'static void MountRoydContainerMnt() {' "$tmp/src/system/core/init/init.cpp"
+grep -Fq 'getenv(kEnvFirstStageStartedAt) != nullptr' "$tmp/src/system/core/init/init.cpp"
+grep -Fq 'mount("tmpfs", "/mnt", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,' \
+  "$tmp/src/system/core/init/init.cpp"
+grep -Fq '"mode=0755,uid=0,gid=1000") != 0' "$tmp/src/system/core/init/init.cpp"
+grep -Fq 'ROYD: mounted Android runtime staging tmpfs at /mnt' \
+  "$tmp/src/system/core/init/init.cpp"
+mnt_call_line=$(grep -n 'MountRoydContainerMnt();' "$tmp/src/system/core/init/init.cpp" | cut -d: -f1)
+property_init_line=$(grep -n 'PropertyInit();' "$tmp/src/system/core/init/init.cpp" | cut -d: -f1)
+[ "$mnt_call_line" -lt "$property_init_line" ] || {
+  printf '%s\n' 'error: container /mnt mount runs after property initialisation' >&2
+  exit 1
+}
 grep -Fq 'mSkipSelinux = IsRoydContainerWithoutSelinux();' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'CHECK(selinux_status_open(true /*fallback*/) >= 0);' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"
 grep -Fq 'selinux_check_access' "$tmp/src/frameworks/native/cmds/servicemanager/Access.cpp"

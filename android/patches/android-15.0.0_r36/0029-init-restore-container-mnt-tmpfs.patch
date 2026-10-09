@@ -1,0 +1,43 @@
+diff --git a/system/core/init/init.cpp b/system/core/init/init.cpp
+--- a/system/core/init/init.cpp
++++ b/system/core/init/init.cpp
+@@ -59,6 +59,7 @@
+ #include <processgroup/processgroup.h>
+ #include <processgroup/setup.h>
+ #include <selinux/android.h>
++#include <selinux/selinux.h>
+ #include <unwindstack/AndroidUnwinder.h>
+ 
+ #include "action.h"
+@@ -848,6 +849,22 @@ static void MountExtraFilesystems() {
+ #undef CHECKCALL
+ }
+ 
++static void MountRoydContainerMnt() {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    if (royd_container == nullptr || strcmp(royd_container, "1") != 0 ||
++        is_selinux_enabled() > 0 || getenv(kEnvFirstStageStartedAt) != nullptr) {
++        return;
++    }
++
++    // The OCI entrypoint starts second-stage init directly, so recreate the writable staging
++    // mount normally supplied by first-stage init before Android remounts its root read-only.
++    if (mount("tmpfs", "/mnt", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
++              "mode=0755,uid=0,gid=1000") != 0) {
++        PLOG(FATAL) << "Failed to mount Android runtime staging tmpfs at /mnt";
++    }
++    LOG(INFO) << "ROYD: mounted Android runtime staging tmpfs at /mnt";
++}
++
+ static void RecordStageBoottimes(const boot_clock::time_point& second_stage_start_time) {
+     int64_t first_stage_start_time_ns = -1;
+     if (auto first_stage_start_time_str = getenv(kEnvFirstStageStartedAt);
+@@ -944,6 +961,8 @@ int SecondStageMain(int argc, char** argv) {
+         PLOG(FATAL) << "Could not set $PATH to '" << _PATH_DEFPATH << "' in second stage";
+     }
+ 
++    MountRoydContainerMnt();
++
+     // Init should not crash because of a dependence on any other process, therefore we ignore
+     // SIGPIPE and handle EPIPE at the call site directly.  Note that setting a signal to SIG_IGN
+     // is inherited across exec, but custom signal handlers are not.  Since we do not want to

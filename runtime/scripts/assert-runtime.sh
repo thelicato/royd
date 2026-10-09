@@ -173,6 +173,20 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  docker exec "$container" sh -c '
+    # royd-runtime-emulated-storage-test
+    grep -F " /mnt rw," /proc/1/mountinfo | grep -Fq " - tmpfs tmpfs rw,"
+    grep -F " /storage/emulated rw," /proc/1/mountinfo | grep -Fq " - fuse /dev/fuse rw,"
+    test -d /storage/emulated/0
+  ' || {
+    printf 'error: Android 15 emulated storage is not mounted in %s\n' "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'failed to create mount points|am_wtf.*StorageManagerService'; then
+    printf 'error: Android 15 emulated storage mount failed in %s\n' "$container" >&2
+    exit 1
+  fi
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432

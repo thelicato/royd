@@ -142,6 +142,9 @@ case "$1" in
         *royd-runtime-package-list-test*)
           [ "${MOCK_BAD_PACKAGE_LIST:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-emulated-storage-test*)
+          [ "${MOCK_BAD_EMULATED_STORAGE:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
@@ -178,6 +181,10 @@ case "$1" in
     fi
     if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
+    fi
+    if [ "${MOCK_STORAGE_MOUNT_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'vold: emulated;0 failed to create mount points: Read-only file system'
+      printf '%s\n' 'am_wtf: [0,645,system_server,-1,StorageManagerService,]'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -315,6 +322,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_MONITOR_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 started its unavailable CPU frequency monitor' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_EMULATED_STORAGE=1 \
+    "$script_dir/assert-runtime.sh" missing-emulated-storage >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unavailable Android 15 emulated storage' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 emulated storage is not mounted' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STORAGE_MOUNT_WTF=1 \
+    "$script_dir/assert-runtime.sh" emulated-storage-wtf >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an Android 15 emulated-storage mount failure' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 emulated storage mount failed' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then

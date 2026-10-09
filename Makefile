@@ -20,6 +20,7 @@
 .PHONY: android15-ethernet-feature-probe-container-test
 .PHONY: android15-package-list-selinux-container-test
 .PHONY: android15-cpu-monitor-container-test
+.PHONY: android15-mnt-tmpfs-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -318,6 +319,9 @@ android15-package-list-selinux-container-test:
 
 android15-cpu-monitor-container-test:
 	./android/scripts/android15-cpu-monitor-container-test.sh
+
+android15-mnt-tmpfs-container-test:
+	./android/scripts/android15-mnt-tmpfs-container-test.sh
 
 android15-oci-network-route-test:
 	./android/scripts/android15-oci-network-route-test.sh
