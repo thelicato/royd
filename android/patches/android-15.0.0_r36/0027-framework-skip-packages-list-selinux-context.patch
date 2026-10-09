@@ -1,0 +1,33 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/pm/Settings.java b/frameworks/base/services/core/java/com/android/server/pm/Settings.java
+--- a/frameworks/base/services/core/java/com/android/server/pm/Settings.java
++++ b/frameworks/base/services/core/java/com/android/server/pm/Settings.java
+@@ -3021,21 +3021,29 @@ final class Settings implements Watchable, Snappable {
+     }
+ 
+     void writePackageListLPr(int creatingUserId) {
++        // The container has no SELinux policy or file-context database. Keep packages.list fully
++        // updated, but avoid the unavailable create-context setup that would otherwise emit two
++        // WTF records for every write.
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()) {
++            writePackageListLPrInternal(creatingUserId);
++            return;
++        }
++
+         String filename = mPackageListFilename.getAbsolutePath();
+         String ctx = SELinux.fileSelabelLookup(filename);
+         if (ctx == null) {
+             Slog.wtf(TAG, "Failed to get SELinux context for " +
+                 mPackageListFilename.getAbsolutePath());
+         }
+ 
+         if (!SELinux.setFSCreateContext(ctx)) {
+             Slog.wtf(TAG, "Failed to set packages.list SELinux context");
+         }
+         try {
+             writePackageListLPrInternal(creatingUserId);
+         } finally {
+             SELinux.setFSCreateContext(null);
+         }
+     }
+ 
+     private void writePackageListLPrInternal(int creatingUserId) {

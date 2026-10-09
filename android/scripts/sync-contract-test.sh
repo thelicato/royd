@@ -29,6 +29,7 @@ case "$1" in
       packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering \
       system/core/libprocessgroup/setup system/core/libprocessgroup \
       frameworks/base/services/core/java/com/android/server/am \
+      frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/core/java/android/app
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
@@ -207,6 +208,40 @@ public class ActivityManagerService {
 
         final String dropboxTag = processClass(process) + "_" + eventType;
         if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
+    }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/pm/Settings.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/pm/Settings.java <<'SRC'
+import android.os.SELinux;
+
+final class Settings implements Watchable, Snappable {
+    private File mPackageListFilename;
+
+    void writePackageListLPr() {
+        writePackageListLPr(-1);
+    }
+
+    void writePackageListLPr(int creatingUserId) {
+        String filename = mPackageListFilename.getAbsolutePath();
+        String ctx = SELinux.fileSelabelLookup(filename);
+        if (ctx == null) {
+            Slog.wtf(TAG, "Failed to get SELinux context for " +
+                mPackageListFilename.getAbsolutePath());
+        }
+
+        if (!SELinux.setFSCreateContext(ctx)) {
+            Slog.wtf(TAG, "Failed to set packages.list SELinux context");
+        }
+        try {
+            writePackageListLPrInternal(creatingUserId);
+        } finally {
+            SELinux.setFSCreateContext(null);
+        }
+    }
+
+    private void writePackageListLPrInternal(int creatingUserId) {
     }
 }
 SRC
@@ -1951,6 +1986,14 @@ grep -Fq 'ServiceManager.checkService(Context.DROPBOX_SERVICE) == null' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
 grep -Fq 'dbox = mContext.getSystemService(DropBoxManager.class);' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java"
+grep -Fq '"1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
+grep -Fq 'writePackageListLPrInternal(creatingUserId);' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
+grep -Fq 'String ctx = SELinux.fileSelabelLookup(filename);' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
+grep -Fq 'SELinux.setFSCreateContext(null);' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
 grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
   "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \

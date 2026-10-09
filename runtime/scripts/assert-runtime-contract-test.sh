@@ -139,6 +139,9 @@ case "$1" in
         *royd-runtime-memcg-path-test*)
           [ "${MOCK_BAD_MEMCG_PATH:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-package-list-test*)
+          [ "${MOCK_BAD_PACKAGE_LIST:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
@@ -168,6 +171,10 @@ case "$1" in
     fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
+    fi
+    if [ "${MOCK_PACKAGE_LIST_SELINUX_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to get SELinux context for /data/system/packages.list]'
+      printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to set packages.list SELinux context]'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -284,6 +291,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_REGISTRY_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PACKAGE_LIST=1 \
+    "$script_dir/assert-runtime.sh" missing-package-list >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 packages.list' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 packages.list is missing or empty' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_PACKAGE_LIST_SELINUX_WTF=1 \
+    "$script_dir/assert-runtime.sh" package-list-selinux >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted Android 15 packages.list SELinux WTFs' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 attempted unavailable packages.list SELinux context setup' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then

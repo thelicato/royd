@@ -154,6 +154,19 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  docker exec "$container" sh -c '
+    # royd-runtime-package-list-test
+    test -s /data/system/packages.list
+  ' || {
+    printf 'error: Android 15 packages.list is missing or empty in %s\n' "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'am_wtf.*PackageSettings.*Failed to (get SELinux context|set packages.list SELinux context)'; then
+    printf 'error: Android 15 attempted unavailable packages.list SELinux context setup in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432
