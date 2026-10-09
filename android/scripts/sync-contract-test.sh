@@ -30,6 +30,7 @@ case "$1" in
       system/core/libprocessgroup/setup system/core/libprocessgroup \
       frameworks/base/services/core/java/com/android/server/am \
       frameworks/base/services/core/java/com/android/server/pm \
+      frameworks/base/services/core/java/com/android/server/cpu \
       frameworks/base/core/java/android/app
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
@@ -242,6 +243,48 @@ final class Settings implements Watchable, Snappable {
     }
 
     private void writePackageListLPrInternal(int creatingUserId) {
+    }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java <<'SRC'
+package com.android.server.cpu;
+
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Process;
+import android.os.SystemClock;
+import android.util.IndentingPrintWriter;
+import android.util.IntArray;
+
+import com.android.server.utils.PriorityDump;
+import com.android.server.utils.Slogf;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.util.Objects;
+
+public final class CpuMonitorService extends SystemService {
+    static final String TAG = CpuMonitorService.class.getSimpleName();
+    private final CpuInfoReader mCpuInfoReader;
+
+    CpuMonitorService() {
+        mAvailabilityCallbackInfosByCallbacksByCpuset = new SparseArrayMap<>();
+    }
+
+    @Override
+    public void onStart() {
+        // Initialize CPU info reader and perform the first read to make sure the CPU stats are
+        // readable without any issues.
+        if (!mCpuInfoReader.init() || mCpuInfoReader.readCpuInfos() == null) {
+            Slogf.wtf(TAG, "Failed to initialize CPU info reader. This happens when the CPU "
+                    + "frequency stats are not available or the sysfs interface has changed in "
+                    + "the Kernel. Cannot monitor CPU without these stats. Terminating CPU monitor "
+                    + "service");
+            return;
+        }
+        mHandlerThread.start();
     }
 }
 SRC
@@ -1994,6 +2037,14 @@ grep -Fq 'String ctx = SELinux.fileSelabelLookup(filename);' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
 grep -Fq 'SELinux.setFSCreateContext(null);' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/Settings.java"
+grep -Fq 'private static boolean shouldSkipRoydCpuMonitor() {' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
+grep -Fq 'file.isDirectory() && file.getName().startsWith("policy")' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
+grep -Fq 'ROYD: CPU frequency policies unavailable; CPU monitor disabled' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
+grep -Fq 'if (!mCpuInfoReader.init() || mCpuInfoReader.readCpuInfos() == null) {' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
 grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
   "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \

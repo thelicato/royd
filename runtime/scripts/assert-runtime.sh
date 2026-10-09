@@ -167,6 +167,12 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'am_wtf.*CpuMonitorService|CpuMonitorService: Failed to initialize CPU info reader'; then
+    printf 'error: Android 15 started its unavailable CPU frequency monitor in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   assert_property media.c2.hal.selection aidl
   assert_property debug.stagefright.c2inputsurface -1
   assert_property debug.stagefright.c2-poolmask 786432

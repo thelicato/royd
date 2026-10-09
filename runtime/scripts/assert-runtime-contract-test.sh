@@ -176,6 +176,9 @@ case "$1" in
       printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to get SELinux context for /data/system/packages.list]'
       printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to set packages.list SELinux context]'
     fi
+    if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
+    fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
@@ -305,6 +308,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_PACKAGE_LIST_SELINUX_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 attempted unavailable packages.list SELinux context setup' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_MONITOR_WTF=1 \
+    "$script_dir/assert-runtime.sh" cpu-monitor >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unavailable Android 15 CPU monitor' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 started its unavailable CPU frequency monitor' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then

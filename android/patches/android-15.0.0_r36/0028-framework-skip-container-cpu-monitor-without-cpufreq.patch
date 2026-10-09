@@ -1,0 +1,46 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java b/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java
+--- a/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java
++++ b/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java
+@@ -31,6 +31,7 @@
+ import android.os.Handler;
+ import android.os.HandlerThread;
+ import android.os.Process;
++import android.os.SELinux;
+ import android.os.SystemClock;
+ import android.util.IndentingPrintWriter;
+ import android.util.IntArray;
+@@ -49,6 +50,7 @@
+ import com.android.server.utils.PriorityDump;
+ import com.android.server.utils.Slogf;
+ 
++import java.io.File;
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ import java.util.Objects;
+@@ -188,9 +190,26 @@
+         mAvailabilityCallbackInfosByCallbacksByCpuset = new SparseArrayMap<>();
+     }
+ 
++    private static boolean shouldSkipRoydCpuMonitor() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER")) || SELinux.isSELinuxEnabled()) {
++            return false;
++        }
++        File[] policyDirs = new File("/sys/devices/system/cpu/cpufreq").listFiles(
++                file -> file.isDirectory() && file.getName().startsWith("policy"));
++        return policyDirs == null || policyDirs.length == 0;
++    }
++
+     @Override
+     public void onStart() {
++        // The debug-only monitor cannot operate without cpufreq policy directories. Containers
++        // commonly lack this host sysfs interface, so do not invoke the reader merely to produce
++        // warnings and a fatal diagnostic before terminating the service anyway.
++        if (shouldSkipRoydCpuMonitor()) {
++            Slogf.i(TAG, "ROYD: CPU frequency policies unavailable; CPU monitor disabled");
++            return;
++        }
++
+         // Initialize CPU info reader and perform the first read to make sure the CPU stats are
+         // readable without any issues.
+         if (!mCpuInfoReader.init() || mCpuInfoReader.readCpuInfos() == null) {
+             Slogf.wtf(TAG, "Failed to initialize CPU info reader. This happens when the CPU "
