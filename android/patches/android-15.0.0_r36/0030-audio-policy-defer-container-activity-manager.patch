@@ -1,0 +1,48 @@
+diff --git a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+--- a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
++++ b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+@@ -19,8 +19,11 @@
+ 
+ #include "Configuration.h"
+ #include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <sys/time.h>
+ #include <dlfcn.h>
++#include <unistd.h>
+ 
+ #include <audio_utils/clock.h>
+ #include <binder/IServiceManager.h>
+@@ -63,6 +66,16 @@ static const String16 sManageAudioPolicyPermission("android.permission.MANAGE_AU
+ 
+ namespace {
+ constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
++
++bool shouldDeferRoydAudioUidObserver() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    if (roydContainer == nullptr || strcmp(roydContainer, "1") != 0 ||
++            access("/sys/fs/selinux/enforce", F_OK) == 0) {
++        return false;
++    }
++
++    return defaultServiceManager()->checkService(String16("activity")) == nullptr;
++}
+ }
+ 
+ // Creates an association between Binder code to name for IAudioPolicyService.
+@@ -1492,6 +1505,15 @@ status_t AudioPolicyService::unregisterOutput(audio_io_handle_t output) {
+ // -----------  AudioPolicyService::UidPolicy implementation ----------
+ 
+ void AudioPolicyService::UidPolicy::registerSelf() {
++    // SystemServer waits for audio policy initialisation before publishing ActivityManager. Do
++    // not turn that ordering into a circular wait in the container. The existing unregistered
++    // fallback treats UIDs conservatively as active and checkRegistered() retries later.
++    if (shouldDeferRoydAudioUidObserver()) {
++        ALOGI("ROYD: ActivityManager is not published; deferring audio UID observer "
++              "registration");
++        return;
++    }
++
+     status_t res = mAm.linkToDeath(this);
+     mAm.registerUidObserver(this, ActivityManager::UID_OBSERVER_GONE
+             | ActivityManager::UID_OBSERVER_IDLE

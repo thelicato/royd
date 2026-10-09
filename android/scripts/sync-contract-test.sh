@@ -31,6 +31,7 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/am \
       frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/services/core/java/com/android/server/cpu \
+      frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
@@ -286,6 +287,59 @@ public final class CpuMonitorService extends SystemService {
         }
         mHandlerThread.start();
     }
+}
+SRC
+    fi
+    if [ ! -f frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp ]; then
+      cat > frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp <<'SRC'
+#define LOG_TAG "AudioPolicyService"
+
+#include "Configuration.h"
+#include <stdint.h>
+#include <sys/time.h>
+#include <dlfcn.h>
+
+#include <audio_utils/clock.h>
+#include <binder/IServiceManager.h>
+
+namespace android {
+static const String16 sManageAudioPolicyPermission("android.permission.MANAGE_AUDIO_POLICY");
+
+namespace {
+constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
+}
+
+void AudioPolicyService::UidPolicy::registerSelf() {
+    status_t res = mAm.linkToDeath(this);
+    mAm.registerUidObserver(this, ActivityManager::UID_OBSERVER_GONE
+            | ActivityManager::UID_OBSERVER_IDLE
+            | ActivityManager::UID_OBSERVER_ACTIVE
+            | ActivityManager::UID_OBSERVER_PROCSTATE,
+            ActivityManager::PROCESS_STATE_UNKNOWN,
+            String16("audioserver"));
+    if (!res) {
+        audio_utils::lock_guard _l(mMutex);
+        mObserverRegistered = true;
+    }
+}
+
+void AudioPolicyService::UidPolicy::checkRegistered() {
+    if (!mObserverRegistered) {
+        registerSelf();
+    }
+}
+
+bool AudioPolicyService::UidPolicy::isUidActive(uid_t uid) {
+    checkRegistered();
+    if (!mObserverRegistered) return true;
+    return false;
+}
+
+int AudioPolicyService::UidPolicy::getUidState(uid_t uid) {
+    checkRegistered();
+    if (!mObserverRegistered) return ActivityManager::PROCESS_STATE_TOP;
+    return ActivityManager::PROCESS_STATE_UNKNOWN;
+}
 }
 SRC
     fi
@@ -2099,6 +2153,18 @@ grep -Fq 'ROYD: CPU frequency policies unavailable; CPU monitor disabled' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
 grep -Fq 'if (!mCpuInfoReader.init() || mCpuInfoReader.readCpuInfos() == null) {' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
+grep -Fq 'bool shouldDeferRoydAudioUidObserver() {' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'defaultServiceManager()->checkService(String16("activity")) == nullptr' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'ROYD: ActivityManager is not published; deferring audio UID observer' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'status_t res = mAm.linkToDeath(this);' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'if (!mObserverRegistered) return true;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'if (!mObserverRegistered) return ActivityManager::PROCESS_STATE_TOP;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
   "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \

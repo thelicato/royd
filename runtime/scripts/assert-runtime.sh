@@ -119,7 +119,7 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
-  for required_service in jobscheduler uimode; do
+  for required_service in jobscheduler uimode activity media.audio_flinger media.audio_policy; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
       printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
@@ -185,6 +185,16 @@ if [ "$sdk" = 35 ]; then
   if docker logs "$container" 2>&1 | grep -Eq \
       'failed to create mount points|am_wtf.*StorageManagerService'; then
     printf 'error: Android 15 emulated storage mount failed in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      'ServiceManagerCppClient: Waited one second for activity'; then
+    printf 'error: Android 15 blocked audioserver on unpublished ActivityManager in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'; then
+    printf 'error: Android 15 triggered a SystemServer pre-watchdog in %s\n' "$container" >&2
     exit 1
   fi
   assert_property media.c2.hal.selection aidl

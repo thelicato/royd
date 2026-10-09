@@ -114,7 +114,7 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
-        jobscheduler|uimode)
+        jobscheduler|uimode|activity|media.audio_flinger|media.audio_policy)
           [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
             printf 'Service %s: not found\n' "$3" || \
             printf 'Service %s: found\n' "$3"
@@ -185,6 +185,12 @@ case "$1" in
     if [ "${MOCK_STORAGE_MOUNT_WTF:-0}" = 1 ]; then
       printf '%s\n' 'vold: emulated;0 failed to create mount points: Read-only file system'
       printf '%s\n' 'am_wtf: [0,645,system_server,-1,StorageManagerService,]'
+    fi
+    if [ "${MOCK_AUDIO_ACTIVITY_WAIT:-0}" = 1 ]; then
+      printf '%s\n' 'ServiceManagerCppClient: Waited one second for activity (is service started?)'
+    fi
+    if [ "${MOCK_SYSTEM_SERVER_PRE_WATCHDOG:-0}" = 1 ]; then
+      printf '%s\n' 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -336,6 +342,27 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STORAGE_MOUNT_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 emulated storage mount failed' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_ACTIVITY_WAIT=1 \
+    "$script_dir/assert-runtime.sh" audio-activity-wait >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a blocking Android 15 ActivityManager lookup' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 blocked audioserver on unpublished ActivityManager' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SYSTEM_SERVER_PRE_WATCHDOG=1 \
+    "$script_dir/assert-runtime.sh" pre-watchdog >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an Android 15 SystemServer pre-watchdog' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 triggered a SystemServer pre-watchdog' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=media.audio_policy \
+    "$script_dir/assert-runtime.sh" missing-audio-policy >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 audio policy service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 required service media.audio_policy is unavailable' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then
