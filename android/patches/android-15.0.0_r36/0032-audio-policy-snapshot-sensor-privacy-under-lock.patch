@@ -1,0 +1,18 @@
+diff --git a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+--- a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
++++ b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+@@ -864,7 +864,13 @@ status_t AudioPolicyService::dump(int fd, const Vector<String16>& args) {
+ 
+ void AudioPolicyService::updateUidStates()
+ {
+-    mSensorPrivacyPolicy->registerSelf();
++    sp<SensorPrivacyPolicy> sensorPrivacyPolicy;
++    {
++        audio_utils::lock_guard _l(mMutex);
++        sensorPrivacyPolicy = mSensorPrivacyPolicy;
++    }
++    sensorPrivacyPolicy->registerSelf();
++
+     audio_utils::lock_guard _l(mMutex);
+     updateUidStates_l();
+ }

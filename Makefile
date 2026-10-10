@@ -23,6 +23,7 @@
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
+.PHONY: android15-audio-sensor-privacy-locking-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -330,6 +331,9 @@ android15-audio-activity-manager-container-test:
 
 android15-audio-sensor-privacy-container-test:
 	./android/scripts/android15-audio-sensor-privacy-container-test.sh
+
+android15-audio-sensor-privacy-locking-test:
+	./android/scripts/android15-audio-sensor-privacy-locking-test.sh
 
 android15-oci-network-route-test:
 	./android/scripts/android15-oci-network-route-test.sh

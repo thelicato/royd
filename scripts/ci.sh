@@ -52,6 +52,7 @@ run ./android/scripts/android15-cpu-monitor-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh
+run ./android/scripts/android15-audio-sensor-privacy-locking-test.sh
 run ./android/scripts/display-contract-test.sh
 run ./android/scripts/config-check-test.sh
 run ./android/scripts/memory-compat-test.sh

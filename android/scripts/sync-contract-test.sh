@@ -2219,7 +2219,11 @@ grep -Fq 'defaultServiceManager()->checkService(String16("sensor_privacy")) == n
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'ROYD: sensor privacy service is not published; deferring audio privacy' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
-grep -Fq 'mSensorPrivacyPolicy->registerSelf();' \
+grep -Fq 'sp<SensorPrivacyPolicy> sensorPrivacyPolicy;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'sensorPrivacyPolicy = mSensorPrivacyPolicy;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'sensorPrivacyPolicy->registerSelf();' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'mObserverRegistered.compare_exchange_strong(expected, true)' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
