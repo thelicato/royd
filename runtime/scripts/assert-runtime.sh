@@ -119,7 +119,7 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
-  for required_service in jobscheduler uimode activity media.audio_flinger media.audio_policy; do
+  for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
       printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
@@ -190,6 +190,12 @@ if [ "$sdk" = 35 ]; then
   if docker logs "$container" 2>&1 | grep -Fq \
       'ServiceManagerCppClient: Waited one second for activity'; then
     printf 'error: Android 15 blocked audioserver on unpublished ActivityManager in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      'ServiceManagerCppClient: Waited one second for sensor_privacy'; then
+    printf 'error: Android 15 blocked audioserver on unpublished sensor privacy in %s\n' \
       "$container" >&2
     exit 1
   fi

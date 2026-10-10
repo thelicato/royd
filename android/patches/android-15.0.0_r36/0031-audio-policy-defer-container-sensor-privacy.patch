@@ -1,0 +1,70 @@
+diff --git a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+--- a/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
++++ b/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp
+@@ -76,6 +76,16 @@ bool shouldDeferRoydAudioUidObserver() {
+ 
+     return defaultServiceManager()->checkService(String16("activity")) == nullptr;
+ }
++
++bool shouldDeferRoydSensorPrivacyObserver() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    if (roydContainer == nullptr || strcmp(roydContainer, "1") != 0 ||
++            access("/sys/fs/selinux/enforce", F_OK) == 0) {
++        return false;
++    }
++
++    return defaultServiceManager()->checkService(String16("sensor_privacy")) == nullptr;
++}
+ }
+ 
+ // Creates an association between Binder code to name for IAudioPolicyService.
+@@ -853,6 +857,7 @@ status_t AudioPolicyService::dump(int fd, const Vector<String16>& args) {
+ 
+ void AudioPolicyService::updateUidStates()
+ {
++    mSensorPrivacyPolicy->registerSelf();
+     audio_utils::lock_guard _l(mMutex);
+     updateUidStates_l();
+ }
+@@ -1773,12 +1784,30 @@ void AudioPolicyService::UidPolicy::dumpInternals(int fd) {
+ 
+ // -----------  AudioPolicyService::SensorPrivacyService implementation ----------
+ void AudioPolicyService::SensorPrivacyPolicy::registerSelf() {
++    bool expected = false;
++    if (!mObserverRegistered.compare_exchange_strong(expected, true)) {
++        return;
++    }
++
++    // SystemServer publishes sensor privacy after it waits for audio policy initialisation. Use
++    // the manager's stock disabled fallback until publication, then retry before the next audio
++    // policy evaluation so the current state and subsequent changes are observed.
++    if (shouldDeferRoydSensorPrivacyObserver()) {
++        ALOGI("ROYD: sensor privacy service is not published; deferring audio privacy "
++              "listener registration");
++        mObserverRegistered = false;
++        return;
++    }
++
+     SensorPrivacyManager spm;
+     mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
+     spm.addSensorPrivacyListener(this);
+ }
+ 
+ void AudioPolicyService::SensorPrivacyPolicy::unregisterSelf() {
++    if (!mObserverRegistered.exchange(false)) {
++        return;
++    }
+     SensorPrivacyManager spm;
+     spm.removeSensorPrivacyListener(this);
+ }
+diff --git a/frameworks/av/services/audiopolicy/service/AudioPolicyService.h b/frameworks/av/services/audiopolicy/service/AudioPolicyService.h
+--- a/frameworks/av/services/audiopolicy/service/AudioPolicyService.h
++++ b/frameworks/av/services/audiopolicy/service/AudioPolicyService.h
+@@ -593,6 +593,7 @@ class AudioPolicyService :
+         private:
+             wp<AudioPolicyService> mService;
+             std::atomic_bool mSensorPrivacyEnabled = false;
++            std::atomic_bool mObserverRegistered = false;
+     };
+ 
+     // Thread used to send audio config commands to audio flinger

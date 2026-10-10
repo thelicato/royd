@@ -309,6 +309,12 @@ namespace {
 constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
 }
 
+void AudioPolicyService::updateUidStates()
+{
+    audio_utils::lock_guard _l(mMutex);
+    updateUidStates_l();
+}
+
 void AudioPolicyService::UidPolicy::registerSelf() {
     status_t res = mAm.linkToDeath(this);
     mAm.registerUidObserver(this, ActivityManager::UID_OBSERVER_GONE
@@ -340,7 +346,49 @@ int AudioPolicyService::UidPolicy::getUidState(uid_t uid) {
     if (!mObserverRegistered) return ActivityManager::PROCESS_STATE_TOP;
     return ActivityManager::PROCESS_STATE_UNKNOWN;
 }
+
+void AudioPolicyService::SensorPrivacyPolicy::registerSelf() {
+    SensorPrivacyManager spm;
+    mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
+    spm.addSensorPrivacyListener(this);
 }
+
+void AudioPolicyService::SensorPrivacyPolicy::unregisterSelf() {
+    SensorPrivacyManager spm;
+    spm.removeSensorPrivacyListener(this);
+}
+
+bool AudioPolicyService::SensorPrivacyPolicy::isSensorPrivacyEnabled() {
+    return mSensorPrivacyEnabled;
+}
+}
+SRC
+    fi
+    if [ ! -f frameworks/av/services/audiopolicy/service/AudioPolicyService.h ]; then
+      cat > frameworks/av/services/audiopolicy/service/AudioPolicyService.h <<'SRC'
+class AudioPolicyService {
+    class SensorPrivacyPolicy : public hardware::BnSensorPrivacyListener {
+        public:
+            explicit SensorPrivacyPolicy(wp<AudioPolicyService> service)
+                    : mService(service) {}
+
+            void registerSelf();
+            void unregisterSelf();
+
+            bool isSensorPrivacyEnabled();
+
+            binder::Status onSensorPrivacyChanged(int toggleType, int sensor,
+                                                  bool enabled);
+
+            binder::Status onSensorPrivacyStateChanged(int, int, int) {
+                return binder::Status::ok();
+            }
+
+        private:
+            wp<AudioPolicyService> mService;
+            std::atomic_bool mSensorPrivacyEnabled = false;
+    };
+};
 SRC
     fi
     if [ ! -f packages/modules/Connectivity/bpf/netd/BpfHandler.cpp ]; then
@@ -2165,6 +2213,26 @@ grep -Fq 'if (!mObserverRegistered) return true;' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'if (!mObserverRegistered) return ActivityManager::PROCESS_STATE_TOP;' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'bool shouldDeferRoydSensorPrivacyObserver() {' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'defaultServiceManager()->checkService(String16("sensor_privacy")) == nullptr' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'ROYD: sensor privacy service is not published; deferring audio privacy' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'mSensorPrivacyPolicy->registerSelf();' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'mObserverRegistered.compare_exchange_strong(expected, true)' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'spm.addSensorPrivacyListener(this);' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'spm.removeSensorPrivacyListener(this);' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'return mSensorPrivacyEnabled;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
+grep -Fq 'std::atomic_bool mObserverRegistered = false;' \
+  "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.h"
 grep -Fq 'const char* royd_container = getenv("ROYD_CONTAINER");' \
   "$tmp/src/system/core/libprocessgroup/cgroup_map.cpp"
 grep -Fq '!strcmp(path(), "/sys/fs/cgroup/royd")) {' \

@@ -114,7 +114,7 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
-        jobscheduler|uimode|activity|media.audio_flinger|media.audio_policy)
+        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy)
           [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
             printf 'Service %s: not found\n' "$3" || \
             printf 'Service %s: found\n' "$3"
@@ -188,6 +188,9 @@ case "$1" in
     fi
     if [ "${MOCK_AUDIO_ACTIVITY_WAIT:-0}" = 1 ]; then
       printf '%s\n' 'ServiceManagerCppClient: Waited one second for activity (is service started?)'
+    fi
+    if [ "${MOCK_AUDIO_SENSOR_PRIVACY_WAIT:-0}" = 1 ]; then
+      printf '%s\n' 'ServiceManagerCppClient: Waited one second for sensor_privacy (is service started?)'
     fi
     if [ "${MOCK_SYSTEM_SERVER_PRE_WATCHDOG:-0}" = 1 ]; then
       printf '%s\n' 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'
@@ -350,6 +353,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_ACTIVITY_WAIT=1 \
 fi
 grep -Fq 'Android 15 blocked audioserver on unpublished ActivityManager' "$tmp/error"
 
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_SENSOR_PRIVACY_WAIT=1 \
+    "$script_dir/assert-runtime.sh" audio-sensor-privacy-wait >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a blocking Android 15 sensor-privacy lookup' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 blocked audioserver on unpublished sensor privacy' "$tmp/error"
+
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SYSTEM_SERVER_PRE_WATCHDOG=1 \
     "$script_dir/assert-runtime.sh" pre-watchdog >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted an Android 15 SystemServer pre-watchdog' >&2
@@ -363,6 +373,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=media.audio_policy \
   exit 1
 fi
 grep -Fq 'Android 15 required service media.audio_policy is unavailable' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=sensor_privacy \
+    "$script_dir/assert-runtime.sh" missing-sensor-privacy >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing Android 15 sensor-privacy service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 required service sensor_privacy is unavailable' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
     "$script_dir/assert-runtime.sh" missing-jobscheduler >"$tmp/error" 2>&1; then

@@ -22,6 +22,7 @@
 .PHONY: android15-cpu-monitor-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
+.PHONY: android15-audio-sensor-privacy-container-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -326,6 +327,9 @@ android15-mnt-tmpfs-container-test:
 
 android15-audio-activity-manager-container-test:
 	./android/scripts/android15-audio-activity-manager-container-test.sh
+
+android15-audio-sensor-privacy-container-test:
+	./android/scripts/android15-audio-sensor-privacy-container-test.sh
 
 android15-oci-network-route-test:
 	./android/scripts/android15-oci-network-route-test.sh
