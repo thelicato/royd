@@ -1,0 +1,73 @@
+diff --git a/system/vold/Utils.cpp b/system/vold/Utils.cpp
+--- a/system/vold/Utils.cpp
++++ b/system/vold/Utils.cpp
+@@ -50,11 +50,13 @@
+ #include <sys/xattr.h>
+ #include <unistd.h>
+ 
++#include <algorithm>
+ #include <filesystem>
+ #include <list>
+ #include <mutex>
+ #include <regex>
+ #include <thread>
++#include <unordered_set>
+ 
+ #ifndef UMOUNT_NOFOLLOW
+ #define UMOUNT_NOFOLLOW 0x00000008 /* Don't follow symlink on umount */
+@@ -1503,12 +1505,55 @@ bool writeStringToFile(const std::string& payload, const std::string& filename) {
+     return true;
+ }
+ 
++static bool IsRoydContainerWithoutSelinux() {
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    return roydContainer != nullptr && roydContainer[0] == '1' && roydContainer[1] == '\0' &&
++            is_selinux_enabled() <= 0;
++}
++
++static std::unordered_set<std::string> GetMountedFuseConnectionIds() {
++    std::string mountInfo;
++    std::unordered_set<std::string> connectionIds;
++    if (!ReadFileToString("/proc/self/mountinfo", &mountInfo)) {
++        PLOG(WARNING) << "Failed to read the current mount namespace for FUSE connections";
++        return connectionIds;
++    }
++
++    for (const auto& line : android::base::Split(mountInfo, "\n")) {
++        const auto fields = android::base::Split(line, " ");
++        const auto separator = std::find(fields.begin(), fields.end(), "-");
++        if (fields.size() < 3 || separator == fields.end() || separator + 1 == fields.end()) {
++            continue;
++        }
++        const std::string& fsType = *(separator + 1);
++        if (fsType != "fuse" && !StartsWith(fsType, "fuse.")) {
++            continue;
++        }
++        const std::string& device = fields[2];
++        const size_t colon = device.find(':');
++        if (colon != std::string::npos && colon + 1 < device.size()) {
++            connectionIds.insert(device.substr(colon + 1));
++        }
++    }
++    return connectionIds;
++}
++
+ status_t AbortFuseConnections() {
+     namespace fs = std::filesystem;
+ 
+     static constexpr const char* kFuseConnections = "/sys/fs/fuse/connections";
++    const bool scopeToMountNamespace = IsRoydContainerWithoutSelinux();
++    const auto mountedConnectionIds =
++            scopeToMountNamespace ? GetMountedFuseConnectionIds()
++                                  : std::unordered_set<std::string>();
+ 
+     std::error_code ec;
+     for (const auto& itEntry : fs::directory_iterator(kFuseConnections, ec)) {
++        if (scopeToMountNamespace &&
++            mountedConnectionIds.count(itEntry.path().filename().string()) == 0) {
++            LOG(DEBUG) << "Ignore FUSE connection outside this mount namespace "
++                       << itEntry.path().string();
++            continue;
++        }
+         std::string fsPath = itEntry.path().string() + "/filesystem";
+         std::string fs;

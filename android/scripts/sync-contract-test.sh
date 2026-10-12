@@ -1420,6 +1420,52 @@ SRC
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/xattr.h>
+#include <unistd.h>
+
+#include <filesystem>
+#include <list>
+#include <mutex>
+#include <regex>
+#include <thread>
+
+bool writeStringToFile(const std::string& payload, const std::string& filename) {
+    return true;
+}
+
+status_t AbortFuseConnections() {
+    namespace fs = std::filesystem;
+
+    static constexpr const char* kFuseConnections = "/sys/fs/fuse/connections";
+
+    std::error_code ec;
+    for (const auto& itEntry : fs::directory_iterator(kFuseConnections, ec)) {
+        std::string fsPath = itEntry.path().string() + "/filesystem";
+        std::string fs;
+
+        // Virtiofs is on top of fuse and there isn't any user space daemon.
+        // Android user space doesn't manage it.
+        if (android::base::ReadFileToString(fsPath, &fs, false) &&
+            android::base::Trim(fs) == "virtiofs") {
+            LOG(INFO) << "Ignore virtiofs connection entry " << itEntry.path().string();
+            continue;
+        }
+
+        std::string abortPath = itEntry.path().string() + "/abort";
+        LOG(DEBUG) << "Aborting fuse connection entry " << abortPath;
+        bool ret = writeStringToFile("1", abortPath);
+        if (!ret) {
+            LOG(WARNING) << "Failed to write to " << abortPath;
+        }
+    }
+
+    if (ec) {
+        LOG(WARNING) << "Failed to iterate through " << kFuseConnections << ": " << ec.message();
+        return -ec.value();
+    }
+
+    return OK;
+}
 
 status_t PrepareDir(const std::string& path, mode_t mode, uid_t uid, gid_t gid,
                     unsigned int attrs) {
@@ -2033,6 +2079,15 @@ grep -Fq 'manager->setRequestingSid(requestSecurityContext);' "$tmp/src/framewor
 grep -Fq 'ps->becomeContextManager(requestSecurityContext)' "$tmp/src/frameworks/native/cmds/servicemanager/main.cpp"
 grep -Fq 'saved_errno == EINVAL' "$tmp/src/system/vold/Utils.cpp"
 grep -Fq 'is_selinux_enabled() <= 0' "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'static std::unordered_set<std::string> GetMountedFuseConnectionIds() {' \
+  "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'ReadFileToString("/proc/self/mountinfo", &mountInfo)' \
+  "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'mountedConnectionIds.count(itEntry.path().filename().string()) == 0' \
+  "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'Ignore FUSE connection outside this mount namespace' \
+  "$tmp/src/system/vold/Utils.cpp"
+grep -Fq 'bool ret = writeStringToFile("1", abortPath);' "$tmp/src/system/vold/Utils.cpp"
 grep -Fq 'static bool is_royd_selinux_disabled()' "$tmp/src/system/vold/vold_prepare_subdirs.cpp"
 grep -Fq 'if (secontext && !is_royd_selinux_disabled()) {' \
   "$tmp/src/system/vold/vold_prepare_subdirs.cpp"

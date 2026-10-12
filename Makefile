@@ -24,6 +24,7 @@
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
 .PHONY: android15-audio-sensor-privacy-locking-test
+.PHONY: android15-fuse-isolation-container-test
 .PHONY: android15-software-shader-cache-test
 
 runtime-boot-diagnostics-test:
@@ -335,6 +336,9 @@ android15-audio-sensor-privacy-container-test:
 
 android15-audio-sensor-privacy-locking-test:
 	./android/scripts/android15-audio-sensor-privacy-locking-test.sh
+
+android15-fuse-isolation-container-test:
+	./android/scripts/android15-fuse-isolation-container-test.sh
 
 android15-software-shader-cache-test:
 	./android/scripts/android15-software-shader-cache-test.sh
