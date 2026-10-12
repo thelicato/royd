@@ -136,6 +136,7 @@ grep -Fxq 'ROYD_GRAPHICS_ALLOCATOR := aidl2-stablec5-memfd' "$work/vendor/royd/g
 grep -Fxq 'ROYD_GRAPHICS_COMPOSER := aidl4-client' "$work/vendor/royd/graphics_backend.mk" || fail 'installed graphics backend cannot see Android 15 composer selector'
 grep -Fq 'android.hardware.graphics.composer3-service.royd' "$work/vendor/royd/graphics_backend.mk" || fail 'installed software product omits composer3 service'
 grep -Fq '$(SRC_TARGET_DIR)/product/angle_default.mk' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not select ANGLE'
+grep -Fxq 'PRODUCT_SYSTEM_PROPERTIES += service.sf.prime_shader_cache=false' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product still primes the SwiftShader shader cache'
 grep -Fq 'ro.hardware.vulkan=pastel' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not select SwiftShader Vulkan'
 grep -Fq 'vulkan.pastel' "$work/vendor/royd/graphics_backend.mk" || fail 'installed Android 15 software product does not package SwiftShader Vulkan'
 grep -Fq 'ro.hardware.egl=swiftshader' "$work/vendor/royd/graphics_backend.mk" || fail 'software backend lost the non-Android-15 SwiftShader fallback'

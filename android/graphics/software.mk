@@ -9,6 +9,7 @@ PRODUCT_VENDOR_PROPERTIES += \
 # GLES contract until their software graphics path is validated.
 ifeq ($(ROYD_SOFTWARE_EGL),angle)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/angle_default.mk)
+PRODUCT_SYSTEM_PROPERTIES += service.sf.prime_shader_cache=false
 PRODUCT_VENDOR_PROPERTIES += ro.hardware.vulkan=pastel
 PRODUCT_PACKAGES += vulkan.pastel
 else

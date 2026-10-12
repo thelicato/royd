@@ -30,6 +30,9 @@ case "$1" in
         service.sf.present_timestamp)
           [ "${MOCK_BAD_PRESENT_TIMESTAMP:-0}" = 1 ] && value=1 || value=0
           ;;
+        service.sf.prime_shader_cache)
+          [ "${MOCK_BAD_SHADER_PRIMING:-0}" = 1 ] && value=true || value=false
+          ;;
         service.adb.tcp.port) value=5555 ;;
         media.c2.hal.selection) [ "$MOCK_SDK" = 35 ] && value=aidl || value= ;;
         debug.stagefright.c2inputsurface)
@@ -275,6 +278,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PRESENT_TIMESTAMP=1 \
   exit 1
 fi
 grep -Fq 'service.sf.present_timestamp expected 0, got 1' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_SHADER_PRIMING=1 \
+    "$script_dir/assert-runtime.sh" eager-shader-priming >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted eager Android 15 software shader priming' >&2
+  exit 1
+fi
+grep -Fq 'service.sf.prime_shader_cache expected false, got true' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_DROPBOX=1 \
     "$script_dir/assert-runtime.sh" bad-dropbox >"$tmp/error" 2>&1; then

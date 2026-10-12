@@ -119,6 +119,9 @@ assert_property vendor.royd.boot_watchdog complete
 if [ "$sdk" = 35 ]; then
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
+  if [ "$graphics_backend" = software ]; then
+    assert_property service.sf.prime_shader_cache false
+  fi
   for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
