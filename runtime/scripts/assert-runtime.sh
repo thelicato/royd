@@ -176,6 +176,18 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: using unprivileged 2-second PSI windows for ActivityManager'; then
+    printf 'error: Android 15 did not enable its unprivileged ActivityManager PSI monitor in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'LowMemDetector: Failed to register psi trigger|libpsi:.*pressure/memory write failed'; then
+    printf 'error: Android 15 ActivityManager PSI monitor failed to register in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   docker exec "$container" sh -c '
     # royd-runtime-emulated-storage-test
     grep -F " /mnt rw," /proc/1/mountinfo | grep -Fq " - tmpfs tmpfs rw,"

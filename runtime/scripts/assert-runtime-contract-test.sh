@@ -185,6 +185,13 @@ case "$1" in
     if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
     fi
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_PSI_MODE:-0}" != 1 ]; then
+      printf '%s\n' 'LowMemDetector: ROYD: using unprivileged 2-second PSI windows for ActivityManager'
+    fi
+    if [ "${MOCK_BAD_PSI_MONITOR:-0}" = 1 ]; then
+      printf '%s\n' 'libpsi: psi.cpp:115 pressure/memory write failed: Invalid argument'
+      printf '%s\n' 'LowMemDetector: Failed to register psi trigger'
+    fi
     if [ "${MOCK_STORAGE_MOUNT_WTF:-0}" = 1 ]; then
       printf '%s\n' 'vold: emulated;0 failed to create mount points: Read-only file system'
       printf '%s\n' 'am_wtf: [0,645,system_server,-1,StorageManagerService,]'
@@ -341,6 +348,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_MONITOR_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 started its unavailable CPU frequency monitor' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_PSI_MODE=1 \
+    "$script_dir/assert-runtime.sh" missing-psi-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unconfigured Android 15 PSI monitor' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 did not enable its unprivileged ActivityManager PSI monitor' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PSI_MONITOR=1 \
+    "$script_dir/assert-runtime.sh" failed-psi-monitor >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a failed Android 15 PSI monitor' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 ActivityManager PSI monitor failed to register' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_EMULATED_STORAGE=1 \
     "$script_dir/assert-runtime.sh" missing-emulated-storage >"$tmp/error" 2>&1; then

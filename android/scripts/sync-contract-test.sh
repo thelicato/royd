@@ -28,6 +28,7 @@ case "$1" in
       packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink \
       packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering \
       system/core/libprocessgroup/setup system/core/libprocessgroup \
+      frameworks/base/services/core/jni \
       frameworks/base/services/core/java/com/android/server/am \
       frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/services/core/java/com/android/server/cpu \
@@ -287,6 +288,83 @@ public final class CpuMonitorService extends SystemService {
         }
         mHandlerThread.start();
     }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp ]; then
+      cat > frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp <<'SRC'
+#define LOG_TAG "LowMemDetector"
+
+#include <errno.h>
+#include <psi/psi.h>
+#include <string.h>
+#include <sys/epoll.h>
+
+#include <jni.h>
+#include <nativehelper/JNIHelp.h>
+#include <utils/Log.h>
+
+namespace android {
+
+enum pressure_levels {
+    PRESSURE_NONE,
+    PRESSURE_LOW,
+    PRESSURE_MEDIUM,
+    PRESSURE_HIGH,
+    PRESSURE_LEVEL_COUNT = PRESSURE_HIGH
+};
+
+static constexpr int PSI_LOW_STALL_US = 15000;
+static constexpr int PSI_MEDIUM_STALL_US = 30000;
+static constexpr int PSI_HIGH_STALL_US = 50000;
+static constexpr int PSI_WINDOW_SIZE_US = 1000000;
+
+static int psi_epollfd = -1;
+
+static jint android_server_am_LowMemDetector_init(JNIEnv*, jobject) {
+    int epollfd;
+    int low_psi_fd;
+    int medium_psi_fd;
+    int high_psi_fd;
+
+    epollfd = epoll_create(PRESSURE_LEVEL_COUNT);
+    if (epollfd == -1) {
+        ALOGE("epoll_create failed: %s", strerror(errno));
+        return -1;
+    }
+
+    low_psi_fd = init_psi_monitor(PSI_SOME, PSI_LOW_STALL_US, PSI_WINDOW_SIZE_US);
+    if (low_psi_fd < 0 ||
+        register_psi_monitor(epollfd, low_psi_fd, (void*)PRESSURE_LOW) != 0) {
+        goto low_fail;
+    }
+
+    medium_psi_fd =
+        init_psi_monitor(PSI_FULL, PSI_MEDIUM_STALL_US, PSI_WINDOW_SIZE_US);
+    if (medium_psi_fd < 0 || register_psi_monitor(epollfd, medium_psi_fd,
+                                                  (void*)PRESSURE_MEDIUM) != 0) {
+        goto medium_fail;
+    }
+
+    high_psi_fd =
+        init_psi_monitor(PSI_FULL, PSI_HIGH_STALL_US, PSI_WINDOW_SIZE_US);
+    if (high_psi_fd < 0 ||
+        register_psi_monitor(epollfd, high_psi_fd, (void*)PRESSURE_HIGH) != 0) {
+        goto high_fail;
+    }
+
+    psi_epollfd = epollfd;
+    return 0;
+
+high_fail:
+    unregister_psi_monitor(epollfd, medium_psi_fd);
+medium_fail:
+    unregister_psi_monitor(epollfd, low_psi_fd);
+low_fail:
+    ALOGE("Failed to register psi trigger");
+    close(epollfd);
+    return -1;
+}
 }
 SRC
     fi
@@ -2256,6 +2334,20 @@ grep -Fq 'ROYD: CPU frequency policies unavailable; CPU monitor disabled' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
 grep -Fq 'if (!mCpuInfoReader.init() || mCpuInfoReader.readCpuInfos() == null) {' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/cpu/CpuMonitorService.java"
+grep -Fq 'static bool IsRoydContainerWithoutSelinux() {' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'const int windowScale = IsRoydContainerWithoutSelinux() ? 2 : 1;' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'ROYD: using unprivileged 2-second PSI windows for ActivityManager' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'PSI_LOW_STALL_US * windowScale' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'PSI_WINDOW_SIZE_US * windowScale' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'register_psi_monitor(epollfd, high_psi_fd, (void*)PRESSURE_HIGH)' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'ALOGE("Failed to register psi trigger");' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
 grep -Fq 'bool shouldDeferRoydAudioUidObserver() {' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'defaultServiceManager()->checkService(String16("activity")) == nullptr' \
