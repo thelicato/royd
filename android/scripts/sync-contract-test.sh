@@ -33,7 +33,7 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/services/core/java/com/android/server/cpu \
       frameworks/av/services/audiopolicy/service \
-      frameworks/base/core/java/android/app
+      frameworks/base/core/java/android/app frameworks/base/core/java/android/os
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
 #include <dirent.h>
@@ -365,6 +365,34 @@ low_fail:
     close(epollfd);
     return -1;
 }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/core/java/android/os/ServiceManagerNative.java ]; then
+      cat > frameworks/base/core/java/android/os/ServiceManagerNative.java <<'SRC'
+package android.os;
+
+class ServiceManagerProxy implements IServiceManager {
+    public ServiceManagerProxy(IBinder remote) {
+        mRemote = remote;
+        mServiceManager = IServiceManager.Stub.asInterface(this.getNativeServiceManager());
+    }
+
+    public IBinder asBinder() {
+        return mRemote;
+    }
+
+    public Service getService2(String name) throws RemoteException {
+        return checkService(name);
+    }
+
+    public Service checkService(String name) throws RemoteException {
+        return mServiceManager.checkService(name);
+    }
+
+    private IBinder mRemote;
+    private IServiceManager mServiceManager;
+    private native IBinder getNativeServiceManager();
 }
 SRC
     fi
@@ -2348,6 +2376,12 @@ grep -Fq 'register_psi_monitor(epollfd, high_psi_fd, (void*)PRESSURE_HIGH)' \
   "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
 grep -Fq 'ALOGE("Failed to register psi trigger");' \
   "$tmp/src/frameworks/base/services/core/jni/com_android_server_am_LowMemDetector.cpp"
+grep -Fq 'mServiceManager = IServiceManager.Stub.asInterface(' \
+  "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
+grep -Fq 'Binder.allowBlocking(this.getNativeServiceManager()));' \
+  "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
+grep -Fq 'return mServiceManager.checkService(name);' \
+  "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
 grep -Fq 'bool shouldDeferRoydAudioUidObserver() {' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'defaultServiceManager()->checkService(String16("activity")) == nullptr' \

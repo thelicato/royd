@@ -157,6 +157,16 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | awk '
+      /Outgoing transactions from this process must be FLAG_ONEWAY/ { remaining = 12 }
+      remaining > 0 && /android\.os\.IServiceManager\$Stub\$Proxy\./ { found = 1; exit }
+      remaining > 0 { remaining-- }
+      END { exit found ? 0 : 1 }
+    '; then
+    printf 'error: Android 15 native ServiceManager proxy triggered a blocking-call WTF in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   docker exec "$container" sh -c '
     # royd-runtime-package-list-test
     test -s /data/system/packages.list

@@ -175,6 +175,14 @@ case "$1" in
       printf '%s\n' 'am_wtf: [0,1000,system_server,-1,SystemServiceRegistry,No service published for: jobscheduler]'
       printf '%s\n' 'am_wtf: [0,1073,com.android.networkstack.process,-1,SystemServiceRegistry,No service published for: ethernet]'
     fi
+    if [ "${MOCK_SERVICE_MANAGER_BLOCKING_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'Binder: Outgoing transactions from this process must be FLAG_ONEWAY'
+      printf '%s\n' 'Binder: at android.os.IServiceManager$Stub$Proxy.checkService(IServiceManager.java:507)'
+    fi
+    if [ "${MOCK_OTHER_BLOCKING_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'Binder: Outgoing transactions from this process must be FLAG_ONEWAY'
+      printf '%s\n' 'Binder: at android.content.ContentProviderProxy.openTypedAssetFile(ContentProviderNative.java:812)'
+    fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
@@ -327,6 +335,16 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_REGISTRY_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_MANAGER_BLOCKING_WTF=1 \
+    "$script_dir/assert-runtime.sh" service-manager-blocking >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an Android 15 ServiceManager blocking WTF' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 native ServiceManager proxy triggered a blocking-call WTF' "$tmp/error"
+
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_BLOCKING_WTF=1 \
+  "$script_dir/assert-runtime.sh" unrelated-blocking-wtf >/dev/null
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PACKAGE_LIST=1 \
     "$script_dir/assert-runtime.sh" missing-package-list >"$tmp/error" 2>&1; then
