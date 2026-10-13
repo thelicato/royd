@@ -69,12 +69,13 @@ ROYD_RESOURCE_BENCHMARK_OUTPUT=.work/resource-profile-benchmark.md \
 make runtime-resource-profile-benchmark
 ```
 
-The benchmark alternates profiles for five repetitions by default. Every repetition uses a fresh `/data` volume, four CPUs, a 4 GiB memory and swap limit, the same software renderer and display profile, and the same workload. The workload records boot-to-Home time, five force-stop plus cold Settings launches, Settings `gfxinfo` after controlled scrolling, a three-second software `screenrecord`, cgroup CPU time, settled memory and peak memory. Summary metrics use the median and show the observed minimum-to-maximum range. The Markdown report is accompanied by raw measurement and phase-labelled per-process RSS TSV files, allowing memory outliers to be investigated without treating summed RSS as cgroup usage.
+The benchmark alternates profiles for five repetitions by default. Every repetition uses a fresh `/data` volume, four CPUs, a 4 GiB memory and swap limit, the same software renderer and display profile, and the same workload. The workload records boot-to-Home time, five force-stop plus cold Settings launches, Settings `gfxinfo` after controlled scrolling, five core-UI cycles through cold Settings and DocumentsUI launches with scrolling and Home transitions, a three-second software `screenrecord`, cgroup CPU time, settled memory and peak memory. Settings, DocumentsUI and Home are protected by both Android image profiles, so the same workload remains available to standard and minimal images. Summary metrics use the median and show the observed minimum-to-maximum range. The Markdown report is accompanied by raw measurement and phase-labelled per-process RSS TSV files, allowing memory outliers to be investigated without treating summed RSS as cgroup usage.
 
 Override the repetitions or container limits while preserving the paired comparison:
 
 ```sh
 ROYD_RESOURCE_BENCHMARK_REPETITIONS=10 \
+ROYD_RESOURCE_BENCHMARK_APP_CYCLES=10 \
 ROYD_RESOURCE_BENCHMARK_CPUS=8 \
 ROYD_RESOURCE_BENCHMARK_MEMORY=8g \
 ROYD_RESOURCE_BENCHMARK_OUTPUT=.work/resource-profile-benchmark.md \

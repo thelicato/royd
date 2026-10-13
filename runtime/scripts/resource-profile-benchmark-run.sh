@@ -3,7 +3,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-image=${1:?usage: resource-profile-benchmark-run.sh IMAGE DISPLAY_PROFILE RESOURCE_PROFILE REPETITION CPU_LIMIT MEMORY_LIMIT SETTLE_SECONDS LAUNCH_REPETITIONS ENCODER_SECONDS}
+image=${1:?usage: resource-profile-benchmark-run.sh IMAGE DISPLAY_PROFILE RESOURCE_PROFILE REPETITION CPU_LIMIT MEMORY_LIMIT SETTLE_SECONDS LAUNCH_REPETITIONS ENCODER_SECONDS APP_CYCLES}
 display_profile=${2:?}
 resource_profile=${3:?}
 repetition=${4:?}
@@ -12,6 +12,7 @@ memory_limit=${6:?}
 settle=${7:?}
 launch_repetitions=${8:?}
 encoder_seconds=${9:?}
+app_cycles=${10:?}
 process_output=${ROYD_RESOURCE_BENCHMARK_PROCESS_OUTPUT:-}
 
 safe_profile=$(printf '%s' "$resource_profile" | tr -c 'A-Za-z0-9_.-' '_')
@@ -34,6 +35,9 @@ command -v docker >/dev/null 2>&1 || {
 profile_args=$(ROYD_RESOURCE_PROFILE="$resource_profile" "$script_dir/profile.sh" "$display_profile")
 display_width=$(printf '%s\n' "$profile_args" | sed -n 's/^royd.width=//p')
 display_height=$(printf '%s\n' "$profile_args" | sed -n 's/^royd.height=//p')
+swipe_x=$((display_width / 2))
+swipe_top=$((display_height / 4))
+swipe_bottom=$((display_height * 3 / 4))
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_args=$("$script_dir/security-args.sh" "$security_mode")
 container_args=$("$script_dir/container-args.sh")
@@ -117,8 +121,10 @@ launch_mean_ms=$((launch_sum / launch_repetitions))
 
 for direction in up down up down; do
   case "$direction" in
-    up) docker exec "$container" input swipe 270 800 270 200 400 >/dev/null ;;
-    down) docker exec "$container" input swipe 270 200 270 800 400 >/dev/null ;;
+    up) docker exec "$container" input swipe "$swipe_x" "$swipe_bottom" \
+      "$swipe_x" "$swipe_top" 400 >/dev/null ;;
+    down) docker exec "$container" input swipe "$swipe_x" "$swipe_top" \
+      "$swipe_x" "$swipe_bottom" 400 >/dev/null ;;
   esac
 done
 sleep 1
@@ -135,6 +141,48 @@ for value in "$frames" "$janky_frames" "$janky_percent" "$frame_p50_ms" "$frame_
     exit 1
   }
 done
+
+app_launch_sum=0
+app_launch_count=0
+app_launch_samples=
+run_core_app() {
+  app_label=$1
+  app_package=$2
+  app_component=$3
+  docker exec "$container" am force-stop "$app_package" >/dev/null
+  app_output=$(docker exec "$container" am start -W -n "$app_component")
+  app_launch_ms=$(printf '%s\n' "$app_output" | sed -n 's/^TotalTime: //p' | \
+    tail -n 1 | tr -d '\r[:space:]')
+  case "$app_launch_ms" in
+    ''|*[!0-9]*)
+      printf 'error: %s launch did not report TotalTime\n' "$app_label" >&2
+      exit 1
+      ;;
+  esac
+  app_launch_sum=$((app_launch_sum + app_launch_ms))
+  app_launch_count=$((app_launch_count + 1))
+  if [ -n "$app_launch_samples" ]; then
+    app_launch_samples="$app_launch_samples,$app_label:$app_launch_ms"
+  else
+    app_launch_samples="$app_label:$app_launch_ms"
+  fi
+}
+
+app_started_ms=$(date +%s%3N)
+cycle=1
+while [ "$cycle" -le "$app_cycles" ]; do
+  run_core_app settings com.android.settings com.android.settings/.Settings
+  docker exec "$container" input swipe "$swipe_x" "$swipe_bottom" \
+    "$swipe_x" "$swipe_top" 400 >/dev/null
+  run_core_app documents com.android.documentsui com.android.documentsui/.LauncherActivity
+  docker exec "$container" input swipe "$swipe_x" "$swipe_bottom" \
+    "$swipe_x" "$swipe_top" 400 >/dev/null
+  docker exec "$container" input keyevent HOME >/dev/null
+  cycle=$((cycle + 1))
+done
+app_ended_ms=$(date +%s%3N)
+app_workload_ms=$((app_ended_ms - app_started_ms))
+app_launch_mean_ms=$((app_launch_sum / app_launch_count))
 
 docker exec "$container" rm -f "$capture"
 encoder_started_ms=$(date +%s%3N)
@@ -155,8 +203,9 @@ oom_kills=$(docker exec "$container" sed -n 's/^oom_kill //p' /sys/fs/cgroup/mem
   exit 1
 }
 
-printf '%s\t%s\tpassed\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+printf '%s\t%s\tpassed\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$resource_profile" "$repetition" "$boot_home_ms" "$launch_mean_ms" \
-  "$launch_samples" "$frames" "$janky_frames" "$janky_percent" "$frame_p50_ms" \
-  "$frame_p90_ms" "$encoder_wall_ms" "$encoder_bytes" "$cpu_workload_usec" \
-  "$settled_bytes" "$peak_bytes"
+  "$launch_samples" "$app_workload_ms" "$app_launch_mean_ms" \
+  "$app_launch_samples" "$frames" "$janky_frames" "$janky_percent" \
+  "$frame_p50_ms" "$frame_p90_ms" "$encoder_wall_ms" "$encoder_bytes" \
+  "$cpu_workload_usec" "$settled_bytes" "$peak_bytes"

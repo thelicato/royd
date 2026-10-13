@@ -12,6 +12,7 @@ memory_limit=${ROYD_RESOURCE_BENCHMARK_MEMORY:-4g}
 settle=${ROYD_RESOURCE_BENCHMARK_SETTLE:-10}
 launch_repetitions=${ROYD_RESOURCE_BENCHMARK_LAUNCHES:-5}
 encoder_seconds=${ROYD_RESOURCE_BENCHMARK_ENCODER_SECONDS:-3}
+app_cycles=${ROYD_RESOURCE_BENCHMARK_APP_CYCLES:-5}
 output=${ROYD_RESOURCE_BENCHMARK_OUTPUT:--}
 runner=${ROYD_RESOURCE_BENCHMARK_RUNNER:-$script_dir/resource-profile-benchmark-run.sh}
 provenance_runner=${ROYD_RESOURCE_BENCHMARK_PROVENANCE_RUNNER:-$script_dir/memory-provenance.sh}
@@ -38,6 +39,7 @@ positive_integer ROYD_RESOURCE_BENCHMARK_REPETITIONS "$repetitions"
 positive_integer ROYD_RESOURCE_BENCHMARK_CPUS "$cpu_limit"
 positive_integer ROYD_RESOURCE_BENCHMARK_LAUNCHES "$launch_repetitions"
 positive_integer ROYD_RESOURCE_BENCHMARK_ENCODER_SECONDS "$encoder_seconds"
+positive_integer ROYD_RESOURCE_BENCHMARK_APP_CYCLES "$app_cycles"
 case "$settle" in
   ''|*[!0-9]*)
     printf 'error: ROYD_RESOURCE_BENCHMARK_SETTLE must be a whole number: %s\n' "$settle" >&2
@@ -72,7 +74,7 @@ else
 fi
 
 results="$workdir/results.tsv"
-printf 'profile\trepetition\tstatus\tboot_home_ms\tlaunch_mean_ms\tlaunch_samples_ms\tframes\tjanky_frames\tjanky_percent\tframe_p50_ms\tframe_p90_ms\tencoder_wall_ms\tencoder_bytes\tcpu_workload_usec\tsettled_bytes\tpeak_bytes\n' >"$results"
+printf 'profile\trepetition\tstatus\tboot_home_ms\tlaunch_mean_ms\tlaunch_samples_ms\tapp_workload_ms\tapp_launch_mean_ms\tapp_launch_samples_ms\tframes\tjanky_frames\tjanky_percent\tframe_p50_ms\tframe_p90_ms\tencoder_wall_ms\tencoder_bytes\tcpu_workload_usec\tsettled_bytes\tpeak_bytes\n' >"$results"
 processes="$workdir/processes.tsv"
 printf 'profile\trepetition\tphase\tpid\trss_kib\tname\n' >"$processes"
 
@@ -87,14 +89,14 @@ while [ "$repetition" -le "$repetitions" ]; do
     row=$(ROYD_RESOURCE_BENCHMARK_PROCESS_OUTPUT="$process_run" \
       "$runner" "$image" "$display_profile" "$resource_profile" "$repetition" \
       "$cpu_limit" "$memory_limit" "$settle" "$launch_repetitions" \
-      "$encoder_seconds" 2>"$log")
+      "$encoder_seconds" "$app_cycles" 2>"$log")
     run_status=$?
     set -e
     if [ "$run_status" -eq 0 ]; then
       printf '%s\n' "$row" >>"$results"
     else
       status=1
-      printf '%s\t%s\tfailed\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\n' \
+      printf '%s\t%s\tfailed\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\n' \
         "$resource_profile" "$repetition" >>"$results"
     fi
     [ ! -s "$process_run" ] || cat "$process_run" >>"$processes"
@@ -118,11 +120,12 @@ report="$workdir/report.md"
   printf -- '- memory and swap limit: `%s`\n' "$memory_limit"
   printf -- '- pre-workload settle time: `%s seconds`\n' "$settle"
   printf -- '- cold Settings launches per repetition: `%s`\n' "$launch_repetitions"
+  printf -- '- Settings, DocumentsUI and Home cycles per repetition: `%s`\n' "$app_cycles"
   printf -- '- screenrecord duration: `%s seconds`\n\n' "$encoder_seconds"
-  printf 'The named workload boots to Home, performs repeated force-stop plus cold Settings launches, scrolls Settings to collect `gfxinfo`, and completes a software `screenrecord`. CPU time covers the launch, scroll and recording phase. The recording wall time and output size are health indicators, not an unconstrained encoder-throughput score.\n\n'
+  printf 'The named workload boots to Home, performs repeated force-stop plus cold Settings launches, scrolls Settings to collect `gfxinfo`, cycles through cold Settings and DocumentsUI launches with scrolling and Home transitions, and completes a software `screenrecord`. CPU time covers the launch, core-UI cycle, scroll and recording phase. The recording wall time and output size are health indicators, not an unconstrained encoder-throughput score.\n\n'
   printf '## Summary\n\n'
-  printf '| Resource profile | Passed | Boot-to-Home median [range] (ms) | Settings launch median [range] (ms) | Frame p90 median [range] (ms) | Janky median [range] (%%) | Workload CPU median [range] (ms) | Settled memory median [range] (MiB) | Peak memory median [range] (MiB) |\n'
-  printf '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
+  printf '| Resource profile | Passed | Boot-to-Home median [range] (ms) | Settings launch median [range] (ms) | Core UI workload median [range] (ms) | Core UI launch median [range] (ms) | Frame p90 median [range] (ms) | Janky median [range] (%%) | Workload CPU median [range] (ms) | Settled memory median [range] (MiB) | Peak memory median [range] (MiB) |\n'
+  printf '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
   for resource_profile in $resource_profiles; do
     awk -F '\t' -v profile="$resource_profile" '
       function sort_numbers(values, size, i, j, temporary) {
@@ -148,16 +151,20 @@ report="$workdir/report.md"
           sprintf(format, values[size] / scale) "]"
       }
       NR > 1 && $1 == profile && $3 == "passed" {
-        count++; boot[count] = $4; launch[count] = $5; p90[count] = $11;
-        janky[count] = $9; cpu[count] = $14; settled[count] = $15; peak[count] = $16
+        count++; boot[count] = $4; launch[count] = $5; app_workload[count] = $7;
+        app_launch[count] = $8; p90[count] = $14; janky[count] = $12;
+        cpu[count] = $17; settled[count] = $18; peak[count] = $19
       }
       END {
         if (count == 0) {
-          printf "| `%s` | 0 | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable |\n", profile
+          printf "| `%s` | 0 | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable |\n", profile
         } else {
-          printf "| `%s` | %d | %s | %s | %s | %s | %s | %s | %s |\n", \
+          printf "| `%s` | %d | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", \
             profile, count, summary(boot, count, 1, "%.0f"), \
-            summary(launch, count, 1, "%.0f"), summary(p90, count, 1, "%.1f"), \
+            summary(launch, count, 1, "%.0f"), \
+            summary(app_workload, count, 1, "%.0f"), \
+            summary(app_launch, count, 1, "%.0f"), \
+            summary(p90, count, 1, "%.1f"), \
             summary(janky, count, 1, "%.2f"), summary(cpu, count, 1000, "%.0f"), \
             summary(settled, count, 1048576, "%.1f"), \
             summary(peak, count, 1048576, "%.1f")
@@ -206,13 +213,14 @@ report="$workdir/report.md"
     repetition=$((repetition + 1))
   done
   printf '\n## Individual repetitions\n\n'
-  printf '| Profile | Repetition | Result | Boot-to-Home (ms) | Mean launch (ms) | Launch samples (ms) | Frames | Janky | Janky (%%) | p50 (ms) | p90 (ms) | Encoder wall (ms) | Encoder bytes | CPU (usec) | Settled bytes | Peak bytes |\n'
-  printf '| --- | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
-  tail -n +2 "$results" | while IFS="$(printf '\t')" read -r resource_profile run status_value boot launch samples frames janky janky_percent p50 p90 encoder_wall encoder_bytes cpu settled_bytes peak_bytes; do
-    printf '| `%s` | %s | %s | %s | %s | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+  printf '| Profile | Repetition | Result | Boot-to-Home (ms) | Mean Settings launch (ms) | Settings samples (ms) | Core UI workload (ms) | Mean core UI launch (ms) | Core UI samples (ms) | Frames | Janky | Janky (%%) | p50 (ms) | p90 (ms) | Encoder wall (ms) | Encoder bytes | CPU (usec) | Settled bytes | Peak bytes |\n'
+  printf '| --- | ---: | --- | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
+  tail -n +2 "$results" | while IFS="$(printf '\t')" read -r resource_profile run status_value boot launch samples app_workload app_launch app_samples frames janky janky_percent p50 p90 encoder_wall encoder_bytes cpu settled_bytes peak_bytes; do
+    printf '| `%s` | %s | %s | %s | %s | `%s` | %s | %s | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
       "$resource_profile" "$run" "$status_value" "$boot" "$launch" "$samples" \
-      "$frames" "$janky" "$janky_percent" "$p50" "$p90" "$encoder_wall" \
-      "$encoder_bytes" "$cpu" "$settled_bytes" "$peak_bytes"
+      "$app_workload" "$app_launch" "$app_samples" "$frames" "$janky" \
+      "$janky_percent" "$p50" "$p90" "$encoder_wall" "$encoder_bytes" \
+      "$cpu" "$settled_bytes" "$peak_bytes"
   done
   if [ "$status" -ne 0 ]; then
     printf '\n## Failure diagnostics\n\n'
