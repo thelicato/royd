@@ -20,6 +20,8 @@ runtime_security_mode=${ROYD_MATRIX_SECURITY_MODE:-privileged}
 expected_security_profile=$($repo_root/runtime/scripts/security-profile.sh "$runtime_security_mode" id)
 expected_security_profile_sha256=$($repo_root/runtime/scripts/security-profile.sh "$runtime_security_mode" digest)
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+expected_resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$repo_root/runtime/scripts/resource-profile.sh" "$expected_resource_profile" >/dev/null
 profile=${ROYD_ANDROID_PROFILE:-standard}
 profile=$("$script_dir/profile.sh" "$profile")
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
@@ -49,6 +51,7 @@ append "HAL profile: \`$hal_profile\`"
 append "Graphics backend: \`$graphics_backend\`"
 append "Runtime security profile: \`$expected_security_profile\`"
 append "Runtime security profile SHA-256: \`$expected_security_profile_sha256\`"
+append "Runtime resource profile: \`$expected_resource_profile\`"
 append ''
 append '| Android | AOSP tag | Family | Builder | Arch | Source | Config | Build | Package | Runtime | Status |'
 append '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
@@ -104,10 +107,12 @@ for version in $("$script_dir/version-list.sh"); do
       recorded_security_profile=$(runtime_result_get "$runtime_file" SECURITY_PROFILE || printf unknown)
       recorded_security_profile_sha256=$(runtime_result_get "$runtime_file" SECURITY_PROFILE_SHA256 || printf unknown)
       recorded_container_evidence=$(runtime_result_get "$runtime_file" CONTAINER_EVIDENCE_STATUS || printf unknown)
+      recorded_resource_profile=$(runtime_result_get "$runtime_file" RESOURCE_PROFILE || printf unknown)
       runtime_evidence_dir=${runtime_file%.env}.evidence
       if [ "$runtime_format" != 4 ] \
         || [ "$recorded_security_profile" != "$expected_security_profile" ] \
         || [ "$recorded_security_profile_sha256" != "$expected_security_profile_sha256" ] \
+        || [ "$recorded_resource_profile" != "$expected_resource_profile" ] \
         || [ "$recorded_container_evidence" != pass ] \
         || [ ! -f "$runtime_evidence_dir/container-inspect.json" ] \
         || [ ! -f "$runtime_evidence_dir/container.log" ] \
@@ -149,7 +154,7 @@ append '- Config `pass` means royd installed its integration and AOSP resolved t
 append '- Build `pass` is recorded only by the clean-build matrix runner after an actual compile.'
 append '- Package `pass` is recorded only after OCI root filesystem packaging completes and its archive digest is captured.'
 append '- Runtime `pass` means the persisted runtime qualification gate passed for the selected security mode and current security-profile digest.'
-append '- Runtime `stale` means evidence was recorded with an older result format or different security profile and must be rerun.'
+append '- Runtime `stale` means evidence was recorded with an older result format, security profile, or resource profile and must be rerun.'
 append '- Memory workload evidence and reviewed reference-host records remain separate release gates.'
 append '- `ROYD_MATRIX_REQUIRE_BUILD=1` makes missing or failed clean-build evidence fatal.'
 append '- `ROYD_MATRIX_REQUIRE_RUNTIME=1` makes missing or failed runtime qualification evidence fatal.'

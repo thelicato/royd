@@ -99,4 +99,4 @@ Qualification containers and `/data` volumes are disposable and removed when the
 
 ## Policy provenance
 
-Runtime qualification results use result format 4. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, and `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`. Result format 4 also requires successful persisted container-evidence capture for a passing qualification. Resume mode accepts previous evidence only when both policy identities still match the repository. Package-policy or security-policy changes therefore invalidate stale runtime qualification automatically.
+Runtime qualification results use result format 4. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`, and the selected `RESOURCE_PROFILE`. Result format 4 also requires successful persisted container-evidence capture for a passing qualification. Resume mode accepts previous evidence only when both policy identities still match the repository and the resource profile matches the requested mode. Package-policy, security-policy, or resource-profile changes therefore invalidate stale runtime qualification automatically.

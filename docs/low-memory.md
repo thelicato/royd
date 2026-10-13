@@ -16,7 +16,7 @@ ro.lmk.use_minfree_levels=false
 
 royd does not currently override detailed `lmkd` thresholds because those values need to be tested against container memory limits and representative workloads.
 
-The current Android 15 image always enables this baseline, even when the container has ample memory. That is safe for current compatibility work but is not the final performance policy. A future explicit or automatically selected resource profile should use the container memory limit, not total host RAM, to choose normal-RAM framework behaviour, an appropriate Dalvik heap profile and measured process-retention policy. The selection must be recorded in image and runtime evidence.
+The Android 15 image defaults to this baseline. Set `ROYD_RESOURCE_PROFILE=performance` to select normal-RAM framework behaviour and AOSP's 2 GB phone Dalvik heap before init publishes boot properties. The same image supports both modes, and runtime and benchmark evidence records the selection. Automatic selection based on the container memory limit remains future work, as do measured process-retention and detailed `lmkd` policies.
 
 ## Display profiles
 
@@ -46,10 +46,10 @@ Build-time slimming is isolated behind explicit `standard` and `minimal` Android
 
 ## High-resource performance
 
-Large-memory instances should be able to trade memory efficiency for responsiveness and sustained application performance. That work includes a normal-RAM Android 15 profile, measured Dalvik and `lmkd` policies, higher display refresh options, and a qualified host-GPU path. It must not silently weaken low-memory or multi-instance behaviour.
+Large-memory instances can opt into normal-RAM Android 15 behaviour and a larger standard AOSP Dalvik heap without rebuilding the image. Comparative Dalvik and `lmkd` measurements, higher display refresh experiments, and a qualified host-GPU path remain outstanding. Performance mode must not silently replace the low-memory and multi-instance default.
 
 Leading Android container performance is a comparison target rather than an assumed property. Any comparison must use the same host hardware, Android release and architecture, renderer, display size and frame rate, CPU and memory limits, storage state, scrcpy settings and named workload. Boot completion alone is not a performance result.
 
 ## Next optimisation work
 
-The expanded minimal profile should be validated on reference hosts before additional services or packages are removed. The high-resource profile must then be implemented and compared with the low-memory baseline. Detailed `lmkd` tuning, process limits, rendering changes, and hard defaults should follow the same measurement-first rule. The memory sweep enforces named workload provenance for any command-driven workload.
+The expanded minimal profile should be validated on reference hosts before additional services or packages are removed. The performance resource profile must be compared with the low-memory baseline before tuning `lmkd`, process limits, rendering policy, or defaults. The memory sweep enforces named workload and resource-profile provenance for command-driven workloads.

@@ -34,6 +34,37 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/cpu \
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os
+    if [ ! -f system/core/init/property_service.cpp ]; then
+      cat > system/core/init/property_service.cpp <<'SRC'
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <map>
+#include <string>
+
+#include <selinux/selinux.h>
+
+void PropertyLoadBootDefaults() {
+    std::map<std::string, std::string> properties;
+
+    if (access(kDebugRamdiskProp, R_OK) == 0) {
+        LOG(INFO) << "Loading " << kDebugRamdiskProp;
+        if (auto res = load_properties_from_file(kDebugRamdiskProp, nullptr, &properties);
+            !res.ok()) {
+            LOG(WARNING) << res.error();
+        }
+    }
+
+    for (const auto& [name, value] : properties) {
+        std::string error;
+        if (PropertySetNoSocket(name, value, &error) != PROP_SUCCESS) {
+            LOG(ERROR) << "Could not set '" << name << "' to '" << value
+                       << "' while loading .prop files" << error;
+        }
+    }
+}
+SRC
+    fi
     if [ ! -f system/core/libprocessgroup/setup/cgroup_map_write.cpp ]; then
       cat > system/core/libprocessgroup/setup/cgroup_map_write.cpp <<'SRC'
 #include <dirent.h>
@@ -2382,6 +2413,12 @@ grep -Fq 'Binder.allowBlocking(this.getNativeServiceManager()));' \
   "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
 grep -Fq 'return mServiceManager.checkService(name);' \
   "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
+grep -Fq 'constexpr const char* kRoydResourceProp = "/royd-resource.prop";' \
+  "$tmp/src/system/core/init/property_service.cpp"
+grep -Fq 'load_properties_from_file(kRoydResourceProp, nullptr, &properties)' \
+  "$tmp/src/system/core/init/property_service.cpp"
+grep -Fq 'ROYD: loading container resource profile properties' \
+  "$tmp/src/system/core/init/property_service.cpp"
 grep -Fq 'bool shouldDeferRoydAudioUidObserver() {' \
   "$tmp/src/frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp"
 grep -Fq 'defaultServiceManager()->checkService(String16("activity")) == nullptr' \

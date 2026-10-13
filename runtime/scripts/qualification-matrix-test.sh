@@ -26,6 +26,7 @@ HAL_PROFILE=$ROYD_HAL_PROFILE
 SECURITY_MODE=$ROYD_SECURITY_MODE
 SECURITY_PROFILE=$ROYD_EXPECTED_SECURITY_PROFILE
 SECURITY_PROFILE_SHA256=$ROYD_EXPECTED_SECURITY_PROFILE_SHA256
+RESOURCE_PROFILE=${ROYD_RESOURCE_PROFILE:-low-memory}
 HOST_STATUS=$result
 IMAGE_STATUS=$result
 BOOT_STATUS=$result
@@ -110,6 +111,20 @@ MOCK_CALLS="$tmp/calls" \
 "$script_dir/qualification-matrix.sh" >/dev/null
 [ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 5 ] || {
   printf '%s\n' 'error: changed security profile did not invalidate runtime qualification resume state' >&2
+  exit 1
+}
+
+# A different resource profile must not reuse low-memory qualification evidence.
+ROYD_QUALIFY_VERSIONS=15 \
+ROYD_QUALIFY_ARCHES=x86_64 \
+ROYD_RESOURCE_PROFILE=performance \
+ROYD_QUALIFY_RUNNER="$tmp/runner" \
+ROYD_RUNTIME_RESULTS_DIR="$tmp/results" \
+ROYD_RUNTIME_REPORT_OUTPUT="$tmp/report.md" \
+MOCK_CALLS="$tmp/calls" \
+"$script_dir/qualification-matrix.sh" >/dev/null
+[ "$(wc -l < "$tmp/calls" | tr -d ' ')" -eq 6 ] || {
+  printf '%s\n' 'error: changed resource profile did not invalidate runtime qualification resume state' >&2
   exit 1
 }
 

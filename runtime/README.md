@@ -144,6 +144,14 @@ runtime/scripts/profile.sh compact
 
 Current profiles are `default`, `compact`, and `tablet`. See [`../docs/profiles.md`](../docs/profiles.md).
 
+Resource tuning is independent of display size. Android 15 defaults to `low-memory`; opt into the unqualified high-resource candidate with:
+
+```sh
+ROYD_RESOURCE_PROFILE=performance make runtime-smoke-test
+```
+
+The same selection is available to Compose through `ROYD_RESOURCE_PROFILE`. See [`../docs/profiles.md`](../docs/profiles.md) for the exact framework and Dalvik policy.
+
 ## Validation
 
 Run the single-instance smoke test with:

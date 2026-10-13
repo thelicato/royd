@@ -63,12 +63,13 @@ func TestRunContainerDefaults(t *testing.T) {
 		"royd.height=960",
 		"royd.dpi=240",
 		"royd.fps=30",
+		"royd.resource_profile=low-memory",
 	})
 }
 
 func TestRunContainerOverrides(t *testing.T) {
 	runner := &fakeRunner{}
-	args := []string{"run", "--name", "test", "--image", "example/royd:test", "--volume", "test-data", "--port", "127.0.0.1:5560:5555", "--memory", "768m", "--width", "360", "--height", "640", "--dpi", "160", "--fps", "24"}
+	args := []string{"run", "--name", "test", "--image", "example/royd:test", "--volume", "test-data", "--port", "127.0.0.1:5560:5555", "--memory", "768m", "--width", "360", "--height", "640", "--dpi", "160", "--fps", "24", "--resource-profile", "performance"}
 	if err := execute(runner, args); err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +85,7 @@ func TestRunContainerOverrides(t *testing.T) {
 		"royd.height=640",
 		"royd.dpi=160",
 		"royd.fps=24",
+		"royd.resource_profile=performance",
 	})
 }
 
@@ -124,6 +126,7 @@ func TestRunContainerExperimentalSecurity(t *testing.T) {
 		"royd.height=960",
 		"royd.dpi=240",
 		"royd.fps=30",
+		"royd.resource_profile=low-memory",
 	})
 }
 
@@ -144,6 +147,7 @@ func TestRunContainerHostGPU(t *testing.T) {
 		"royd.height=960",
 		"royd.dpi=240",
 		"royd.fps=30",
+		"royd.resource_profile=low-memory",
 	})
 }
 
@@ -161,6 +165,16 @@ func TestRunContainerRejectsUnknownSecurityMode(t *testing.T) {
 	runner := &fakeRunner{}
 	if err := execute(runner, []string{"run", "--security", "unknown"}); err == nil {
 		t.Fatal("expected invalid security mode error")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no docker calls, got %d", len(runner.calls))
+	}
+}
+
+func TestRunContainerRejectsUnknownResourceProfile(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := execute(runner, []string{"run", "--resource-profile", "unknown"}); err == nil {
+		t.Fatal("expected invalid resource profile error")
 	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("expected no docker calls, got %d", len(runner.calls))

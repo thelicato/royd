@@ -16,6 +16,8 @@ security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_profile=$($script_dir/security-profile.sh "$security_mode" id)
 security_profile_sha256=$($script_dir/security-profile.sh "$security_mode" digest)
 graphics_backend_request=${ROYD_GRAPHICS_BACKEND:-software}
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 resume=${ROYD_QUALIFY_RESUME:-1}
 continue_on_error=${ROYD_QUALIFY_CONTINUE_ON_ERROR:-1}
 require_adb=${ROYD_QUALIFY_REQUIRE_ADB:-1}
@@ -50,6 +52,7 @@ printf '  image profile: %s\n' "$image_profile"
 printf '  HAL profile: %s\n' "$hal_profile"
 printf '  security mode: %s (%s)\n' "$security_mode" "$security_profile"
 printf '  graphics backend: %s\n' "$graphics_backend_request"
+printf '  resource profile: %s\n' "$resource_profile"
 printf '  resume: %s\n' "$resume"
 
 for version in $versions; do
@@ -71,7 +74,8 @@ for version in $versions; do
       && [ "$(runtime_result_get "$result_file" PROFILE_POLICY 2>/dev/null || true)" = "$expected_profile_policy" ] \
       && [ "$(runtime_result_get "$result_file" PROFILE_POLICY_SHA256 2>/dev/null || true)" = "$expected_profile_policy_sha256" ] \
       && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE 2>/dev/null || true)" = "$security_profile" ] \
-      && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE_SHA256 2>/dev/null || true)" = "$security_profile_sha256" ]; then
+      && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE_SHA256 2>/dev/null || true)" = "$security_profile_sha256" ] \
+      && [ "$(runtime_result_get "$result_file" RESOURCE_PROFILE 2>/dev/null || true)" = "$resource_profile" ]; then
       printf '\n==> Android %s %s: runtime qualification already passed with current profile policy, skipping\n' "$version" "$arch"
       continue
     fi
@@ -82,6 +86,7 @@ for version in $versions; do
       ROYD_HAL_PROFILE="$hal_profile" \
       ROYD_SECURITY_MODE="$security_mode" \
       ROYD_GRAPHICS_BACKEND="$graphics_backend" \
+      ROYD_RESOURCE_PROFILE="$resource_profile" \
       ROYD_QUALIFY_REQUIRE_ADB="$require_adb" \
       ROYD_EXPECTED_PROFILE_POLICY="$expected_profile_policy" \
       ROYD_EXPECTED_PROFILE_POLICY_SHA256="$expected_profile_policy_sha256" \
@@ -106,6 +111,7 @@ ROYD_ANDROID_PROFILE="$image_profile" \
 ROYD_HAL_PROFILE="$hal_profile" \
 ROYD_SECURITY_MODE="$security_mode" \
 ROYD_GRAPHICS_BACKEND="$graphics_backend_request" \
+ROYD_RESOURCE_PROFILE="$resource_profile" \
 "$script_dir/qualification-report.sh" >/dev/null
 printf '\nRuntime qualification report: %s\n' "$report"
 exit "$status"

@@ -22,7 +22,34 @@ case "$1" in
       case "$property" in
         ro.build.version.sdk) value=$MOCK_SDK ;;
         sys.boot_completed) value=1 ;;
-        ro.config.low_ram) value=true ;;
+        ro.config.low_ram)
+          if [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ]; then
+            value=false
+          else
+            value=true
+          fi
+          ;;
+        ro.vendor.royd.resource_profile)
+          if [ "${MOCK_BAD_RESOURCE_PROFILE:-0}" = 1 ]; then
+            value=low-memory
+          else
+            value=${ROYD_RESOURCE_PROFILE:-low-memory}
+          fi
+          ;;
+        dalvik.vm.heapstartsize)
+          [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ] && value=8m || value=5m
+          ;;
+        dalvik.vm.heapgrowthlimit)
+          [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ] && value=192m || value=48m
+          ;;
+        dalvik.vm.heapsize)
+          [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ] && value=512m || value=128m
+          ;;
+        dalvik.vm.heaptargetutilization) value=0.75 ;;
+        dalvik.vm.heapminfree) value=512k ;;
+        dalvik.vm.heapmaxfree)
+          [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ] && value=8m || value=2m
+          ;;
         init.svc.royd-logcat|init.svc.adbd) value=running ;;
         init.svc.netd)
           [ "${MOCK_BAD_NETD:-0}" = 1 ] && value=restarting || value=running
@@ -345,6 +372,17 @@ grep -Fq 'Android 15 native ServiceManager proxy triggered a blocking-call WTF' 
 
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_BLOCKING_WTF=1 \
   "$script_dir/assert-runtime.sh" unrelated-blocking-wtf >/dev/null
+
+PATH="$tmp:$PATH" MOCK_SDK=35 ROYD_RESOURCE_PROFILE=performance \
+  "$script_dir/assert-runtime.sh" performance-resource-profile >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 ROYD_RESOURCE_PROFILE=performance \
+    MOCK_BAD_RESOURCE_PROFILE=1 \
+    "$script_dir/assert-runtime.sh" mismatched-resource-profile >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a mismatched resource profile' >&2
+  exit 1
+fi
+grep -Fq 'ro.vendor.royd.resource_profile expected performance, got low-memory' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_PACKAGE_LIST=1 \
     "$script_dir/assert-runtime.sh" missing-package-list >"$tmp/error" 2>&1; then

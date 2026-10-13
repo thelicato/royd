@@ -1,0 +1,23 @@
+diff --git a/system/core/init/property_service.cpp b/system/core/init/property_service.cpp
+--- a/system/core/init/property_service.cpp
++++ b/system/core/init/property_service.cpp
+@@ -1233,6 +1233,19 @@ void PropertyLoadBootDefaults() {
+         }
+     }
+ 
++    const char* roydContainer = getenv("ROYD_CONTAINER");
++    const bool loadRoydResourceProfile =
++            roydContainer != nullptr && roydContainer[0] == '1' && roydContainer[1] == '\0' &&
++            is_selinux_enabled() <= 0;
++    if (loadRoydResourceProfile) {
++        constexpr const char* kRoydResourceProp = "/royd-resource.prop";
++        LOG(INFO) << "ROYD: loading container resource profile properties";
++        if (auto res = load_properties_from_file(kRoydResourceProp, nullptr, &properties);
++            !res.ok()) {
++            LOG(FATAL) << res.error();
++        }
++    }
++
+     for (const auto& [name, value] : properties) {
+         std::string error;
+         if (PropertySetNoSocket(name, value, &error) != PROP_SUCCESS) {

@@ -71,8 +71,8 @@ actual_sha=$(sha256sum "$archive" | awk '{print $1}')
 version=${AOSP_TAG#android-}
 version=$(printf '%s' "$version" | tr '_' '-')
 case "$hal_profile" in
-  graphical) default_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
-  headless) default_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5"]' ;;
+  graphical) default_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30","royd.resource_profile=low-memory"]' ;;
+  headless) default_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5","royd.resource_profile=low-memory"]' ;;
 esac
 runtime_entrypoint=$("$script_dir/image-entrypoint.sh" "$ANDROID_ROOTFS_SOURCE")
 printf 'Importing %s as %s\n' "$archive" "$image"

@@ -50,9 +50,10 @@ royd.width
 royd.height
 royd.dpi
 royd.fps
+royd.resource_profile
 ```
 
-The OCI entrypoint validates those values, writes `/royd-runtime.conf`, and then uses `exec /init`. Android init therefore becomes PID 1 without receiving unsupported container arguments. During Android `early-init`, `royd-display-bootstrap` publishes the validated values as `vendor.royd.display.*` properties before the graphics setup runs. The royd allocator consumes those properties when the virtual framebuffer is opened.
+The OCI entrypoint validates those values, writes `/royd-runtime.conf` and the selected Android 15 properties to `/royd-resource.prop`, then uses `exec /init`. Android init therefore becomes PID 1 without receiving unsupported container arguments. Under the explicit royd container and SELinux-disabled gate, Android 15 loads the resource file before publishing boot properties. During Android `early-init`, `royd-display-bootstrap` publishes the validated display values as `vendor.royd.display.*` properties before graphics setup. The royd allocator consumes those properties when the virtual framebuffer is opened.
 
 This removes the previous post-boot `wm` and settings mutation path. Display size, density metadata, and frame-rate metadata are now established before SurfaceFlinger starts.
 

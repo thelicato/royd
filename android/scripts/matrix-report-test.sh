@@ -84,6 +84,7 @@ ARCH=x86_64
 IMAGE_PROFILE=standard
 HAL_PROFILE=graphical
 SECURITY_MODE=privileged
+RESOURCE_PROFILE=low-memory
 SECURITY_PROFILE=$security_profile
 SECURITY_PROFILE_SHA256=$security_profile_sha256
 CONTAINER_EVIDENCE_STATUS=pass

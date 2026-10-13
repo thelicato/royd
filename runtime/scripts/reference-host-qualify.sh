@@ -26,6 +26,8 @@ graphics_backend=$(ROYD_GRAPHICS_ARCH="$arch" "$repo_root/android/scripts/graphi
 profile_policy=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/scripts/profile-policy.sh" "$image_profile")
 profile_policy_sha256=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
 runtime_profile=${ROYD_PROFILE:-$(ROYD_HAL_PROFILE="$hal_profile" "$script_dir/default-runtime-profile.sh")}
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 image=${ROYD_IMAGE:-$(ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/default-image.sh" "$image_profile" "$arch")}
 work_root=${ROYD_WORK_DIR:-$repo_root/.work}
 output=${ROYD_REFERENCE_BUNDLE_OUTPUT:-$work_root/reference-hosts/$android_version-$arch-$image_profile-$hal_profile-$graphics_backend-$security_mode}
@@ -98,17 +100,17 @@ run_stage image env ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$h
 run_stage qualification env \
   ROYD_ANDROID_VERSION="$android_version" ROYD_QUALIFY_ARCH="$arch" ROYD_ANDROID_PROFILE="$image_profile" \
   ROYD_HAL_PROFILE="$hal_profile" ROYD_SECURITY_MODE="$security_mode" ROYD_GRAPHICS_BACKEND="$graphics_backend" \
-  ROYD_PROFILE="$runtime_profile" ROYD_IMAGE="$image" "$qualification_runner"
+  ROYD_PROFILE="$runtime_profile" ROYD_RESOURCE_PROFILE="$resource_profile" ROYD_IMAGE="$image" "$qualification_runner"
 run_stage reference env \
   ROYD_ANDROID_VERSION="$android_version" ROYD_HAL_PROFILE="$hal_profile" ROYD_SECURITY_MODE="$security_mode" \
-  ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_PROFILE="$runtime_profile" ROYD_IMAGE="$image" \
+  ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_PROFILE="$runtime_profile" ROYD_RESOURCE_PROFILE="$resource_profile" ROYD_IMAGE="$image" \
   ROYD_REPORT_OUTPUT="$output/reference-host.md" "$reference_runner" "$image"
 
 if [ "$include_memory" -eq 1 ]; then
   run_stage memory env \
     ROYD_ANDROID_VERSION="$android_version" ROYD_QUALIFY_ARCH="$arch" ROYD_ARCH="$arch" \
     ROYD_ANDROID_PROFILE="$image_profile" ROYD_HAL_PROFILE="$hal_profile" ROYD_SECURITY_MODE="$security_mode" \
-    ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_PROFILE="$runtime_profile" ROYD_IMAGE="$image" \
+    ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_PROFILE="$runtime_profile" ROYD_RESOURCE_PROFILE="$resource_profile" ROYD_IMAGE="$image" \
     ROYD_MEMORY_SWEEP_OUTPUT="$output/memory.md" "$memory_runner" "$image"
 fi
 if [ "$include_capability_sweep" -eq 1 ]; then
@@ -168,6 +170,7 @@ PROFILE_POLICY_SHA256=$profile_policy_sha256
 HAL_PROFILE=$hal_profile
 GRAPHICS_BACKEND=$graphics_backend
 RUNTIME_PROFILE=$runtime_profile
+RESOURCE_PROFILE=$resource_profile
 SECURITY_MODE=$security_mode
 SECURITY_PROFILE=$security_profile
 SECURITY_PROFILE_SHA256=$security_profile_sha256

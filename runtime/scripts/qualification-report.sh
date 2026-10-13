@@ -17,6 +17,8 @@ security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_profile=$($script_dir/security-profile.sh "$security_mode" id)
 security_profile_sha256=$($script_dir/security-profile.sh "$security_mode" digest)
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 
 render() {
   printf '%s\n\n' '# royd runtime qualification results'
@@ -27,6 +29,7 @@ render() {
   printf 'Security profile: `%s`\n\n' "$security_profile"
   printf 'Security profile SHA-256: `%s`\n\n' "$security_profile_sha256"
   printf 'Graphics backend: `%s`\n\n' "$graphics_backend"
+  printf 'Resource profile: `%s`\n\n' "$resource_profile"
   printf '%s\n' '| Android | Arch | Host | Image | Boot | Health | Runtime | Security | Security evidence | Graphics | Logs | ADB | Binder isolation | Container evidence | Result |'
   printf '%s\n' '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
   for version in $("$repo_root/android/scripts/version-list.sh"); do

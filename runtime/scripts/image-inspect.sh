@@ -75,8 +75,8 @@ equal entrypoint "$entrypoint" "$expected_entrypoint"
 
 cmd=$(docker image inspect --format '{{json .Config.Cmd}}' "$image")
 case "$hal_profile" in
-  graphical) expected_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
-  headless) expected_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5"]' ;;
+  graphical) expected_cmd='["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30","royd.resource_profile=low-memory"]' ;;
+  headless) expected_cmd='["royd.width=64","royd.height=64","royd.dpi=72","royd.fps=5","royd.resource_profile=low-memory"]' ;;
 esac
 equal command "$cmd" "$expected_cmd"
 
@@ -105,5 +105,6 @@ printf '%s\n' "$release" | grep -Fqx "ROYD_HAL_PROFILE=$hal_profile"
 printf '%s\n' "$release" | grep -Fqx "ROYD_GRAPHICS_BACKEND=$graphics_backend"
 printf '%s\n' "$release" | grep -Fqx 'ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint'
 printf '%s\n' "$release" | grep -Fqx 'ROYD_RUNTIME_CONFIG=/royd-runtime.conf'
+printf '%s\n' "$release" | grep -Fqx 'ROYD_RESOURCE_CONFIG=/royd-resource.prop'
 
 printf 'Image contract passed: %s\n' "$image"

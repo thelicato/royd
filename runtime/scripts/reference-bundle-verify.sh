@@ -30,6 +30,8 @@ expected_policy=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/sc
 expected_policy_sha=$(ROYD_ANDROID_VERSION="$android_version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
 expected_security=$("$script_dir/security-profile.sh" "$security_mode" id)
 expected_security_sha=$("$script_dir/security-profile.sh" "$security_mode" digest)
+resource_profile=$(get RESOURCE_PROFILE)
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 [ "$(get PROFILE_POLICY)" = "$expected_policy" ] || { printf '%s\n' 'error: bundle image-profile policy is stale' >&2; exit 1; }
 [ "$(get PROFILE_POLICY_SHA256)" = "$expected_policy_sha" ] || { printf '%s\n' 'error: bundle image-profile policy digest is stale' >&2; exit 1; }
 [ "$(get SECURITY_PROFILE)" = "$expected_security" ] || { printf '%s\n' 'error: bundle security profile is stale' >&2; exit 1; }
@@ -47,5 +49,6 @@ expected_kernel_contract_sha=$(sha256sum "$repo_root/runtime/kernel/config-contr
 [ -f "$bundle/runtime-evidence/container.log" ] || { printf '%s\n' 'error: runtime container log evidence is missing' >&2; exit 1; }
 [ -f "$bundle/runtime-evidence/state.txt" ] || { printf '%s\n' 'error: runtime container state evidence is missing' >&2; exit 1; }
 [ "$(runtime_result_get "$bundle/runtime-result.env" RESULT_FORMAT || true)" = 4 ] || { printf '%s\n' 'error: runtime result format is stale' >&2; exit 1; }
+[ "$(runtime_result_get "$bundle/runtime-result.env" RESOURCE_PROFILE || true)" = "$resource_profile" ] || { printf '%s\n' 'error: runtime resource profile is stale' >&2; exit 1; }
 [ "$(runtime_result_get "$bundle/runtime-result.env" CONTAINER_EVIDENCE_STATUS || true)" = pass ] || { printf '%s\n' 'error: runtime container evidence did not pass' >&2; exit 1; }
 printf 'Reference-host evidence bundle verified: %s\n' "$bundle"

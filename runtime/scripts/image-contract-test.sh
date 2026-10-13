@@ -15,10 +15,10 @@ if [ "$1 $2" = "image inspect" ]; then
   case "$format" in
     '{{.Architecture}}') printf '%s\n' amd64 ;;
     '{{json .Config.Entrypoint}}') printf '%s\n' '["/system/bin/bootstrap/linker64","/system/bin/sh","/royd-entrypoint"]' ;;
-    '{{json .Config.Cmd}}') printf '%s\n' '["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30"]' ;;
+    '{{json .Config.Cmd}}') printf '%s\n' '["royd.width=540","royd.height=960","royd.dpi=240","royd.fps=30","royd.resource_profile=low-memory"]' ;;
     '{{json .Config.Healthcheck.Test}}') printf '%s\n' '["CMD","/vendor/bin/royd-health"]' ;;
     '{{json .Config.ExposedPorts}}') printf '%s\n' '{"5555/tcp":{}}' ;;
-    *org.royd.image-format*) printf '%s\n' 3 ;;
+    *org.royd.image-format*) printf '%s\n' 4 ;;
     *org.royd.android-version*) printf '%s\n' 15 ;;
     *org.royd.android-ref*) printf '%s\n' android-15.0.0_r36 ;;
     *org.royd.image-profile*) printf '%s\n' standard ;;
@@ -39,7 +39,7 @@ fi
 if [ "$1" = cp ]; then
   mkdir -p "$MOCK_RELEASE_DIR"
   cat > "$MOCK_RELEASE_DIR/royd-release" <<'REL'
-ROYD_IMAGE_FORMAT=3
+ROYD_IMAGE_FORMAT=4
 ROYD_ANDROID_VERSION=15
 ROYD_AOSP_TAG=android-15.0.0_r36
 ROYD_ARCH=x86_64
@@ -50,6 +50,7 @@ ROYD_HAL_PROFILE=graphical
 ROYD_GRAPHICS_BACKEND=software
 ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
 ROYD_RUNTIME_CONFIG=/royd-runtime.conf
+ROYD_RESOURCE_CONFIG=/royd-resource.prop
 ANDROID_PRODUCT=royd_x86_64
 REL
   tar -C "$MOCK_RELEASE_DIR" -cf - royd-release

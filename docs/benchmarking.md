@@ -32,6 +32,7 @@ Override the candidates, display profile, settle time, or output path with envir
 
 ```sh
 ROYD_PROFILE=compact \
+ROYD_RESOURCE_PROFILE=low-memory \
 ROYD_MEMORY_LIMITS="512m 640m 768m" \
 ROYD_MEMORY_SETTLE=15 \
 ROYD_MEMORY_SWEEP_OUTPUT=memory-sweep.md \
@@ -57,7 +58,7 @@ A passing row means that the named workload completed under that exact configura
 
 Before publishing a minimum RAM figure, repeat the test across multiple boots and add a representative application workload. Record the reference-host report alongside the memory sweep.
 
-Every generated sweep includes the image ID, Android version and AOSP ref, Android image profile, package-policy identifier and SHA-256, HAL profile, graphics backend, exact display dimensions/density/frame rate, security mode, workload name and command, boot timeout, and settle interval. Figures without that provenance should not be published as royd memory results.
+Every generated sweep includes the image ID, Android version and AOSP ref, Android image profile, package-policy identifier and SHA-256, HAL profile, graphics backend, resource profile, exact display dimensions/density/frame rate, security mode, workload name and command, boot timeout, and settle interval. Figures without that provenance should not be published as royd memory results.
 
 ## Competitive performance comparison
 

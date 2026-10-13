@@ -27,6 +27,7 @@ if [ -n "${ROYD_RUNTIME_RESULT_FILE:-}" ]; then
   mkdir -p "$(dirname -- "$ROYD_RUNTIME_RESULT_FILE")"
   cat > "$ROYD_RUNTIME_RESULT_FILE" <<'RESULT'
 RESULT_FORMAT=4
+RESOURCE_PROFILE=low-memory
 RESULT_STATUS=pass
 CONTAINER_EVIDENCE_STATUS=pass
 RESULT
@@ -78,6 +79,7 @@ grep -Fqx 'KERNEL_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'MEMORY_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RUNTIME_LOG_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RUNTIME_EVIDENCE_STATUS=pass' "$bundle/manifest.env"
+grep -Fqx 'RESOURCE_PROFILE=low-memory' "$bundle/manifest.env"
 "$script_dir/reference-bundle-verify.sh" "$bundle" >/dev/null
 
 stale_kernel_bundle="$work/stale-kernel-bundle"

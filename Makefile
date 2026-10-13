@@ -22,12 +22,14 @@
 .PHONY: android15-cpu-monitor-container-test
 .PHONY: android15-psi-monitor-container-test
 .PHONY: android15-service-manager-blocking-test
+.PHONY: android15-resource-profile-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
 .PHONY: android15-audio-sensor-privacy-locking-test
 .PHONY: android15-fuse-isolation-container-test
 .PHONY: android15-software-shader-cache-test
+.PHONY: runtime-resource-profile-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -230,6 +232,9 @@ runtime-multi-test-experimental:
 runtime-image-contract-test:
 	./runtime/scripts/image-contract-test.sh
 
+runtime-resource-profile-test:
+	./runtime/scripts/resource-profile-test.sh
+
 runtime-entrypoint-contract-test:
 	./runtime/scripts/entrypoint-contract-test.sh
 
@@ -332,6 +337,9 @@ android15-psi-monitor-container-test:
 
 android15-service-manager-blocking-test:
 	./android/scripts/android15-service-manager-blocking-test.sh
+
+android15-resource-profile-container-test:
+	./android/scripts/android15-resource-profile-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

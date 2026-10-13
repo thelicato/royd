@@ -144,6 +144,10 @@ manifest15="$runtime15/royd-x86_64-standard-graphical.manifest"
   printf '%s\n' 'error: modern package contract did not produce the runtime manifest' >&2
   exit 1
 }
+grep -Fqx 'ROYD_RESOURCE_CONFIG=/royd-resource.prop' "$manifest15" || {
+  printf '%s\n' 'error: modern package manifest omits the resource-profile property path' >&2
+  exit 1
+}
 grep -Fq 'Creating OCI root filesystem archive from Android system image' "$modern_stdout" || {
   printf '%s\n' 'error: modern package contract did not select system.img as the OCI root' >&2
   exit 1

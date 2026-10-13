@@ -28,6 +28,32 @@ case "$sdk" in
     ;;
 esac
 
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+case "$resource_profile:$sdk" in
+  low-memory:*)
+    resource_low_ram=true
+    resource_heap_start=5m
+    resource_heap_growth=48m
+    resource_heap_size=128m
+    resource_heap_max_free=2m
+    ;;
+  performance:35)
+    resource_low_ram=false
+    resource_heap_start=8m
+    resource_heap_growth=192m
+    resource_heap_size=512m
+    resource_heap_max_free=8m
+    ;;
+  performance:*)
+    printf 'error: performance resource profile requires Android 15, got SDK %s\n' "$sdk" >&2
+    exit 1
+    ;;
+  *)
+    printf 'error: unsupported resource profile: %s\n' "$resource_profile" >&2
+    exit 1
+    ;;
+esac
+
 graphics_mapper=
 graphics_composer=
 vulkan_hal=
@@ -88,7 +114,7 @@ assert_property() {
 }
 
 assert_property sys.boot_completed 1
-assert_property ro.config.low_ram true
+assert_property ro.config.low_ram "$resource_low_ram"
 assert_property init.svc.royd-logcat running
 assert_property init.svc.adbd running
 assert_property service.adb.tcp.port 5555
@@ -117,6 +143,13 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  assert_property ro.vendor.royd.resource_profile "$resource_profile"
+  assert_property dalvik.vm.heapstartsize "$resource_heap_start"
+  assert_property dalvik.vm.heapgrowthlimit "$resource_heap_growth"
+  assert_property dalvik.vm.heapsize "$resource_heap_size"
+  assert_property dalvik.vm.heaptargetutilization 0.75
+  assert_property dalvik.vm.heapminfree 512k
+  assert_property dalvik.vm.heapmaxfree "$resource_heap_max_free"
   assert_property init.svc.netd running
   assert_property service.sf.present_timestamp 0
   if [ "$graphics_backend" = software ]; then

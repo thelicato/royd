@@ -47,6 +47,7 @@ type runConfig struct {
 	fps      int
 	security string
 	graphics string
+	resource string
 }
 
 func main() {
@@ -132,6 +133,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 	fs.IntVar(&cfg.fps, "fps", 30, "Android display frame rate")
 	fs.StringVar(&cfg.security, "security", "privileged", "Runtime security mode: privileged or experimental")
 	fs.StringVar(&cfg.graphics, "graphics", "software", "Graphics backend: software, host-gpu-generic, or host-gpu-intel")
+	fs.StringVar(&cfg.resource, "resource-profile", "low-memory", "Resource profile: low-memory or performance")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -141,6 +143,9 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 
 	if cfg.width <= 0 || cfg.height <= 0 || cfg.dpi <= 0 || cfg.fps <= 0 {
 		return fmt.Errorf("display values must be positive integers")
+	}
+	if cfg.resource != "low-memory" && cfg.resource != "performance" {
+		return fmt.Errorf("unknown resource profile: %s", cfg.resource)
 	}
 	if cfg.image == "" {
 		switch cfg.graphics {
@@ -187,6 +192,7 @@ func runContainer(runner dockerutil.Runner, args []string) error {
 		fmt.Sprintf("royd.height=%d", cfg.height),
 		fmt.Sprintf("royd.dpi=%d", cfg.dpi),
 		fmt.Sprintf("royd.fps=%d", cfg.fps),
+		"royd.resource_profile="+cfg.resource,
 	)
 	return runner.Run(dockerArgs...)
 }

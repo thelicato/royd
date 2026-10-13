@@ -114,7 +114,7 @@ The default graphics baseline is software-rendered without requiring `/dev/dri`;
 
 Low memory usage is a core engineering goal, but memory targets are benchmark-driven rather than assumed. The Android build enables supported low-RAM behaviour and PSI-based `lmkd`. Runtime display profiles make framebuffer cost easy to compare without rebuilding Android.
 
-Low-memory operation is not a performance ceiling. The Android 15 direction includes a resource-aware profile for containers with ample RAM and CPU, so normal-RAM framework behaviour, Dalvik sizing, process retention, display timing and accelerated graphics can scale with the assigned resources. Leading Android container performance is a benchmark target, not a current claim, and will be evaluated on identical hosts and workloads.
+Low-memory operation is not a performance ceiling. Android 15 supports an independent `performance` resource profile for containers with ample RAM and CPU. It selects normal-RAM framework behaviour and AOSP's standard 2 GB phone Dalvik heap before Android publishes boot properties. Process-retention, display-timing and accelerated-graphics tuning remain benchmark work. Leading Android container performance is a target, not a current claim, and will be evaluated on identical hosts and workloads.
 
 `make memory-report` captures a running instance, while `make memory-sweep` tests disposable candidate memory limits and produces a comparable report. Candidate limits are not treated as supported minimums. See [`docs/low-memory.md`](docs/low-memory.md), [`docs/profiles.md`](docs/profiles.md), and [`docs/benchmarking.md`](docs/benchmarking.md).
 

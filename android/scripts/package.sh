@@ -208,6 +208,7 @@ ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
 ROYD_RUNTIME_CONFIG=/royd-runtime.conf
+ROYD_RESOURCE_CONFIG=/royd-resource.prop
 EOF2
 touch -t 197001010000 "$release_dir/royd-release"
 sudo tar --numeric-owner --owner=0 --group=0 -C "$release_dir" -rf "$output" ./royd-release
@@ -228,6 +229,7 @@ ANDROID_REQUIRED_PARTITIONS=$ANDROID_REQUIRED_PARTITIONS
 ANDROID_MEMORY_COMPAT=$ANDROID_MEMORY_COMPAT
 ROYD_RUNTIME_ENTRYPOINT=/royd-entrypoint
 ROYD_RUNTIME_CONFIG=/royd-runtime.conf
+ROYD_RESOURCE_CONFIG=/royd-resource.prop
 ARCHIVE_SHA256=$archive_sha256
 EOF2
 printf 'Runtime manifest is ready: %s\n' "$manifest"

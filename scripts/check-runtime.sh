@@ -134,13 +134,14 @@ grep -Fq 'image-entrypoint.sh' runtime/scripts/import.sh
 grep -Fq '/system/bin/bootstrap/linker64' runtime/scripts/image-entrypoint.sh
 grep -Fq 'royd.width=540' runtime/scripts/import.sh
 grep -Fq 'royd.height=960' runtime/scripts/import.sh
+grep -Fq 'royd.resource_profile=low-memory' runtime/scripts/import.sh
 grep -Fq 'exec /init' runtime/rootfs/royd-entrypoint
 ! grep -R -Fq 'androidboot.royd_' runtime cli android/royd/vendor/royd docs README.md AGENTS.md
 ! grep -Fq 'androidboot.hardware=royd' runtime/scripts/import.sh
 grep -Fq 'org.opencontainers.image.title=royd' runtime/scripts/import.sh
 grep -Fq 'org.royd.image-format' runtime/scripts/import.sh
 grep -Fq 'ARCHIVE_SHA256' android/scripts/package.sh
-grep -Fq 'ROYD_IMAGE_FORMAT=3' runtime/image.env
+grep -Fq 'ROYD_IMAGE_FORMAT=4' runtime/image.env
 grep -Fq 'royd:15.0.0-r36-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:14.0.0-r14-standard-graphical-amd64' runtime/scripts/image-contract-test.sh
 grep -Fq 'royd:16.0.0-r4-minimal-graphical-arm64' runtime/scripts/image-contract-test.sh
@@ -148,6 +149,7 @@ grep -Fq 'royd:17.0.0-r1-standard-graphical-amd64' runtime/scripts/image-contrac
 grep -Fq '/royd-release' runtime/scripts/image-inspect.sh
 grep -Fq 'runtime-image-contract-test' Makefile
 grep -Fq 'runtime-entrypoint-contract-test' Makefile
+grep -Fq 'runtime-resource-profile-test' Makefile
 grep -Fq 'android-display-contract-test' Makefile
 grep -Fq 'android-hal-profile-test' Makefile
 grep -Fq 'android-hal-contract-test' Makefile
@@ -215,6 +217,8 @@ grep -Fq 'Camera2' android/profiles/minimal/modern.packages
 grep -Fq 'Settings' android/profiles/protected.packages
 grep -Fq 'ro.vendor.royd.image_profile=minimal' android/profiles/minimal.mk
 grep -Fq 'org.royd.profile-policy' runtime/scripts/import.sh
+grep -Fq 'ROYD_RESOURCE_PROFILE' runtime/scripts/qualification.sh
+grep -Fq 'runtime resource profile' runtime/scripts/memory-provenance.sh
 grep -Fq 'ROYD_MEMORY_WORKLOAD' runtime/scripts/memory-sweep.sh
 grep -Fq 'installclean' android/scripts/build.sh
 grep -Fq 'android-build-minimal-x86_64' Makefile

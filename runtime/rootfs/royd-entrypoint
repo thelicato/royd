@@ -3,12 +3,15 @@ set -eu
 
 release_file=${ROYD_RELEASE_FILE:-/royd-release}
 runtime_file=${ROYD_RUNTIME_CONFIG:-/royd-runtime.conf}
+resource_file=${ROYD_RESOURCE_CONFIG:-/royd-resource.prop}
 
 hal_profile=graphical
+android_version=unknown
 if [ -r "$release_file" ]; then
   # royd-release is plain metadata. Values may contain spaces and must not be executed.
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
+      ROYD_ANDROID_VERSION=*) android_version=${line#ROYD_ANDROID_VERSION=} ;;
       ROYD_HAL_PROFILE=*) hal_profile=${line#ROYD_HAL_PROFILE=} ;;
     esac
   done < "$release_file"
@@ -33,6 +36,8 @@ case "$hal_profile" in
     ;;
 esac
 
+resource_profile=low-memory
+
 positive_integer() {
   name=$1
   value=$2
@@ -50,6 +55,7 @@ for argument in "$@"; do
     royd.height=*) height=${argument#royd.height=} ;;
     royd.dpi=*) dpi=${argument#royd.dpi=} ;;
     royd.fps=*) fps=${argument#royd.fps=} ;;
+    royd.resource_profile=*) resource_profile=${argument#royd.resource_profile=} ;;
     '') ;;
     *)
       echo "royd: unknown runtime argument: $argument" >&2
@@ -63,13 +69,54 @@ positive_integer height "$height"
 positive_integer dpi "$dpi"
 positive_integer fps "$fps"
 
+case "$resource_profile" in
+  low-memory)
+    low_ram=true
+    heap_start=5m
+    heap_growth=48m
+    heap_size=128m
+    heap_target=0.75
+    heap_min_free=512k
+    heap_max_free=2m
+    ;;
+  performance)
+    if [ "$android_version" != 15 ]; then
+      echo "royd: performance resource profile requires Android 15, got $android_version" >&2
+      exit 64
+    fi
+    low_ram=false
+    heap_start=8m
+    heap_growth=192m
+    heap_size=512m
+    heap_target=0.75
+    heap_min_free=512k
+    heap_max_free=8m
+    ;;
+  *)
+    echo "royd: unsupported resource profile: $resource_profile" >&2
+    exit 64
+    ;;
+esac
+
 umask 077
 {
   echo "ROYD_WIDTH=$width"
   echo "ROYD_HEIGHT=$height"
   echo "ROYD_DPI=$dpi"
   echo "ROYD_FPS=$fps"
+  echo "ROYD_RESOURCE_PROFILE=$resource_profile"
 } > "$runtime_file"
+
+{
+  echo "ro.vendor.royd.resource_profile=$resource_profile"
+  echo "ro.config.low_ram=$low_ram"
+  echo "dalvik.vm.heapstartsize=$heap_start"
+  echo "dalvik.vm.heapgrowthlimit=$heap_growth"
+  echo "dalvik.vm.heapsize=$heap_size"
+  echo "dalvik.vm.heaptargetutilization=$heap_target"
+  echo "dalvik.vm.heapminfree=$heap_min_free"
+  echo "dalvik.vm.heapmaxfree=$heap_max_free"
+} > "$resource_file"
 
 if [ "${ROYD_ENTRYPOINT_TEST_ONLY:-0}" = 1 ]; then
   exit 0

@@ -4,6 +4,8 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 image=${1:?usage: memory-provenance.sh IMAGE [RUNTIME_PROFILE]}
 profile=${2:-${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}}
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 
 command -v docker >/dev/null 2>&1 || {
   printf '%s\n' 'error: docker is required to inspect benchmark provenance' >&2
@@ -53,3 +55,4 @@ printf -- '- image profile policy SHA-256: `%s`\n' "$profile_policy_sha256"
 printf -- '- HAL profile: `%s`\n' "$hal_profile"
 printf -- '- graphics backend: `%s`\n' "$graphics_backend"
 printf -- '- runtime display profile: `%s` (%sx%s, %s dpi, %s fps)\n' "$profile" "$ROYD_WIDTH" "$ROYD_HEIGHT" "$ROYD_DPI" "$ROYD_FPS"
+printf -- '- runtime resource profile: `%s`\n' "$resource_profile"

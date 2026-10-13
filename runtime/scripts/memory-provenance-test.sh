@@ -38,6 +38,11 @@ printf '%s\n' "$output" | grep -Fq -- '- image ID: `sha256:benchmark-image`'
 printf '%s\n' "$output" | grep -Fq -- '- Android image profile: `minimal`'
 printf '%s\n' "$output" | grep -Fq -- '- image profile policy: `minimal-v2-modern`'
 printf '%s\n' "$output" | grep -Fq -- '- runtime display profile: `compact` (360x640, 160 dpi, 30 fps)'
+printf '%s\n' "$output" | grep -Fq -- '- runtime resource profile: `low-memory`'
+
+performance_output=$(ROYD_RESOURCE_PROFILE=performance PATH="$tmp:$PATH" \
+  "$script_dir/memory-provenance.sh" royd:test compact)
+printf '%s\n' "$performance_output" | grep -Fq -- '- runtime resource profile: `performance`'
 
 if PATH="$tmp:$PATH" MOCK_MISSING_POLICY=1 "$script_dir/memory-provenance.sh" royd:test compact >/dev/null 2>&1; then
   printf '%s\n' 'error: benchmark provenance accepted an image without a profile-policy digest' >&2

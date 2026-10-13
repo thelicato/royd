@@ -6,6 +6,8 @@ root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 default_image=$("$script_dir/default-image.sh" standard x86_64)
 image=${1:-${ROYD_IMAGE:-$default_image}}
 profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
+resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+"$script_dir/resource-profile.sh" "$resource_profile" >/dev/null
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 security_profile=$($script_dir/security-profile.sh "$security_mode" id)
 security_profile_sha256=$($script_dir/security-profile.sh "$security_mode" digest)
@@ -116,7 +118,8 @@ report="$workdir/report.md"
   printf -- '- Android version: `%s`\n' "${ANDROID_VERSION:-unknown}"
   printf -- '- Android baseline: `%s`\n' "${android_baseline:-unknown}"
   printf -- '- image: `%s`\n' "$image"
-  printf -- '- runtime profile: `%s`\n' "$profile"
+  printf -- '- runtime display profile: `%s`\n' "$profile"
+  printf -- '- runtime resource profile: `%s`\n' "$resource_profile"
   printf -- '- security mode: `%s`\n' "$security_mode"
   printf -- '- security profile: `%s`\n' "$security_profile"
   printf -- '- security profile SHA-256: `%s`\n\n' "$security_profile_sha256"

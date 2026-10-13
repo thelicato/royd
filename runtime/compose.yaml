@@ -14,6 +14,7 @@ services:
       - royd.height=${ROYD_HEIGHT:-960}
       - royd.dpi=${ROYD_DPI:-240}
       - royd.fps=${ROYD_FPS:-30}
+      - royd.resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
 
 volumes:
   royd-data:

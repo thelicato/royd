@@ -51,6 +51,7 @@ run ./android/scripts/android15-package-list-selinux-container-test.sh
 run ./android/scripts/android15-cpu-monitor-container-test.sh
 run ./android/scripts/android15-psi-monitor-container-test.sh
 run ./android/scripts/android15-service-manager-blocking-test.sh
+run ./android/scripts/android15-resource-profile-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh
@@ -67,6 +68,7 @@ run ./android/scripts/matrix-report-test.sh
 run ./android/scripts/build-matrix-test.sh
 run ./android/scripts/package-contract-test.sh
 run ./runtime/scripts/image-contract-test.sh
+run ./runtime/scripts/resource-profile-test.sh
 run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
 run ./runtime/scripts/boot-diagnostics-contract-test.sh

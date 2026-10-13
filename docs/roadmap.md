@@ -80,6 +80,7 @@ The repository now captures a versioned kernel/Kconfig evidence file in every re
 - [ ] Tune `lmkd` and background process behaviour against container memory limits.
 - [x] Expand the minimal package policy conservatively with version-family rules, a protected core package guard, and immutable policy identity.
 - [x] Require generated memory evidence to record the exact image/profile policy, display configuration, and named workload before figures are published.
+- [x] Add independent Android 15 low-memory and performance resource profiles selected before boot without rebuilding the image.
 
 ## 7. Privilege reduction
 

@@ -23,6 +23,7 @@ runtime_result_write "$file" \
   'PROFILE_POLICY=standard-v1' \
   'PROFILE_POLICY_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' \
   'HAL_PROFILE=graphical' \
+  'RESOURCE_PROFILE=low-memory' \
   'SECURITY_MODE=privileged' \
   'SECURITY_PROFILE=privileged-v1' \
   'SECURITY_PROFILE_SHA256=placeholder' \
@@ -40,6 +41,7 @@ runtime_result_write "$file" \
   'CONTAINER_EVIDENCE_STATUS=pass' \
   'RESULT_STATUS=pass'
 [ "$(runtime_result_get "$file" RESULT_STATUS)" = pass ]
+[ "$(runtime_result_get "$file" RESOURCE_PROFILE)" = low-memory ]
 
 report="$tmp/runtime.md"
 ROYD_RUNTIME_RESULTS_DIR="$tmp/runtime-results" ROYD_RUNTIME_REPORT_OUTPUT="$report" "$script_dir/qualification-report.sh" >/dev/null
@@ -72,6 +74,7 @@ grep -Fq '/dev/zero=' "$tmp/binder-info.out"
 
 [ "$(ROYD_HAL_PROFILE=graphical "$script_dir/default-runtime-profile.sh")" = default ]
 [ "$(ROYD_HAL_PROFILE=headless "$script_dir/default-runtime-profile.sh")" = headless ]
+[ "$("$script_dir/resource-profile.sh" performance)" = 'royd.resource_profile=performance' ]
 grep -Fq 'container-evidence.sh' "$script_dir/qualification.sh"
 grep -Fq 'CONTAINER_EVIDENCE_STATUS=' "$script_dir/qualification.sh"
 
