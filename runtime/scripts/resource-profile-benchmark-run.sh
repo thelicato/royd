@@ -12,6 +12,7 @@ memory_limit=${6:?}
 settle=${7:?}
 launch_repetitions=${8:?}
 encoder_seconds=${9:?}
+process_output=${ROYD_RESOURCE_BENCHMARK_PROCESS_OUTPUT:-}
 
 safe_profile=$(printf '%s' "$resource_profile" | tr -c 'A-Za-z0-9_.-' '_')
 container="royd-resource-benchmark-${safe_profile}-${repetition}-$$"
@@ -41,6 +42,26 @@ graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 gpu_args=$(ROYD_GRAPHICS_ARCH="$runtime_arch" "$script_dir/gpu-args.sh" "$graphics_backend" "$runtime_arch")
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 
+capture_process_rss() {
+  phase=$1
+  [ -n "$process_output" ] || return 0
+  process_list=$(docker exec "$container" ps -A -o PID,RSS,NAME) || {
+    printf 'error: could not capture the %s process RSS snapshot\n' "$phase" >&2
+    exit 1
+  }
+  process_rows=$(printf '%s\n' "$process_list" | awk -v profile="$resource_profile" \
+    -v repetition="$repetition" -v phase="$phase" '
+      $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", profile, repetition, phase, $1, $2, $3
+      }
+    ')
+  [ -n "$process_rows" ] || {
+    printf 'error: the %s process RSS snapshot was empty\n' "$phase" >&2
+    exit 1
+  }
+  printf '%s\n' "$process_rows" >>"$process_output"
+}
+
 docker volume create "$volume" >/dev/null
 started_ms=$(date +%s%3N)
 # Word splitting is intentional because the helper scripts emit trusted arguments.
@@ -64,6 +85,7 @@ boot_home_ms=$((home_ms - started_ms))
 
 [ "$settle" -eq 0 ] || sleep "$settle"
 settled_bytes=$(docker exec "$container" cat /sys/fs/cgroup/memory.current | tr -d '\r[:space:]')
+capture_process_rss settled
 cpu_before=$(docker exec "$container" sed -n 's/^usage_usec //p' /sys/fs/cgroup/cpu.stat | tr -d '\r[:space:]')
 
 launch_sum=0
@@ -122,6 +144,7 @@ docker exec "$container" screenrecord --display-id 0 \
 encoder_ended_ms=$(date +%s%3N)
 encoder_wall_ms=$((encoder_ended_ms - encoder_started_ms))
 encoder_bytes=$(docker exec "$container" wc -c "$capture" | awk '{print $1}')
+capture_process_rss post-workload
 
 cpu_after=$(docker exec "$container" sed -n 's/^usage_usec //p' /sys/fs/cgroup/cpu.stat | tr -d '\r[:space:]')
 cpu_workload_usec=$((cpu_after - cpu_before))

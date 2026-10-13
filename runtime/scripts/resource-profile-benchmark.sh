@@ -6,7 +6,7 @@ default_image=$("$script_dir/default-image.sh" standard x86_64)
 image=${1:-${ROYD_IMAGE:-$default_image}}
 display_profile=${ROYD_PROFILE:-$("$script_dir/default-runtime-profile.sh")}
 resource_profiles=${ROYD_RESOURCE_BENCHMARK_PROFILES:-'low-memory performance'}
-repetitions=${ROYD_RESOURCE_BENCHMARK_REPETITIONS:-3}
+repetitions=${ROYD_RESOURCE_BENCHMARK_REPETITIONS:-5}
 cpu_limit=${ROYD_RESOURCE_BENCHMARK_CPUS:-4}
 memory_limit=${ROYD_RESOURCE_BENCHMARK_MEMORY:-4g}
 settle=${ROYD_RESOURCE_BENCHMARK_SETTLE:-10}
@@ -73,15 +73,19 @@ fi
 
 results="$workdir/results.tsv"
 printf 'profile\trepetition\tstatus\tboot_home_ms\tlaunch_mean_ms\tlaunch_samples_ms\tframes\tjanky_frames\tjanky_percent\tframe_p50_ms\tframe_p90_ms\tencoder_wall_ms\tencoder_bytes\tcpu_workload_usec\tsettled_bytes\tpeak_bytes\n' >"$results"
+processes="$workdir/processes.tsv"
+printf 'profile\trepetition\tphase\tpid\trss_kib\tname\n' >"$processes"
 
 repetition=1
 while [ "$repetition" -le "$repetitions" ]; do
   for resource_profile in $resource_profiles; do
     log="$workdir/${resource_profile}-${repetition}.log"
+    process_run="$workdir/${resource_profile}-${repetition}.processes.tsv"
     printf 'Benchmarking resource profile %s, repetition %s/%s\n' \
       "$resource_profile" "$repetition" "$repetitions" >&2
     set +e
-    row=$("$runner" "$image" "$display_profile" "$resource_profile" "$repetition" \
+    row=$(ROYD_RESOURCE_BENCHMARK_PROCESS_OUTPUT="$process_run" \
+      "$runner" "$image" "$display_profile" "$resource_profile" "$repetition" \
       "$cpu_limit" "$memory_limit" "$settle" "$launch_repetitions" \
       "$encoder_seconds" 2>"$log")
     run_status=$?
@@ -93,6 +97,7 @@ while [ "$repetition" -le "$repetitions" ]; do
       printf '%s\t%s\tfailed\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\n' \
         "$resource_profile" "$repetition" >>"$results"
     fi
+    [ ! -s "$process_run" ] || cat "$process_run" >>"$processes"
   done
   repetition=$((repetition + 1))
 done
@@ -116,22 +121,89 @@ report="$workdir/report.md"
   printf -- '- screenrecord duration: `%s seconds`\n\n' "$encoder_seconds"
   printf 'The named workload boots to Home, performs repeated force-stop plus cold Settings launches, scrolls Settings to collect `gfxinfo`, and completes a software `screenrecord`. CPU time covers the launch, scroll and recording phase. The recording wall time and output size are health indicators, not an unconstrained encoder-throughput score.\n\n'
   printf '## Summary\n\n'
-  printf '| Resource profile | Passed | Mean boot-to-Home (ms) | Mean Settings launch (ms) | Mean frame p90 (ms) | Mean janky frames (%%) | Mean workload CPU (ms) | Mean settled memory (MiB) | Mean peak memory (MiB) |\n'
+  printf '| Resource profile | Passed | Boot-to-Home median [range] (ms) | Settings launch median [range] (ms) | Frame p90 median [range] (ms) | Janky median [range] (%%) | Workload CPU median [range] (ms) | Settled memory median [range] (MiB) | Peak memory median [range] (MiB) |\n'
   printf '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
   for resource_profile in $resource_profiles; do
     awk -F '\t' -v profile="$resource_profile" '
+      function sort_numbers(values, size, i, j, temporary) {
+        for (i = 2; i <= size; i++) {
+          temporary = values[i]
+          j = i - 1
+          while (j >= 1 && values[j] > temporary) {
+            values[j + 1] = values[j]
+            j--
+          }
+          values[j + 1] = temporary
+        }
+      }
+      function summary(values, size, scale, format, middle) {
+        sort_numbers(values, size)
+        if (size % 2) {
+          middle = values[(size + 1) / 2]
+        } else {
+          middle = (values[size / 2] + values[size / 2 + 1]) / 2
+        }
+        return sprintf(format, middle / scale) " [" \
+          sprintf(format, values[1] / scale) "-" \
+          sprintf(format, values[size] / scale) "]"
+      }
       NR > 1 && $1 == profile && $3 == "passed" {
-        count++; boot += $4; launch += $5; p90 += $11; janky += $9;
-        cpu += $14 / 1000; settled += $15 / 1048576; peak += $16 / 1048576
+        count++; boot[count] = $4; launch[count] = $5; p90[count] = $11;
+        janky[count] = $9; cpu[count] = $14; settled[count] = $15; peak[count] = $16
       }
       END {
         if (count == 0) {
           printf "| `%s` | 0 | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable | unavailable |\n", profile
         } else {
-          printf "| `%s` | %d | %.0f | %.0f | %.1f | %.2f | %.0f | %.1f | %.1f |\n", profile, count, boot/count, launch/count, p90/count, janky/count, cpu/count, settled/count, peak/count
+          printf "| `%s` | %d | %s | %s | %s | %s | %s | %s | %s |\n", \
+            profile, count, summary(boot, count, 1, "%.0f"), \
+            summary(launch, count, 1, "%.0f"), summary(p90, count, 1, "%.1f"), \
+            summary(janky, count, 1, "%.2f"), summary(cpu, count, 1000, "%.0f"), \
+            summary(settled, count, 1048576, "%.1f"), \
+            summary(peak, count, 1048576, "%.1f")
         }
       }
     ' "$results"
+  done
+  printf '\n## Settled process RSS\n\n'
+  printf 'Process RSS is diagnostic evidence and does not sum to cgroup memory because shared pages may be counted more than once and non-process kernel and cache memory is omitted.\n\n'
+  printf '| Profile | Repetition | RSS sum (MiB) | Five largest processes |\n'
+  printf '| --- | ---: | ---: | --- |\n'
+  repetition=1
+  while [ "$repetition" -le "$repetitions" ]; do
+    for resource_profile in $resource_profiles; do
+      awk -F '\t' -v profile="$resource_profile" -v repetition="$repetition" '
+        function record_largest(rss, name, slot, move) {
+          for (slot = 1; slot <= 5; slot++) {
+            if (rss > largest_rss[slot]) {
+              for (move = 5; move > slot; move--) {
+                largest_rss[move] = largest_rss[move - 1]
+                largest_name[move] = largest_name[move - 1]
+              }
+              largest_rss[slot] = rss
+              largest_name[slot] = name
+              return
+            }
+          }
+        }
+        NR > 1 && $1 == profile && $2 == repetition && $3 == "settled" {
+          count++; total += $5; record_largest($5, $6)
+        }
+        END {
+          if (count == 0) {
+            printf "| `%s` | %s | unavailable | unavailable |\n", profile, repetition
+          } else {
+            largest = ""
+            for (slot = 1; slot <= 5 && largest_rss[slot] != ""; slot++) {
+              if (largest != "") largest = largest ", "
+              largest = largest largest_name[slot] " " sprintf("%.1f MiB", largest_rss[slot] / 1024)
+            }
+            printf "| `%s` | %s | %.1f | %s |\n", profile, repetition, total / 1024, largest
+          }
+        }
+      ' "$processes"
+    done
+    repetition=$((repetition + 1))
   done
   printf '\n## Individual repetitions\n\n'
   printf '| Profile | Repetition | Result | Boot-to-Home (ms) | Mean launch (ms) | Launch samples (ms) | Frames | Janky | Janky (%%) | p50 (ms) | p90 (ms) | Encoder wall (ms) | Encoder bytes | CPU (usec) | Settled bytes | Peak bytes |\n'
@@ -163,8 +235,12 @@ else
   raw_output=${output%.md}.tsv
   [ "$raw_output" != "$output" ] || raw_output="$output.tsv"
   cp "$results" "$raw_output"
+  process_output=${output%.md}.processes.tsv
+  [ "$process_output" != "$output" ] || process_output="$output.processes.tsv"
+  cp "$processes" "$process_output"
   printf 'Wrote resource-profile benchmark to %s\n' "$output"
   printf 'Wrote raw resource-profile measurements to %s\n' "$raw_output"
+  printf 'Wrote process RSS measurements to %s\n' "$process_output"
 fi
 
 exit "$status"
