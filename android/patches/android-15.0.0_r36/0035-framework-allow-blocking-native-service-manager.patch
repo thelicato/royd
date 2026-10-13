@@ -1,0 +1,12 @@
+diff --git a/frameworks/base/core/java/android/os/ServiceManagerNative.java b/frameworks/base/core/java/android/os/ServiceManagerNative.java
+--- a/frameworks/base/core/java/android/os/ServiceManagerNative.java
++++ b/frameworks/base/core/java/android/os/ServiceManagerNative.java
+@@ -51,6 +51,7 @@ class ServiceManagerProxy implements IServiceManager {
+     public ServiceManagerProxy(IBinder remote) {
+         mRemote = remote;
+-        mServiceManager = IServiceManager.Stub.asInterface(this.getNativeServiceManager());
++        mServiceManager = IServiceManager.Stub.asInterface(
++                Binder.allowBlocking(this.getNativeServiceManager()));
+     }
+ 
+     public IBinder asBinder() {
