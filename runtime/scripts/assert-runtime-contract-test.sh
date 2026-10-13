@@ -29,6 +29,9 @@ case "$1" in
             value=true
           fi
           ;;
+        ro.config.per_app_memcg)
+          [ "${MOCK_BAD_PER_APP_MEMCG:-0}" = 1 ] && value=false || value=true
+          ;;
         ro.vendor.royd.resource_profile)
           if [ "${MOCK_BAD_RESOURCE_PROFILE:-0}" = 1 ]; then
             value=low-memory
@@ -375,6 +378,14 @@ PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_BLOCKING_WTF=1 \
 
 PATH="$tmp:$PATH" MOCK_SDK=35 ROYD_RESOURCE_PROFILE=performance \
   "$script_dir/assert-runtime.sh" performance-resource-profile >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 ROYD_RESOURCE_PROFILE=performance \
+    MOCK_BAD_PER_APP_MEMCG=1 \
+    "$script_dir/assert-runtime.sh" disabled-performance-memcg >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted disabled performance per-app memcg' >&2
+  exit 1
+fi
+grep -Fq 'ro.config.per_app_memcg expected true, got false' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 ROYD_RESOURCE_PROFILE=performance \
     MOCK_BAD_RESOURCE_PROFILE=1 \

@@ -110,6 +110,7 @@ umask 077
 {
   echo "ro.vendor.royd.resource_profile=$resource_profile"
   echo "ro.config.low_ram=$low_ram"
+  echo "ro.config.per_app_memcg=true"
   echo "dalvik.vm.heapstartsize=$heap_start"
   echo "dalvik.vm.heapgrowthlimit=$heap_growth"
   echo "dalvik.vm.heapsize=$heap_size"

@@ -40,6 +40,7 @@ cmp "$tmp/graphical.expected" "$tmp/graphical.conf"
 cat > "$tmp/graphical-resource.expected" <<'EOF_EXPECTED'
 ro.vendor.royd.resource_profile=low-memory
 ro.config.low_ram=true
+ro.config.per_app_memcg=true
 dalvik.vm.heapstartsize=5m
 dalvik.vm.heapgrowthlimit=48m
 dalvik.vm.heapsize=128m
@@ -55,6 +56,7 @@ grep -Fxq 'ROYD_RESOURCE_PROFILE=performance' "$tmp/performance.conf"
 cat > "$tmp/performance-resource.expected" <<'EOF_EXPECTED'
 ro.vendor.royd.resource_profile=performance
 ro.config.low_ram=false
+ro.config.per_app_memcg=true
 dalvik.vm.heapstartsize=8m
 dalvik.vm.heapgrowthlimit=192m
 dalvik.vm.heapsize=512m

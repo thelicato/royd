@@ -16,7 +16,7 @@ ro.lmk.use_minfree_levels=false
 
 royd does not currently override detailed `lmkd` thresholds because those values need to be tested against container memory limits and representative workloads.
 
-The Android 15 image defaults to this baseline. Set `ROYD_RESOURCE_PROFILE=performance` to select normal-RAM framework behaviour and AOSP's 2 GB phone Dalvik heap before init publishes boot properties. The same image supports both modes, and runtime and benchmark evidence records the selection. Automatic selection based on the container memory limit remains future work, as do measured process-retention and detailed `lmkd` policies.
+The Android 15 image defaults to this baseline. Set `ROYD_RESOURCE_PROFILE=performance` to select normal-RAM framework behaviour and AOSP's 2 GB phone Dalvik heap before init publishes boot properties. Both modes explicitly enable per-app memcg so the container-specific cgroup-v2 `memory.low` policy remains active independently of low-RAM framework behaviour. The same image supports both modes, and runtime and benchmark evidence records the selection. Automatic selection based on the container memory limit remains future work, as do measured process-retention and detailed `lmkd` policies.
 
 ## Display profiles
 

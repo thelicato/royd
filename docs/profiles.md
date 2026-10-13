@@ -20,7 +20,7 @@ Display profiles do not imply a supported RAM minimum. When `ROYD_PROFILE` is un
 | `low-memory` | Low RAM | 5 MB start, 48 MB growth limit, 128 MB maximum | Default compatibility and multi-instance baseline |
 | `performance` | Normal RAM | 8 MB start, 192 MB growth limit, 512 MB maximum | Android 15 high-resource measurement candidate |
 
-The performance values are AOSP's standard 2 GB phone heap policy. The mode is opt-in and is not a performance claim. It must be benchmarked against `low-memory` with identical container limits, display settings, renderer, image state and workload. Android versions other than 15 reject performance mode until they are built and validated with the same early-property mechanism.
+The performance values are AOSP's standard 2 GB phone heap policy. Both modes explicitly retain per-app memcg so Android continues applying its `memory.low` process policy beneath royd's delegated cgroup-v2 subtree. Performance mode is opt-in and is not a performance claim. It must be benchmarked against `low-memory` with identical container limits, display settings, renderer, image state and workload. Android versions other than 15 reject performance mode until they are built and validated with the same early-property mechanism.
 
 Use a profile with the smoke tests:
 

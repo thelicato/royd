@@ -144,6 +144,7 @@ assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
   assert_property ro.vendor.royd.resource_profile "$resource_profile"
+  assert_property ro.config.per_app_memcg true
   assert_property dalvik.vm.heapstartsize "$resource_heap_start"
   assert_property dalvik.vm.heapgrowthlimit "$resource_heap_growth"
   assert_property dalvik.vm.heapsize "$resource_heap_size"
