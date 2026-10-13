@@ -30,6 +30,8 @@
 .PHONY: android15-fuse-isolation-container-test
 .PHONY: android15-software-shader-cache-test
 .PHONY: runtime-resource-profile-test
+.PHONY: runtime-resource-profile-benchmark
+.PHONY: runtime-resource-profile-benchmark-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -234,6 +236,12 @@ runtime-image-contract-test:
 
 runtime-resource-profile-test:
 	./runtime/scripts/resource-profile-test.sh
+
+runtime-resource-profile-benchmark:
+	./runtime/scripts/resource-profile-benchmark.sh
+
+runtime-resource-profile-benchmark-test:
+	./runtime/scripts/resource-profile-benchmark-test.sh
 
 runtime-entrypoint-contract-test:
 	./runtime/scripts/entrypoint-contract-test.sh

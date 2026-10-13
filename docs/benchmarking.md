@@ -60,6 +60,29 @@ Before publishing a minimum RAM figure, repeat the test across multiple boots an
 
 Every generated sweep includes the image ID, Android version and AOSP ref, Android image profile, package-policy identifier and SHA-256, HAL profile, graphics backend, resource profile, exact display dimensions/density/frame rate, security mode, workload name and command, boot timeout, and settle interval. Figures without that provenance should not be published as royd memory results.
 
+## Resource-profile comparison
+
+Compare Android 15's low-memory and performance resource profiles from the same image with:
+
+```sh
+ROYD_RESOURCE_BENCHMARK_OUTPUT=.work/resource-profile-benchmark.md \
+make runtime-resource-profile-benchmark
+```
+
+The benchmark alternates profiles for three repetitions by default. Every repetition uses a fresh `/data` volume, four CPUs, a 4 GiB memory and swap limit, the same software renderer and display profile, and the same workload. The workload records boot-to-Home time, five force-stop plus cold Settings launches, Settings `gfxinfo` after controlled scrolling, a three-second software `screenrecord`, cgroup CPU time, settled memory and peak memory. The Markdown report is accompanied by a raw TSV file.
+
+Override the repetitions or container limits while preserving the paired comparison:
+
+```sh
+ROYD_RESOURCE_BENCHMARK_REPETITIONS=5 \
+ROYD_RESOURCE_BENCHMARK_CPUS=8 \
+ROYD_RESOURCE_BENCHMARK_MEMORY=8g \
+ROYD_RESOURCE_BENCHMARK_OUTPUT=.work/resource-profile-benchmark.md \
+make runtime-resource-profile-benchmark
+```
+
+The recording wall time and output size confirm that the software encoder completed its fixed real-time workload. They are not an unconstrained encoder-throughput score. Treat differences smaller than run-to-run variation as inconclusive, and do not generalise one host's result into a support or performance claim.
+
 ## Competitive performance comparison
 
 Performance comparisons against another Android container runtime must control the host, Android version and architecture, renderer, display dimensions and frame rate, CPU and memory limits, storage state, scrcpy codec and bit rate, and application workload. Report at least boot-to-home time, application launch latency, rendered frame timing, encoder throughput, host CPU time, peak and settled memory, and workload success or failure.
