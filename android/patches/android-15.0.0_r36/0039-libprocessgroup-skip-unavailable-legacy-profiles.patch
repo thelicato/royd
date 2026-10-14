@@ -1,0 +1,52 @@
+diff --git a/system/core/libprocessgroup/task_profiles.cpp b/system/core/libprocessgroup/task_profiles.cpp
+--- a/system/core/libprocessgroup/task_profiles.cpp
++++ b/system/core/libprocessgroup/task_profiles.cpp
+@@ -21,11 +21,15 @@
+ 
++#include <atomic>
+ #include <map>
+ #include <optional>
+ #include <string>
+ 
+ #include <dirent.h>
++#include <errno.h>
+ #include <fcntl.h>
+ #include <sched.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <sys/resource.h>
+ #include <unistd.h>
+ 
+@@ -57,6 +61,17 @@
+         "/etc/task_profiles/task_profiles_%u.json";
+ namespace {
+ 
++bool ShouldSkipRoydLegacyCgroup(const CgroupControllerWrapper& controller) {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    if (royd_container == nullptr || strcmp(royd_container, "1") != 0 ||
++        access("/sys/fs/selinux/enforce", F_OK) == 0 || controller.version() != 1) {
++        return false;
++    }
++
++    errno = 0;
++    return access(controller.path(), F_OK) != 0 && errno == ENOENT;
++}
++
+ class FdCacheHelper {
+   public:
+     enum FdState {
+@@ -918,6 +933,14 @@
+ 
+                 auto controller = cg_map.FindController(controller_name);
+                 if (controller.HasValue()) {
++                    if (ShouldSkipRoydLegacyCgroup(controller)) {
++                        static std::atomic_bool logged = false;
++                        if (!logged.exchange(true)) {
++                            LOG(INFO) << "ROYD: skipping task-profile actions for unavailable "
++                                         "legacy cgroup controllers";
++                        }
++                        continue;
++                    }
+                     if (controller.version() == 1) {
+                         profile->Add(std::make_unique<SetCgroupAction>(controller, path));
+                     } else {

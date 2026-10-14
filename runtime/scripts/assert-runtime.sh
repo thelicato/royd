@@ -212,6 +212,12 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'SetCgroup::ExecuteFor(Process|Task): failed to open /dev/(cpuctl|cpuset|blkio)/'; then
+    printf 'error: Android 15 attempted unavailable legacy cgroup task profiles in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   docker exec "$container" sh -c '
     # royd-runtime-package-list-test
     test -s /data/system/packages.list

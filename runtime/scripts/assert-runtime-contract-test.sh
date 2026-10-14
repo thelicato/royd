@@ -220,6 +220,9 @@ case "$1" in
       printf '%s\n' 'ResilientAtomicFile: Failed to verity-protect package manager settings'
       printf '%s\n' 'ResilientAtomicFile: java.io.IOException: Failed to enable fs-verity on FD(404): Operation not supported on transport endpoint'
     fi
+    if [ "${MOCK_LEGACY_CGROUP_PROFILE_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'libprocessgroup: SetCgroup::ExecuteForProcess: failed to open /dev/cpuctl/top-app/cgroup.procs: No such file or directory'
+    fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
@@ -541,6 +544,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_METADATA_FSVERITY_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 attempted unavailable metadata fs-verity protection' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_LEGACY_CGROUP_PROFILE_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" legacy-cgroup-profile >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unavailable Android 15 legacy cgroup profiles' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 attempted unavailable legacy cgroup task profiles' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
     "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then

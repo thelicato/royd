@@ -232,6 +232,61 @@ bool CgroupControllerWrapper::GetTaskGroup(pid_t tid, std::string* group) const 
 }
 SRC
     fi
+    if [ ! -f system/core/libprocessgroup/task_profiles.cpp ]; then
+      cat > system/core/libprocessgroup/task_profiles.cpp <<'SRC'
+#include <task_profiles.h>
+
+#include <map>
+#include <optional>
+#include <string>
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <sched.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+static constexpr const char* TASK_PROFILE_DB_FILE = "/etc/task_profiles.json";
+static constexpr const char* TASK_PROFILE_DB_VENDOR_FILE = "/vendor/etc/task_profiles.json";
+
+static constexpr const char* TEMPLATE_TASK_PROFILE_API_FILE =
+        "/etc/task_profiles/task_profiles_%u.json";
+namespace {
+
+class FdCacheHelper {
+  public:
+    enum FdState {
+        FDS_INACCESSIBLE = -1,
+    };
+};
+
+bool TaskProfiles::Load(const CgroupMap& cg_map, const std::string& file_name) {
+    std::string action_name;
+    std::string controller_name;
+    std::string path;
+    std::string profile_name;
+    std::shared_ptr<TaskProfile> profile;
+    if (action_name == "JoinCgroup") {
+
+                auto controller = cg_map.FindController(controller_name);
+                if (controller.HasValue()) {
+                    if (controller.version() == 1) {
+                        profile->Add(std::make_unique<SetCgroupAction>(controller, path));
+                    } else {
+                        LOG(WARNING) << "A JoinCgroup action in the " << profile_name
+                                     << " profile is used for controller " << controller_name
+                                     << " in the cgroup v2 hierarchy and will be ignored";
+                    }
+                } else {
+                    LOG(WARNING) << "JoinCgroup: controller " << controller_name << " is not found";
+                }
+    } else if (action_name == "SetTimerSlack") {
+        return false;
+    }
+    return true;
+}
+SRC
+    fi
     if [ ! -f frameworks/base/core/java/android/app/SystemServiceRegistry.java ]; then
       cat > frameworks/base/core/java/android/app/SystemServiceRegistry.java <<'SRC'
 import android.os.ProfilingFrameworkInitializer;
@@ -2271,6 +2326,12 @@ grep -Fq 'ROYD: skipping unavailable fs-verity for system-server metadata' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
 grep -Fq 'VerityUtils.setUpFsverity(parcelFileDescriptor.getFd());' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
+grep -Fq 'bool ShouldSkipRoydLegacyCgroup(const CgroupControllerWrapper& controller)' \
+  "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
+grep -Fq 'access(controller.path(), F_OK) != 0 && errno == ENOENT' \
+  "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
+grep -Fq 'ROYD: skipping task-profile actions for unavailable' \
+  "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \
