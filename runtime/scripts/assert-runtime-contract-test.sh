@@ -213,6 +213,9 @@ case "$1" in
       printf '%s\n' 'Binder: Outgoing transactions from this process must be FLAG_ONEWAY'
       printf '%s\n' 'Binder: at android.content.ContentProviderProxy.openTypedAssetFile(ContentProviderNative.java:812)'
     fi
+    if [ "${MOCK_ART_OVERLAY_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' "ArtService: android.os.ServiceSpecificException: Fstab entries not found for '/system/priv-app/Settings/Settings.apk' (code 1)"
+    fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
@@ -520,6 +523,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_DUPLICATE_CGROUP_ROOT=1 \
   exit 1
 fi
 grep -Fq 'Android 15 duplicated its delegated cgroup root' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_ART_OVERLAY_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" art-overlay >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unclassified Android 15 system overlay' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 ART could not classify the OCI system overlay' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
     "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then

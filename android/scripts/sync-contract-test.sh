@@ -33,7 +33,32 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/services/core/java/com/android/server/cpu \
       frameworks/av/services/audiopolicy/service \
-      frameworks/base/core/java/android/app frameworks/base/core/java/android/os
+      frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
+      art/artd
+    if [ ! -f art/artd/artd.cc ]; then
+      cat > art/artd/artd.cc <<'SRC'
+constexpr const char* kArtdCancellationSignalType = "ArtdCancellationSignal";
+constexpr const char* kDefaultPreRebootTmpDir = "/mnt/artd_tmp";
+
+// Timeout for short operations, such as merging profiles.
+constexpr int kShortTimeoutSec = 60;  // 1 minute.
+
+ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_return) {
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+
+  std::vector<FstabEntry> entries = OR_RETURN_NON_FATAL(GetProcMountsAncestorsOfPath(in_dexFile));
+  // The last one controls because `/proc/mounts` reflects the sequence of `mount`.
+  for (auto it = entries.rbegin(); it != entries.rend(); it++) {
+    if (it->fs_type == "overlay") {
+      // Ignore the overlays created by `remount`.
+      continue;
+    }
+    // We need to special-case Incremental FS since it is tagged as read-write while it's actually
+    // not.
+  }
+}
+SRC
+    fi
     if [ ! -f system/core/init/property_service.cpp ]; then
       cat > system/core/init/property_service.cpp <<'SRC'
 #include <stdlib.h>
@@ -2180,6 +2205,9 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   printf '%s\n' 'error: explicit Git LFS pull step is missing' >&2
   exit 1
 }
+grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
+grep -Fq 'it->mount_point == "/" && IsRoydContainerWithoutSelinux()' \
+  "$tmp/src/art/artd/artd.cc"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \

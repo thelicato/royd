@@ -52,6 +52,7 @@ run ./android/scripts/android15-cpu-monitor-container-test.sh
 run ./android/scripts/android15-psi-monitor-container-test.sh
 run ./android/scripts/android15-service-manager-blocking-test.sh
 run ./android/scripts/android15-resource-profile-container-test.sh
+run ./android/scripts/android15-artd-overlay-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh

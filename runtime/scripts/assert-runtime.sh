@@ -201,6 +201,12 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      "Fstab entries not found for '/system"; then
+    printf 'error: Android 15 ART could not classify the OCI system overlay in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   docker exec "$container" sh -c '
     # royd-runtime-package-list-test
     test -s /data/system/packages.list

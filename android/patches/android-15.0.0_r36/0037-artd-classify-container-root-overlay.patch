@@ -1,0 +1,32 @@
+diff --git a/art/artd/artd.cc b/art/artd/artd.cc
+--- a/art/artd/artd.cc
++++ b/art/artd/artd.cc
+@@ -152,6 +152,12 @@
+ constexpr const char* kArtdCancellationSignalType = "ArtdCancellationSignal";
+ constexpr const char* kDefaultPreRebootTmpDir = "/mnt/artd_tmp";
+ 
++bool IsRoydContainerWithoutSelinux() {
++  const char* royd_container = getenv("ROYD_CONTAINER");
++  return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++         is_selinux_enabled() <= 0;
++}
++
+ // Timeout for short operations, such as merging profiles.
+ constexpr int kShortTimeoutSec = 60;  // 1 minute.
+ 
+@@ -1352,6 +1358,15 @@
+   // The last one controls because `/proc/mounts` reflects the sequence of `mount`.
+   for (auto it = entries.rbegin(); it != entries.rend(); it++) {
+     if (it->fs_type == "overlay") {
++      if (it->mount_point == "/" && IsRoydContainerWithoutSelinux()) {
++        static std::once_flag log_once;
++        std::call_once(log_once, [] {
++          LOG(INFO) << "ROYD: treating the OCI root overlay as a system partition for ART "
++                       "artefact placement";
++        });
++        *_aidl_return = true;
++        return ScopedAStatus::ok();
++      }
+       // Ignore the overlays created by `remount`.
+       continue;
+     }
