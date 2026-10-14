@@ -23,6 +23,16 @@ esac
 case "${ROYD_REPORT_OUTPUT:-}" in ?*) printf '# mock reference\n' > "$ROYD_REPORT_OUTPUT" ;; esac
 case "${ROYD_MEMORY_SWEEP_OUTPUT:-}" in ?*) printf '# mock memory\n' > "$ROYD_MEMORY_SWEEP_OUTPUT" ;; esac
 case "${ROYD_SECURITY_CAPABILITY_SWEEP_OUTPUT:-}" in ?*) printf '# mock security\n' > "$ROYD_SECURITY_CAPABILITY_SWEEP_OUTPUT" ;; esac
+case "${ROYD_SCRCPY_OUTPUT_DIR:-}" in
+  ?*)
+    mkdir -p "$ROYD_SCRCPY_OUTPUT_DIR"
+    printf '%s\n' mock-video >"$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4"
+    bytes=$(wc -c <"$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4" | tr -d ' ')
+    digest=$(sha256sum "$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4" | awk '{print $1}')
+    printf '%s\n' 'ROYD_SCRCPY_EVIDENCE_FORMAT=1' 'RESULT_STATUS=pass' \
+      "RECORDING_BYTES=$bytes" "RECORDING_SHA256=$digest" >"$ROYD_SCRCPY_OUTPUT_DIR/manifest.env"
+    ;;
+esac
 if [ -n "${ROYD_RUNTIME_RESULT_FILE:-}" ]; then
   mkdir -p "$(dirname -- "$ROYD_RUNTIME_RESULT_FILE")"
   cat > "$ROYD_RUNTIME_RESULT_FILE" <<'RESULT'
@@ -61,6 +71,7 @@ ROYD_REFERENCE_IMAGE_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_QUALIFICATION_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_REPORT_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_MEMORY_RUNNER="$work/bin/pass" \
+ROYD_REFERENCE_SCRCPY_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_INCLUDE_MEMORY=1 \
 "$script_dir/reference-host-qualify.sh"
 
@@ -73,10 +84,14 @@ ROYD_REFERENCE_INCLUDE_MEMORY=1 \
 [ -f "$bundle/runtime-evidence/container-inspect.json" ]
 [ -f "$bundle/runtime-evidence/container.log" ]
 [ -f "$bundle/runtime-evidence/state.txt" ]
+[ -f "$bundle/scrcpy/manifest.env" ]
+[ -s "$bundle/scrcpy/scrcpy.mp4" ]
 [ -f "$bundle/SHA256SUMS" ]
 grep -Fqx 'RESULT_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'KERNEL_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'MEMORY_STATUS=pass' "$bundle/manifest.env"
+grep -Fqx 'SCRCPY_REQUIRED=1' "$bundle/manifest.env"
+grep -Fqx 'SCRCPY_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RUNTIME_LOG_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RUNTIME_EVIDENCE_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RESOURCE_PROFILE=low-memory' "$bundle/manifest.env"
@@ -112,6 +127,7 @@ ROYD_RUNTIME_LOG_FILE="$runtime_log" ROYD_RUNTIME_EVIDENCE_DIR="$runtime_evidenc
 ROYD_REFERENCE_KERNEL_RUNNER="$work/bin/no-kernel-evidence" ROYD_REFERENCE_HOST_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_IMAGE_RUNNER="$work/bin/pass" ROYD_REFERENCE_QUALIFICATION_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_REPORT_RUNNER="$work/bin/pass" ROYD_REFERENCE_MEMORY_RUNNER="$work/bin/pass" \
+ROYD_REFERENCE_SCRCPY_RUNNER="$work/bin/pass" \
 "$script_dir/reference-host-qualify.sh" >/dev/null 2>&1
 code=$?
 set -e
@@ -130,7 +146,8 @@ ROYD_RUNTIME_LOG_FILE="$runtime_log" ROYD_RUNTIME_EVIDENCE_DIR="$runtime_evidenc
 ROYD_TEST_KERNEL_CONTRACT="$repo_root/runtime/kernel/config-contract.tsv" \
 ROYD_REFERENCE_KERNEL_RUNNER="$work/bin/pass" ROYD_REFERENCE_HOST_RUNNER="$work/bin/fail" ROYD_REFERENCE_IMAGE_RUNNER="$work/bin/pass" \
 ROYD_REFERENCE_QUALIFICATION_RUNNER="$work/bin/pass" ROYD_REFERENCE_REPORT_RUNNER="$work/bin/pass" \
-ROYD_REFERENCE_MEMORY_RUNNER="$work/bin/pass" "$script_dir/reference-host-qualify.sh" >/dev/null 2>&1
+ROYD_REFERENCE_MEMORY_RUNNER="$work/bin/pass" ROYD_REFERENCE_SCRCPY_RUNNER="$work/bin/pass" \
+"$script_dir/reference-host-qualify.sh" >/dev/null 2>&1
 code=$?
 set -e
 [ "$code" -ne 0 ]

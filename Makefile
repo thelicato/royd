@@ -32,6 +32,8 @@
 .PHONY: runtime-resource-profile-test
 .PHONY: runtime-resource-profile-benchmark
 .PHONY: runtime-resource-profile-benchmark-test
+.PHONY: runtime-scrcpy-stability-test
+.PHONY: runtime-scrcpy-stability-contract-test
 
 runtime-boot-diagnostics-test:
 	./runtime/scripts/boot-diagnostics-contract-test.sh
@@ -242,6 +244,12 @@ runtime-resource-profile-benchmark:
 
 runtime-resource-profile-benchmark-test:
 	./runtime/scripts/resource-profile-benchmark-test.sh
+
+runtime-scrcpy-stability-test:
+	./runtime/scripts/scrcpy-stability-test.sh
+
+runtime-scrcpy-stability-contract-test:
+	./runtime/scripts/scrcpy-stability-contract-test.sh
 
 runtime-entrypoint-contract-test:
 	./runtime/scripts/entrypoint-contract-test.sh

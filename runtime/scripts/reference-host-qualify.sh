@@ -33,7 +33,15 @@ work_root=${ROYD_WORK_DIR:-$repo_root/.work}
 output=${ROYD_REFERENCE_BUNDLE_OUTPUT:-$work_root/reference-hosts/$android_version-$arch-$image_profile-$hal_profile-$graphics_backend-$security_mode}
 include_memory=${ROYD_REFERENCE_INCLUDE_MEMORY:-1}
 include_capability_sweep=${ROYD_REFERENCE_INCLUDE_CAPABILITY_SWEEP:-0}
+include_scrcpy=${ROYD_REFERENCE_INCLUDE_SCRCPY:-}
 replace=${ROYD_REFERENCE_REPLACE:-0}
+
+if [ -z "$include_scrcpy" ]; then
+  case "$android_version:$hal_profile" in
+    15:graphical) include_scrcpy=1 ;;
+    *) include_scrcpy=0 ;;
+  esac
+fi
 
 kernel_runner=${ROYD_REFERENCE_KERNEL_RUNNER:-$script_dir/kernel-evidence.sh}
 host_runner=${ROYD_REFERENCE_HOST_RUNNER:-$script_dir/host-check.sh}
@@ -42,11 +50,12 @@ qualification_runner=${ROYD_REFERENCE_QUALIFICATION_RUNNER:-$script_dir/qualific
 reference_runner=${ROYD_REFERENCE_REPORT_RUNNER:-$script_dir/reference-report.sh}
 memory_runner=${ROYD_REFERENCE_MEMORY_RUNNER:-$script_dir/memory-sweep.sh}
 capability_runner=${ROYD_REFERENCE_CAPABILITY_RUNNER:-$script_dir/security-capability-sweep.sh}
+scrcpy_runner=${ROYD_REFERENCE_SCRCPY_RUNNER:-$script_dir/scrcpy-stability-test.sh}
 
 case "$arch" in x86_64|arm64) ;; *) printf 'error: unsupported reference architecture: %s\n' "$arch" >&2; exit 2 ;; esac
-case "$include_memory:$include_capability_sweep:$replace" in
-  [01]:[01]:[01]) ;;
-  *) printf '%s\n' 'error: ROYD_REFERENCE_INCLUDE_MEMORY, ROYD_REFERENCE_INCLUDE_CAPABILITY_SWEEP, and ROYD_REFERENCE_REPLACE must be 0 or 1' >&2; exit 2 ;;
+case "$include_memory:$include_capability_sweep:$include_scrcpy:$replace" in
+  [01]:[01]:[01]:[01]) ;;
+  *) printf '%s\n' 'error: ROYD_REFERENCE_INCLUDE_MEMORY, ROYD_REFERENCE_INCLUDE_CAPABILITY_SWEEP, ROYD_REFERENCE_INCLUDE_SCRCPY, and ROYD_REFERENCE_REPLACE must be 0 or 1' >&2; exit 2 ;;
 esac
 if [ "$include_capability_sweep" -eq 1 ] && [ "$security_mode" != experimental ]; then
   printf '%s\n' 'error: capability sweep is valid only with ROYD_SECURITY_MODE=experimental' >&2
@@ -86,6 +95,7 @@ qualification_status=not-run
 reference_status=not-run
 memory_status=not-run
 capability_status=not-run
+scrcpy_status=not-run
 runtime_log_status=not-run
 runtime_evidence_status=not-run
 
@@ -119,6 +129,13 @@ if [ "$include_capability_sweep" -eq 1 ]; then
     ROYD_HAL_PROFILE="$hal_profile" ROYD_SECURITY_MODE=experimental ROYD_GRAPHICS_BACKEND="$graphics_backend" \
     ROYD_PROFILE="$runtime_profile" ROYD_IMAGE="$image" ROYD_SECURITY_CAPABILITY_SWEEP_OUTPUT="$output/security-capabilities.md" \
     "$capability_runner" "$image"
+fi
+if [ "$include_scrcpy" -eq 1 ]; then
+  run_stage scrcpy env \
+    ROYD_ANDROID_VERSION="$android_version" ROYD_QUALIFY_ARCH="$arch" ROYD_ARCH="$arch" \
+    ROYD_ANDROID_PROFILE="$image_profile" ROYD_HAL_PROFILE="$hal_profile" ROYD_SECURITY_MODE="$security_mode" \
+    ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_PROFILE="$runtime_profile" ROYD_RESOURCE_PROFILE="$resource_profile" \
+    ROYD_IMAGE="$image" ROYD_SCRCPY_OUTPUT_DIR="$output/scrcpy" "$scrcpy_runner" "$image"
 fi
 
 runtime_result=${ROYD_RUNTIME_RESULT_FILE:-}
@@ -156,7 +173,7 @@ fi
 
 ended=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$output/manifest.env" <<MANIFEST
-ROYD_REFERENCE_BUNDLE_FORMAT=3
+ROYD_REFERENCE_BUNDLE_FORMAT=4
 RESULT_STATUS=$overall
 STARTED_AT=$started
 FINISHED_AT=$ended
@@ -181,6 +198,8 @@ QUALIFICATION_STATUS=$qualification_status
 REFERENCE_STATUS=$reference_status
 MEMORY_STATUS=$memory_status
 CAPABILITY_SWEEP_STATUS=$capability_status
+SCRCPY_REQUIRED=$include_scrcpy
+SCRCPY_STATUS=$scrcpy_status
 RUNTIME_LOG_STATUS=$runtime_log_status
 RUNTIME_EVIDENCE_STATUS=$runtime_evidence_status
 MANIFEST

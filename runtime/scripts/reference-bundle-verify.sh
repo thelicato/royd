@@ -17,11 +17,27 @@ bundle=${1:-}
 ) >/dev/null
 
 get() { sed -n "s/^$1=//p" "$bundle/manifest.env" | tail -n 1; }
-[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 3 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
+[ "$(get ROYD_REFERENCE_BUNDLE_FORMAT)" = 4 ] || { printf '%s\n' 'error: unsupported reference bundle format' >&2; exit 1; }
 [ "$(get RESULT_STATUS)" = pass ] || { printf '%s\n' 'error: reference bundle did not pass qualification' >&2; exit 1; }
 for stage in KERNEL_STATUS HOST_STATUS IMAGE_STATUS QUALIFICATION_STATUS REFERENCE_STATUS RUNTIME_LOG_STATUS RUNTIME_EVIDENCE_STATUS; do
   [ "$(get "$stage")" = pass ] || { printf 'error: required stage is not pass: %s\n' "$stage" >&2; exit 1; }
 done
+case "$(get SCRCPY_REQUIRED)" in
+  0) ;;
+  1)
+    [ "$(get SCRCPY_STATUS)" = pass ] || { printf '%s\n' 'error: required scrcpy stage is not pass' >&2; exit 1; }
+    [ -f "$bundle/scrcpy/manifest.env" ] || { printf '%s\n' 'error: scrcpy manifest is missing' >&2; exit 1; }
+    scrcpy_get() { sed -n "s/^$1=//p" "$bundle/scrcpy/manifest.env" | tail -n 1; }
+    [ "$(scrcpy_get ROYD_SCRCPY_EVIDENCE_FORMAT)" = 1 ] || { printf '%s\n' 'error: scrcpy evidence format is stale' >&2; exit 1; }
+    [ "$(scrcpy_get RESULT_STATUS)" = pass ] || { printf '%s\n' 'error: scrcpy evidence did not pass' >&2; exit 1; }
+    [ -s "$bundle/scrcpy/scrcpy.mp4" ] || { printf '%s\n' 'error: scrcpy recording is missing or empty' >&2; exit 1; }
+    scrcpy_bytes=$(wc -c <"$bundle/scrcpy/scrcpy.mp4" | tr -d ' ')
+    scrcpy_sha256=$(sha256sum "$bundle/scrcpy/scrcpy.mp4" | awk '{print $1}')
+    [ "$(scrcpy_get RECORDING_BYTES)" = "$scrcpy_bytes" ] || { printf '%s\n' 'error: scrcpy recording size does not match its manifest' >&2; exit 1; }
+    [ "$(scrcpy_get RECORDING_SHA256)" = "$scrcpy_sha256" ] || { printf '%s\n' 'error: scrcpy recording digest does not match its manifest' >&2; exit 1; }
+    ;;
+  *) printf '%s\n' 'error: invalid SCRCPY_REQUIRED value' >&2; exit 1 ;;
+esac
 
 android_version=$(get ANDROID_VERSION)
 image_profile=$(get IMAGE_PROFILE)

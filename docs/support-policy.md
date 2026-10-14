@@ -19,9 +19,10 @@ A release may be described as supported only after the relevant architecture and
 5. Binder setup and multi-instance isolation
 6. software graphics, and GPU mode where published
 7. ADB and container log behaviour
-8. documented memory workload
-9. documented security mode
-10. reference-host compatibility record
+8. scrcpy streaming stability for published graphical profiles
+9. documented memory workload
+10. documented security mode
+11. reference-host compatibility record
 
 Support claims must state the Android version, architecture, image profile, HAL profile, security mode, and security-profile policy identity they cover. A security-profile digest change invalidates older runtime qualification for support purposes.
 

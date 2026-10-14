@@ -50,6 +50,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add Binder, cgroup, and graphics startup diagnostics.
 - [x] Add a reproducible reference-host report.
 - [x] Add checksummed reference-host qualification bundles with policy-staleness and tamper verification.
+- [x] Add a timed scrcpy streaming-stability gate with retained recording and host/container evidence for Android 15 graphical qualification.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
 - [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
 - [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.

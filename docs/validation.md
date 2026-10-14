@@ -55,6 +55,18 @@ Android 15's ANGLE plus SwiftShader software backend disables SurfaceFlinger's e
 
 Android 15 runtime assertions also require the AIDL Codec2 software store to expose H.264 video and Opus audio encoders. The product selects Stagefright's local AIDL GraphicBufferSource path for encoder input surfaces because it does not install the remote Codec2 input-surface or legacy OMX services. Codec2 uses its BufferQueue and gralloc-backed BLOB pools because OCI does not provide Android's ION or dma-buf system heap. The memfd allocator supports the software encoder's surface and BLOB output usage, and the runtime check records a short non-empty H.264 display capture to verify the complete SurfaceFlinger-to-Codec2 path. These components provide the default scrcpy streaming codecs without requiring host media hardware.
 
+## scrcpy streaming stability
+
+After runtime qualification passes, validate the host ADB, scrcpy server, H.264 encoder and changing UI stream together with:
+
+```sh
+make runtime-scrcpy-stability-test
+```
+
+The default 30-second test starts a fresh container and data volume, publishes ADB on a random loopback port, uses an isolated ADB server, records a headless H.264 scrcpy session, and repeatedly opens Settings, scrolls and returns Home. It rejects an early scrcpy exit or an empty recording. Evidence is written under `.work/scrcpy-stability`; set `ROYD_SCRCPY_REPLACE=1` to replace an existing local result, or select another directory with `ROYD_SCRCPY_OUTPUT_DIR`.
+
+This proves that one timed stream remained healthy on the tested host. It does not measure interactive latency or establish an encoder-throughput claim.
+
 The Android 15 graphical product installs only AOSP's app-widget feature declaration rather than the broad handheld hardware declaration. Runtime assertions require the resulting AppWidget service, unlock the display, select Home and confirm that the same Launcher3 process remains alive across a stability interval before recording the display capture.
 
 Android 15 delegates `/sys/fs/cgroup/royd` to the Android system UID while leaving Docker's cgroup root unchanged. Android init moves into `/sys/fs/cgroup/royd/init`, leaving the delegated root free to enable the cgroup-v2 memory controller for `lmkd` and Android process groups. Libprocessgroup removes the namespace-absolute `/royd` prefix before resolving task attributes against that controller root, preventing duplicated paths. Netd attaches Android's network BPF programs to the delegated root rather than rejecting the non-standard cgroup path. Runtime assertions verify the memory-controller delegation, a non-zero Launcher `memory.low`, PID 1 and `system_server` membership, and a running netd. They also reject duplicated cgroup roots, launch the WebView shell and require `system_server` to remain alive, covering the isolated-process group path used by WebView and other app zygotes.

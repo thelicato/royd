@@ -70,6 +70,7 @@ run ./android/scripts/package-contract-test.sh
 run ./runtime/scripts/image-contract-test.sh
 run ./runtime/scripts/resource-profile-test.sh
 run ./runtime/scripts/resource-profile-benchmark-test.sh
+run ./runtime/scripts/scrcpy-stability-contract-test.sh
 run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
 run ./runtime/scripts/boot-diagnostics-contract-test.sh
