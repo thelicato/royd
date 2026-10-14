@@ -32,6 +32,7 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/am \
       frameworks/base/services/core/java/com/android/server/pm \
       frameworks/base/services/core/java/com/android/server/cpu \
+      frameworks/base/services/core/java/com/android/server/security \
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
       art/artd
@@ -56,6 +57,62 @@ ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_r
     // We need to special-case Incremental FS since it is tagged as read-write while it's actually
     // not.
   }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java <<'SRC'
+package com.android.server.security;
+
+import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
+
+import android.annotation.NonNull;
+import android.annotation.SystemApi;
+import android.os.ParcelFileDescriptor;
+
+import com.android.internal.security.VerityUtils;
+
+import java.io.File;
+import java.io.IOException;
+
+
+/**
+ * In-process API for server side FileIntegrity related infrastructure.
+ *
+ * @hide
+ */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+public final class FileIntegrity {
+    private FileIntegrity() {}
+
+    /**
+     * Enables fs-verity, if supported by the filesystem. This operation is atomic, i.e. it's either
+     * enabled or not, even in case of power failure during or after the call.
+     * @see <a href="https://www.kernel.org/doc/html/latest/filesystems/fsverity.html">
+     *
+     * @hide
+     */
+    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+    public static void setUpFsVerity(@NonNull File file) throws IOException {
+        try (ParcelFileDescriptor pfd = ParcelFileDescriptor.open(file, MODE_READ_ONLY)) {
+            setUpFsVerity(pfd);
+        }
+    }
+
+    /**
+     * Enables fs-verity, if supported by the filesystem. This operation is atomic, i.e. it's either
+     * enabled or not, even in case of power failure during or after the call.
+     * @see <a href="https://www.kernel.org/doc/html/latest/filesystems/fsverity.html">
+     *
+     * @param parcelFileDescriptor an FD opened in {@link ParcelFileDescriptor#MODE_READ_ONLY}.
+     *
+     * @hide
+     */
+    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+    public static void setUpFsVerity(@NonNull ParcelFileDescriptor parcelFileDescriptor)
+            throws IOException {
+        VerityUtils.setUpFsverity(parcelFileDescriptor.getFd());
+    }
 }
 SRC
     fi
@@ -2208,6 +2265,12 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
 grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
 grep -Fq 'it->mount_point == "/" && IsRoydContainerWithoutSelinux()' \
   "$tmp/src/art/artd/artd.cc"
+grep -Fq 'private static boolean shouldSkipForRoydContainer() {' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
+grep -Fq 'ROYD: skipping unavailable fs-verity for system-server metadata' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
+grep -Fq 'VerityUtils.setUpFsverity(parcelFileDescriptor.getFd());' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \

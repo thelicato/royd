@@ -216,6 +216,10 @@ case "$1" in
     if [ "${MOCK_ART_OVERLAY_FAILURE:-0}" = 1 ]; then
       printf '%s\n' "ArtService: android.os.ServiceSpecificException: Fstab entries not found for '/system/priv-app/Settings/Settings.apk' (code 1)"
     fi
+    if [ "${MOCK_METADATA_FSVERITY_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'ResilientAtomicFile: Failed to verity-protect package manager settings'
+      printf '%s\n' 'ResilientAtomicFile: java.io.IOException: Failed to enable fs-verity on FD(404): Operation not supported on transport endpoint'
+    fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
@@ -530,6 +534,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_ART_OVERLAY_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 ART could not classify the OCI system overlay' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_METADATA_FSVERITY_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" metadata-fsverity >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unavailable Android 15 metadata fs-verity' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 attempted unavailable metadata fs-verity protection' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
     "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then
