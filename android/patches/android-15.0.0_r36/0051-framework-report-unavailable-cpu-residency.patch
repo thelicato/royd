@@ -1,0 +1,62 @@
+diff --git a/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java b/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java
+--- a/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java
++++ b/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java
+@@ -17,12 +17,16 @@
+
++import android.os.SELinux;
++import android.system.ErrnoException;
+ import android.system.Os;
+ import android.text.TextUtils;
+ import android.os.StrictMode;
+ import android.system.OsConstants;
+ import android.util.Slog;
+
+ import java.io.BufferedReader;
++import java.io.FileNotFoundException;
+ import java.io.FileReader;
+ import java.io.IOException;
+ import java.util.Arrays;
++import java.util.concurrent.atomic.AtomicBoolean;
+
+@@ -42,6 +46,7 @@
+     private final long[] mLastSpeedTimesMs;
+     private final long[] mDeltaSpeedTimesMs;
++    private final AtomicBoolean mRoydMissingStatsReported = new AtomicBoolean();
+
+     // How long a CPU jiffy is in milliseconds.
+     private final long mJiffyMillis;
+
+@@ -86,7 +91,7 @@
+             }
+         } catch (IOException e) {
+-            Slog.e(TAG, "Failed to read cpu-freq: " + e.getMessage());
++            reportReadError(e);
+             Arrays.fill(mDeltaSpeedTimesMs, 0);
+         } finally {
+             StrictMode.setThreadPolicy(policy);
+         }
+@@ -113,10 +118,23 @@
+             }
+         } catch (IOException e) {
+-            Slog.e(TAG, "Failed to read cpu-freq: " + e.getMessage());
++            reportReadError(e);
+             Arrays.fill(speedTimeMs, 0);
+         } finally {
+             StrictMode.setThreadPolicy(policy);
+         }
+         return speedTimeMs;
+     }
++
++    private void reportReadError(IOException error) {
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                && error instanceof FileNotFoundException
++                && error.getCause() instanceof ErrnoException
++                && ((ErrnoException) error.getCause()).errno == OsConstants.ENOENT) {
++            if (mRoydMissingStatsReported.compareAndSet(false, true)) {
++                Slog.i(TAG, "ROYD: CPU frequency residency unavailable for " + mProcFile);
++            }
++            return;
++        }
++        Slog.e(TAG, "Failed to read cpu-freq: " + error.getMessage());
++    }
+ }

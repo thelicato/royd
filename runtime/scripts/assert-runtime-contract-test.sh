@@ -142,6 +142,16 @@ case "$1" in
       printf '%s\n' "$value"
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = cpuinfo ]; then
+      case "${MOCK_CPU_TIME_DUMP:-good}" in
+        good) printf '%s\n' 'CPU usage from 1000ms to 0ms ago:' '40% TOTAL: 17% user + 23% kernel' ;;
+        failed) exit 1 ;;
+        invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+        no_total) printf '%s\n' 'CPU usage from 1000ms to 0ms ago:' ;;
+        no_header) printf '%s\n' '40% TOTAL: 17% user + 23% kernel' ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = dumpsys ] && \
         [ "$2" = android.hardware.media.c2.IComponentStore/software ]; then
       printf '%s\n' '    name: c2.android.avc.encoder'
@@ -231,6 +241,9 @@ case "$1" in
           ;;
         *royd-runtime-memcg-path-test*)
           [ "${MOCK_BAD_MEMCG_PATH:-0}" != 1 ] || exit 1
+          ;;
+        *royd-runtime-cpu-residency-availability-test*)
+          [ "${MOCK_CPU_RESIDENCY_AVAILABLE:-0}" != 1 ]
           ;;
         *royd-runtime-legacy-cgroup-availability-test*)
           [ "${MOCK_ALL_LEGACY_CGROUPS_MOUNTED:-0}" != 1 ]
@@ -378,6 +391,15 @@ case "$1" in
     if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
     fi
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_CPU_RESIDENCY_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'KernelCpuSpeedReader: ROYD: CPU frequency residency unavailable for /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state'
+    fi
+    if [ "${MOCK_CPU_RESIDENCY_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state: open failed: ENOENT (No such file or directory)'
+    fi
+    if [ "${MOCK_OTHER_CPU_READ_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state: open failed: EACCES (Permission denied)'
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_PSI_MODE:-0}" != 1 ]; then
       printf '%s\n' 'LowMemDetector: ROYD: using unprivileged 2-second PSI windows for ActivityManager'
     fi
@@ -494,6 +516,32 @@ for activity in attach map program initialized; do
     exit 1
   fi
   grep -Fq 'attempted host-global GPU-work tracing' "$tmp/error"
+done
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_CPU_RESIDENCY_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-cpu-residency-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported missing CPU residency' >&2
+  exit 1
+fi
+grep -Fq 'unavailable CPU-frequency residency is not reported' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_RESIDENCY_AVAILABLE=1 \
+  MOCK_MISSING_CPU_RESIDENCY_MARKER=1 \
+  "$script_dir/assert-runtime.sh" available-cpu-residency >/dev/null
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_RESIDENCY_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" missing-cpu-residency >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted repeated missing CPU residency diagnostics' >&2
+  exit 1
+fi
+grep -Fq 'repeated missing CPU-frequency residency diagnostics' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_CPU_READ_FAILURE=1 \
+  "$script_dir/assert-runtime.sh" other-cpu-read-failure >/dev/null
+for status in failed invalid no_total no_header; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_TIME_DUMP="$status" \
+      "$script_dir/assert-runtime.sh" bad-cpu-time-dump >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a broken CPU-time response' >&2
+    exit 1
+  fi
+  grep -Eq 'CPU-time status dump failed|CPU-time accounting response is invalid' "$tmp/error"
 done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_INIT_LOGGING_MODE=1 \

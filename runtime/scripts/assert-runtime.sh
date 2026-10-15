@@ -400,6 +400,35 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker exec "$container" sh -c '
+    # royd-runtime-cpu-residency-availability-test
+    for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+      [ ! -d "$policy" ] || exit 1
+    done
+    [ ! -e /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state ]
+  '; then
+    if ! docker logs "$container" 2>&1 | grep -Fq \
+        'ROYD: CPU frequency residency unavailable for /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state'; then
+      printf 'error: Android 15 unavailable CPU-frequency residency is not reported in %s\n' \
+        "$container" >&2
+      exit 1
+    fi
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu[0-9]+/cpufreq/stats/time_in_state: open failed: ENOENT'; then
+    printf 'error: Android 15 repeated missing CPU-frequency residency diagnostics in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  cpu_time_dump=$(docker exec "$container" dumpsys cpuinfo 2>&1) || {
+    printf 'error: Android 15 CPU-time status dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$cpu_time_dump" | grep -q '^CPU usage from ' || \
+      ! printf '%s\n' "$cpu_time_dump" | grep -q '% TOTAL:'; then
+    printf 'error: Android 15 CPU-time accounting response is invalid in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: using unprivileged 2-second PSI windows for ActivityManager'; then
     printf 'error: Android 15 did not enable its unprivileged ActivityManager PSI monitor in %s\n' \
