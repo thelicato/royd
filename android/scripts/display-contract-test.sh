@@ -19,6 +19,22 @@ int property_set(const char* key, const char* value);
 EOF_HEADER
 
 cc -std=c11 -Wall -Wextra -Werror -I"$tmp" -c "$source_file" -o "$tmp/display.o"
+cc -std=c11 -Wall -Wextra -Werror -I"$tmp" "$android_dir/tests/display-bootstrap-test.c" \
+  -o "$tmp/display-bootstrap-test"
+"$tmp/display-bootstrap-test"
+if [ "${ROYD_DISPLAY_TEST_SANITIZERS:-0}" = 1 ]; then
+  cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
+    -I"$tmp" "$android_dir/tests/display-bootstrap-test.c" -o "$tmp/display-bootstrap-sanitized"
+  "$tmp/display-bootstrap-sanitized"
+fi
+printf '%s\n' 'ROYD_ANDROID_VERSION=15' 'ROYD_HAL_PROFILE=graphical' >"$tmp/release"
+for resource_profile in low-memory performance; do
+  ROYD_RELEASE_FILE="$tmp/release" ROYD_RUNTIME_CONFIG="$tmp/runtime.conf" \
+    ROYD_RESOURCE_CONFIG="$tmp/resource.prop" ROYD_ENTRYPOINT_TEST_ONLY=1 \
+    sh "$android_dir/../runtime/rootfs/royd-entrypoint" royd.width=600 royd.height=1000 \
+      royd.dpi=320 royd.fps=24 "royd.resource_profile=$resource_profile"
+  "$tmp/display-bootstrap-test" "$tmp/runtime.conf"
+done
 grep -Fq 'name: "royd-display-bootstrap"' "$android_dir/royd/vendor/royd/Android.bp"
 grep -Fq 'exec -- /vendor/bin/royd-display-bootstrap' "$android_dir/royd/vendor/royd/init.royd.rc"
 grep -Fq 'vendor.royd.display.width' "$android_dir/royd/vendor/royd/gralloc/gralloc_royd.cpp"

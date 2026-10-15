@@ -768,6 +768,16 @@ docker logs "$container" 2>&1 | grep -Fq '[royd] binderfs: ready' || {
 }
 
 if [ "$sdk" = 35 ]; then
+  if ! docker logs "$container" 2>&1 | grep -Fq '[royd] display: runtime configuration validated'; then
+    printf 'error: Android 15 display runtime configuration was not validated in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      'display: runtime config missing or invalid, using profile defaults'; then
+    printf 'error: Android 15 display bootstrap rejected the runtime configuration in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: Binder freezing disabled: PID namespace safety is unqualified'; then
     printf 'error: Android 15 Binder-freezer isolation mode is not reported in %s\n' "$container" >&2

@@ -23,6 +23,15 @@ struct display_config {
     int fps;
 };
 
+enum config_field {
+    CONFIG_WIDTH = 1u << 0,
+    CONFIG_HEIGHT = 1u << 1,
+    CONFIG_DPI = 1u << 2,
+    CONFIG_FPS = 1u << 3,
+    CONFIG_RESOURCE_PROFILE = 1u << 4,
+    CONFIG_DISPLAY_FIELDS = CONFIG_WIDTH | CONFIG_HEIGHT | CONFIG_DPI | CONFIG_FPS,
+};
+
 static void log_line(const char* level, const char* message) {
     FILE* stream = fopen(strcmp(level, "warning") == 0 ? "/proc/1/fd/2" : "/proc/1/fd/1", "w");
     if (stream == NULL) {
@@ -39,6 +48,11 @@ static int parse_positive(const char* value, int maximum, int* output) {
 
     if (value == NULL || *value == '\0') {
         return -1;
+    }
+    for (const unsigned char* digit = (const unsigned char*)value; *digit != '\0'; ++digit) {
+        if (!isdigit(*digit)) {
+            return -1;
+        }
     }
     errno = 0;
     parsed = strtol(value, &end, 10);
@@ -65,62 +79,103 @@ static void defaults(struct display_config* config) {
     config->fps = 30;
 }
 
-static int apply_line(struct display_config* config, char* line) {
+static int apply_line(struct display_config* config, char* line, unsigned int* seen) {
     char* equals = strchr(line, '=');
-    int value;
-    int maximum;
-    int* target;
+    int value = 0;
+    int maximum = 0;
+    int* target = NULL;
+    unsigned int field;
 
     if (equals == NULL) {
         return -1;
     }
     *equals = '\0';
     ++equals;
-    equals[strcspn(equals, "\r\n")] = '\0';
 
     if (strcmp(line, "ROYD_WIDTH") == 0) {
+        field = CONFIG_WIDTH;
         target = &config->width;
         maximum = 16384;
     } else if (strcmp(line, "ROYD_HEIGHT") == 0) {
+        field = CONFIG_HEIGHT;
         target = &config->height;
         maximum = 16384;
     } else if (strcmp(line, "ROYD_DPI") == 0) {
+        field = CONFIG_DPI;
         target = &config->dpi;
         maximum = 2000;
     } else if (strcmp(line, "ROYD_FPS") == 0) {
+        field = CONFIG_FPS;
         target = &config->fps;
         maximum = 1000;
+    } else if (strcmp(line, "ROYD_RESOURCE_PROFILE") == 0) {
+        field = CONFIG_RESOURCE_PROFILE;
+        // This is metadata for the display reader, not a source of memory policy.
+        if (strcmp(equals, "low-memory") != 0 && strcmp(equals, "performance") != 0) {
+            return -1;
+        }
     } else {
         return -1;
     }
 
-    if (parse_positive(equals, maximum, &value) != 0) {
+    if ((*seen & field) != 0 || (target != NULL && parse_positive(equals, maximum, &value) != 0)) {
         return -1;
     }
-    *target = value;
+    if (target != NULL) {
+        *target = value;
+    }
+    *seen |= field;
     return 0;
+}
+
+// Return one complete bounded line, EOF, or an error. Reject embedded NUL bytes.
+static int read_config_line(FILE* file, char* line, size_t capacity) {
+    size_t length = 0;
+    int character;
+    while ((character = fgetc(file)) != EOF && character != '\n') {
+        if (character == '\0' || length == capacity - 1) {
+            return -1;
+        }
+        line[length++] = (char)character;
+    }
+    if (ferror(file)) {
+        return -1;
+    }
+    if (character == EOF && length == 0) {
+        return 0;
+    }
+    if (length > 0 && line[length - 1] == '\r') {
+        --length;
+    }
+    line[length] = '\0';
+    return 1;
 }
 
 static int load_config(struct display_config* config) {
     FILE* file = fopen(ROYD_CONFIG_PATH, "r");
     char line[ROYD_LINE_MAX];
-    int seen = 0;
+    struct display_config parsed = *config;
+    unsigned int seen = 0;
+    int status;
 
     if (file == NULL) {
         return -1;
     }
-    while (fgets(line, sizeof(line), file) != NULL) {
-        if (line[0] == '\0' || line[0] == '\n') {
+    while ((status = read_config_line(file, line, sizeof(line))) > 0) {
+        if (line[0] == '\0') {
             continue;
         }
-        if (apply_line(config, line) != 0) {
-            fclose(file);
-            return -1;
+        if (apply_line(&parsed, line, &seen) != 0) {
+            status = -1;
+            break;
         }
-        ++seen;
     }
-    fclose(file);
-    return seen == 4 ? 0 : -1;
+    const int close_status = fclose(file);
+    if (status < 0 || close_status != 0 || (seen & CONFIG_DISPLAY_FIELDS) != CONFIG_DISPLAY_FIELDS) {
+        return -1;
+    }
+    *config = parsed;
+    return 0;
 }
 
 static int set_int_property(const char* name, int value) {
@@ -136,6 +191,8 @@ int main(void) {
     defaults(&config);
     if (load_config(&config) != 0) {
         log_line("warning", "display: runtime config missing or invalid, using profile defaults");
+    } else {
+        log_line("info", "display: runtime configuration validated");
     }
 
     if (set_int_property("vendor.royd.display.width", config.width) != 0 ||

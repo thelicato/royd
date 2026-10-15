@@ -317,6 +317,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
+      printf '%s\n' '[royd] display: runtime configuration validated'
+    fi
+    if [ "${MOCK_INVALID_DISPLAY_CONFIG:-0}" = 1 ]; then
+      printf '%s\n' '[royd] warning: display: runtime config missing or invalid, using profile defaults'
+    fi
     if [ "${MOCK_FALLBACK_DENSITY_LOG:-0}" = 1 ]; then
       printf '%s\n' 'SurfaceFlinger: ro.sf.lcd_density must be defined as a build property'
     fi
@@ -1153,5 +1159,18 @@ for selected_dpi in 160 320; do
     "$script_dir/assert-runtime.sh" matched-logical-density >"$tmp/density-result" 2>&1
   grep -Fq "Android 15 effective display density: $selected_dpi dpi" "$tmp/density-result"
 done
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_DISPLAY_CONFIG_VALIDATION=1 \
+    "$script_dir/assert-runtime.sh" unvalidated-display-config >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unvalidated display configuration' >&2
+  exit 1
+fi
+grep -Fq 'display runtime configuration was not validated' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INVALID_DISPLAY_CONFIG=1 \
+    "$script_dir/assert-runtime.sh" invalid-display-config >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted display defaults after a configuration error' >&2
+  exit 1
+fi
+grep -Fq 'display bootstrap rejected the runtime configuration' "$tmp/error"
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'
