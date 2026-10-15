@@ -150,6 +150,14 @@ case "$1" in
     fi
     if [ "$1" = dumpsys ] && [ "$2" = gpu ]; then
       case "$3" in
+        --gpuwork)
+          case "${MOCK_GPU_WORK_DUMP:-good}" in
+            good) printf '%s\n' 'GPU work tracing unavailable: host-global accounting is not container-scoped' ;;
+            failed) exit 1 ;;
+            zero) printf '%s\n' 'GPU work information.' '0 1000 0 0' ;;
+            invalid) printf '%s\n' 'GPU work information is not available.' ;;
+            mixed) printf '%s\n' 'GPU work tracing unavailable: host-global accounting is not container-scoped' '0 1000 0 0' ;;
+          esac ;;
         --gpumem)
           case "${MOCK_GPU_MEMORY_DUMP:-good}" in
             good) printf '%s\n' 'GPU memory tracing unavailable: host-global accounting is not container-scoped' ;;
@@ -260,6 +268,15 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_GPU_WORK_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'GpuWork : ROYD: not starting host-global GPU work tracing'
+    fi
+    case "${MOCK_GPU_WORK_ACTIVITY:-}" in
+      attach) printf '%s\n' 'GpuWork : Failed to attach bpf program to power/gpu_work_period tracepoint [2(No such file or directory)]' ;;
+      map) printf '%s\n' 'GpuWork : Failed to create bpf map from /sys/fs/bpf/map_gpuWork_gpu_work_map' ;;
+      program) printf '%s\n' 'GpuWork : Failed to retrieve pinned program from /sys/fs/bpf/prog_gpuWork_tracepoint_power_gpu_work_period' ;;
+      initialized) printf '%s\n' 'GpuWork : Initialized!' ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_GPU_MEMORY_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'GpuService: ROYD: not starting host-global GPU memory tracing'
     fi
@@ -454,6 +471,29 @@ for failure in attach tracer; do
     exit 1
   fi
   grep -Fq 'attempted host-global GPU-memory tracing' "$tmp/error"
+done
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_GPU_WORK_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-gpu-work-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported GPU-work tracing policy' >&2
+  exit 1
+fi
+grep -Fq 'container GPU-work tracing policy is not reported' "$tmp/error"
+for status in failed zero invalid mixed; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_GPU_WORK_DUMP="$status" \
+      "$script_dir/assert-runtime.sh" bad-gpu-work-dump >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a broken or fabricated GPU-work dump' >&2
+    exit 1
+  fi
+  grep -Eq 'GPU-work status dump failed|GPU-work accounting is not explicitly unavailable' "$tmp/error"
+done
+for activity in attach map program initialized; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_GPU_WORK_ACTIVITY="$activity" \
+      "$script_dir/assert-runtime.sh" gpu-work-tracing >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted host-global GPU-work collector activity' >&2
+    exit 1
+  fi
+  grep -Fq 'attempted host-global GPU-work tracing' "$tmp/error"
 done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_INIT_LOGGING_MODE=1 \

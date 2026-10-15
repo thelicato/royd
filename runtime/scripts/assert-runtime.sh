@@ -271,6 +271,26 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 attempted host-global GPU-memory tracing in %s\n' "$container" >&2
     exit 1
   fi
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: not starting host-global GPU work tracing'; then
+    printf 'error: Android 15 container GPU-work tracing policy is not reported in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  gpu_work_dump=$(docker exec "$container" dumpsys gpu --gpuwork 2>&1) || {
+    printf 'error: Android 15 GPU-work status dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if [ "$gpu_work_dump" != 'GPU work tracing unavailable: host-global accounting is not container-scoped' ]; then
+    printf 'error: Android 15 GPU-work accounting is not explicitly unavailable in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'GpuWork[[:space:]]*: (Failed to (attach bpf program to power/gpu_work_period tracepoint|create bpf map from /sys/fs/bpf/map_gpuWork_|retrieve pinned program from /sys/fs/bpf/prog_gpuWork_)|Initialized!)'; then
+    printf 'error: Android 15 attempted host-global GPU-work tracing in %s\n' "$container" >&2
+    exit 1
+  fi
   for memory_event_marker in \
       'ROYD: not starting host-global OOM event listener' \
       'ROYD: using vmstat fallback without host-global memory-event tracing' \

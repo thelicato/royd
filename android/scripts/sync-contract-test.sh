@@ -41,7 +41,79 @@ case "$1" in
       packages/apps/Settings/src/com/android/settings/deviceinfo \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
-      frameworks/native/services/gpuservice
+      frameworks/native/services/gpuservice/gpuwork
+    if [ ! -f frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp ]; then
+      cat > frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp <<'SRC'
+#include <bit>
+#include <chrono>
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <mutex>
+namespace {
+
+bool lessThanGpuIdUid(const android::gpuwork::GpuIdUid& l, const android::gpuwork::GpuIdUid& r) {
+    return std::tie(l.gpu_id, l.uid) < std::tie(r.gpu_id, r.uid);
+}
+
+}
+void GpuWork::initialize() {
+    // Workaround b/347947040 by allowing time for statsd / bpf setup.
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+
+    // Make sure BPF programs are loaded.
+    bpf::waitForProgsLoaded();
+
+    waitForPermissions();
+
+    // Get the BPF maps before trying to attach the BPF program; if we can't get
+    // the maps then there is no point in attaching the BPF program.
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+
+        if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_map", &mGpuWorkMap)) {
+            return;
+        }
+
+        if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_global_data", &mGpuWorkGlobalDataMap)) {
+            return;
+        }
+
+        mPreviousMapClearTimePoint = std::chrono::steady_clock::now();
+    }
+
+    // Attach the tracepoint.
+    if (!attachTracepoint("/sys/fs/bpf/prog_gpuWork_tracepoint_power_gpu_work_period", "power",
+                          "gpu_work_period")) {
+        return;
+    }
+
+    // Create the map clearer thread, and store it to |mMapClearerThread|.
+    std::thread thread([this]() { periodicallyClearMap(); });
+
+    mMapClearerThread.swap(thread);
+
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        AStatsManager_setPullAtomCallback(int32_t{android::util::GPU_WORK_PER_UID}, nullptr,
+                                          GpuWork::pullAtomCallback, this);
+        mStatsdRegistered = true;
+    }
+
+    ALOGI("Initialized!");
+
+    mInitialized.store(true);
+}
+
+void GpuWork::dump(const Vector<String16>& /* args */, std::string* result) {
+    if (!mInitialized.load()) {
+        result->append("GPU work information is not available.\n");
+        return;
+    }
+
+}
+SRC
+    fi
     if [ ! -f frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java ]; then
       cat > frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java <<'SRC'
 import android.annotation.SuppressLint;
@@ -2597,6 +2669,11 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
 grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
 grep -Fq 'bool shouldSkipRoydGpuMemoryTracing() {' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
+grep -Fq 'bool shouldSkipRoydGpuWorkTracing() {' \
+  "$tmp/src/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp"
+[ "$(grep -c 'if (shouldSkipRoydGpuWorkTracing())' "$tmp/src/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp")" -eq 2 ]
+grep -Fq 'ROYD: not starting host-global GPU work tracing' \
+  "$tmp/src/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp"
 [ "$(grep -c 'if (shouldSkipRoydGpuMemoryTracing())' "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp")" -eq 2 ]
 grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"

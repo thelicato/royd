@@ -1,0 +1,89 @@
+diff --git a/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp b/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp
+--- a/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp
++++ b/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp
+@@ -35,6 +35,9 @@
+ #include <bit>
++#include <cerrno>
+ #include <chrono>
+ #include <cstdint>
++#include <cstdlib>
++#include <cstring>
+ #include <limits>
+ #include <map>
+ #include <mutex>
+@@ -52,6 +55,13 @@
+ namespace {
+
++// GPU work events carry host GPU IDs and UIDs, without a container filter.
++bool shouldSkipRoydGpuWorkTracing() {
++    const char* container = getenv("ROYD_CONTAINER");
++    if (container == nullptr || strcmp(container, "1") != 0) return false;
++    return access("/sys/fs/selinux/enforce", F_OK) != 0 && errno == ENOENT;
++}
++
+ bool lessThanGpuIdUid(const android::gpuwork::GpuIdUid& l, const android::gpuwork::GpuIdUid& r) {
+     return std::tie(l.gpu_id, l.uid) < std::tie(r.gpu_id, r.uid);
+ }
+
+@@ -120,53 +130,61 @@
+ void GpuWork::initialize() {
++    if (shouldSkipRoydGpuWorkTracing()) {
++        ALOGI("ROYD: not starting host-global GPU work tracing");
++        return;
++    }
+     // Workaround b/347947040 by allowing time for statsd / bpf setup.
+     std::this_thread::sleep_for(std::chrono::seconds(30));
+
+     // Make sure BPF programs are loaded.
+     bpf::waitForProgsLoaded();
+
+     waitForPermissions();
+
+     // Get the BPF maps before trying to attach the BPF program; if we can't get
+     // the maps then there is no point in attaching the BPF program.
+     {
+         std::lock_guard<std::mutex> lock(mMutex);
+
+         if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_map", &mGpuWorkMap)) {
+             return;
+         }
+
+         if (!getBpfMap("/sys/fs/bpf/map_gpuWork_gpu_work_global_data", &mGpuWorkGlobalDataMap)) {
+             return;
+         }
+
+         mPreviousMapClearTimePoint = std::chrono::steady_clock::now();
+     }
+
+     // Attach the tracepoint.
+     if (!attachTracepoint("/sys/fs/bpf/prog_gpuWork_tracepoint_power_gpu_work_period", "power",
+                           "gpu_work_period")) {
+         return;
+     }
+
+     // Create the map clearer thread, and store it to |mMapClearerThread|.
+     std::thread thread([this]() { periodicallyClearMap(); });
+
+     mMapClearerThread.swap(thread);
+
+     {
+         std::lock_guard<std::mutex> lock(mMutex);
+         AStatsManager_setPullAtomCallback(int32_t{android::util::GPU_WORK_PER_UID}, nullptr,
+                                           GpuWork::pullAtomCallback, this);
+         mStatsdRegistered = true;
+     }
+
+     ALOGI("Initialized!");
+
+     mInitialized.store(true);
+ }
+
+ void GpuWork::dump(const Vector<String16>& /* args */, std::string* result) {
++    if (shouldSkipRoydGpuWorkTracing()) {
++        result->append("GPU work tracing unavailable: host-global accounting is not container-scoped\n");
++        return;
++    }
+     if (!mInitialized.load()) {
+         result->append("GPU work information is not available.\n");
+         return;
+     }
