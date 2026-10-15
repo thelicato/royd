@@ -83,6 +83,8 @@ Under the explicit container-without-SELinux gate, royd disables cached-app free
 
 After rebuilding, require the bounded `ROYD: Binder freezing disabled: PID namespace safety is unqualified` marker, `use_freezer=false` and `Apps frozen: 0` from `dumpsys activity settings`. Run full qualification and fresh scrcpy evidence, including their WebView force-stop workload. Reject freezer probe/freeze failures without filtering logs. Retain a native ioctl trace of SystemServer during a disposable package force-stop to verify that it submits neither `BINDER_FREEZE` nor `BINDER_GET_FROZEN_INFO`; separately check application exit and relaunch. Do not deliberately freeze host processes to reproduce the kernel issue. A single successful status query or kernel version is not proof of namespace isolation.
 
+Android 15 graphical runtime assertions also execute `runtime/scripts/assert-app-lifecycle.sh`: launch WebView, stop it, require its old process to disappear, then require a different PID with the same UID after relaunch and an unchanged SystemServer. A surviving private UID cgroup must be readable and thawed; a removed UID root is permitted. Launches and force-stop calls are bounded, and cleanup stops the test app and returns Home. `make runtime-app-lifecycle-contract-test` executes the actual container-side shell body with controlled Android commands and covers failure paths without requiring Android or ADB.
+
 ## scrcpy streaming stability
 
 After runtime qualification passes, validate the host ADB, scrcpy server, H.264 encoder and changing UI stream together with:

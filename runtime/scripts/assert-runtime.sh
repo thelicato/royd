@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 container=${1:-royd}
 hal_profile=${ROYD_HAL_PROFILE:-graphical}
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
@@ -618,6 +619,8 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     printf 'error: Android 15 WebView process groups restarted system_server in %s\n' "$container" >&2
     exit 1
   }
+
+  "$script_dir/assert-app-lifecycle.sh" "$container"
 
   docker exec "$container" sh -c '
     # royd-runtime-about-phone-test

@@ -56,6 +56,10 @@ runtime-boot-diagnostics-test:
 runtime-container-evidence-test:
 	./runtime/scripts/container-evidence-test.sh
 
+.PHONY: runtime-app-lifecycle-contract-test
+runtime-app-lifecycle-contract-test:
+	./runtime/scripts/app-lifecycle-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 

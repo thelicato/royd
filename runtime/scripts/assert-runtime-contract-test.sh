@@ -277,6 +277,9 @@ case "$1" in
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-app-lifecycle-test*)
+          [ "${MOCK_BAD_APP_LIFECYCLE:-0}" != 1 ] || exit 1
+          ;;
         *royd-runtime-about-phone-test*)
           [ "${MOCK_BAD_ABOUT_PHONE:-0}" != 1 ] || exit 1
           if [ -n "${MOCK_ABOUT_PHONE_STATE:-}" ]; then
@@ -1033,6 +1036,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_WEBVIEW_CGROUP=1 \
   exit 1
 fi
 grep -Fq 'Android 15 WebView process groups restarted system_server' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APP_LIFECYCLE=1 \
+    "$script_dir/assert-runtime.sh" bad-app-lifecycle >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a failed application lifecycle check' >&2
+  exit 1
+fi
+grep -Fq 'application force-stop/relaunch contract failed' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ABOUT_PHONE=1 \
     "$script_dir/assert-runtime.sh" bad-about-phone >"$tmp/error" 2>&1; then
