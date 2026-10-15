@@ -29,8 +29,9 @@ case "${ROYD_SCRCPY_OUTPUT_DIR:-}" in
     printf '%s\n' mock-video >"$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4"
     bytes=$(wc -c <"$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4" | tr -d ' ')
     digest=$(sha256sum "$ROYD_SCRCPY_OUTPUT_DIR/scrcpy.mp4" | awk '{print $1}')
-    printf '%s\n' 'ROYD_SCRCPY_EVIDENCE_FORMAT=1' 'RESULT_STATUS=pass' \
+    printf '%s\n' 'ROYD_SCRCPY_EVIDENCE_FORMAT=2' 'RESULT_STATUS=pass' 'POST_RUNTIME_STATUS=pass' \
       "RECORDING_BYTES=$bytes" "RECORDING_SHA256=$digest" >"$ROYD_SCRCPY_OUTPUT_DIR/manifest.env"
+    printf '%s\n' 'mock post-workload runtime pass' >"$ROYD_SCRCPY_OUTPUT_DIR/post-runtime.log"
     ;;
 esac
 if [ -n "${ROYD_RUNTIME_RESULT_FILE:-}" ]; then
@@ -96,6 +97,25 @@ grep -Fqx 'RUNTIME_LOG_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RUNTIME_EVIDENCE_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RESOURCE_PROFILE=low-memory' "$bundle/manifest.env"
 "$script_dir/reference-bundle-verify.sh" "$bundle" >/dev/null
+
+for regression in stale-format failed-post-runtime missing-post-log; do
+  bad_bundle="$work/$regression"
+  cp -R "$bundle" "$bad_bundle"
+  case "$regression" in
+    stale-format) sed -i 's/^ROYD_SCRCPY_EVIDENCE_FORMAT=.*/ROYD_SCRCPY_EVIDENCE_FORMAT=1/' "$bad_bundle/scrcpy/manifest.env" ;;
+    failed-post-runtime) sed -i 's/^POST_RUNTIME_STATUS=.*/POST_RUNTIME_STATUS=fail/' "$bad_bundle/scrcpy/manifest.env" ;;
+    missing-post-log) rm "$bad_bundle/scrcpy/post-runtime.log" ;;
+  esac
+  (
+    cd "$bad_bundle"
+    find . -type f ! -name SHA256SUMS -print | LC_ALL=C sort | sed 's#^./##' | while IFS= read -r file; do sha256sum "$file"; done > SHA256SUMS
+  )
+  if "$script_dir/reference-bundle-verify.sh" "$bad_bundle" >"$work/$regression.log" 2>&1; then
+    printf 'error: invalid scrcpy evidence unexpectedly verified: %s\n' "$regression" >&2
+    exit 1
+  fi
+  grep -Fq 'error: scrcpy' "$work/$regression.log"
+done
 
 stale_kernel_bundle="$work/stale-kernel-bundle"
 cp -R "$bundle" "$stale_kernel_bundle"

@@ -28,8 +28,10 @@ case "$(get SCRCPY_REQUIRED)" in
     [ "$(get SCRCPY_STATUS)" = pass ] || { printf '%s\n' 'error: required scrcpy stage is not pass' >&2; exit 1; }
     [ -f "$bundle/scrcpy/manifest.env" ] || { printf '%s\n' 'error: scrcpy manifest is missing' >&2; exit 1; }
     scrcpy_get() { sed -n "s/^$1=//p" "$bundle/scrcpy/manifest.env" | tail -n 1; }
-    [ "$(scrcpy_get ROYD_SCRCPY_EVIDENCE_FORMAT)" = 1 ] || { printf '%s\n' 'error: scrcpy evidence format is stale' >&2; exit 1; }
+    [ "$(scrcpy_get ROYD_SCRCPY_EVIDENCE_FORMAT)" = 2 ] || { printf '%s\n' 'error: scrcpy evidence format is stale' >&2; exit 1; }
     [ "$(scrcpy_get RESULT_STATUS)" = pass ] || { printf '%s\n' 'error: scrcpy evidence did not pass' >&2; exit 1; }
+    [ "$(scrcpy_get POST_RUNTIME_STATUS)" = pass ] || { printf '%s\n' 'error: scrcpy post-workload runtime assertions did not pass' >&2; exit 1; }
+    [ -f "$bundle/scrcpy/post-runtime.log" ] || { printf '%s\n' 'error: scrcpy post-workload runtime log is missing' >&2; exit 1; }
     [ -s "$bundle/scrcpy/scrcpy.mp4" ] || { printf '%s\n' 'error: scrcpy recording is missing or empty' >&2; exit 1; }
     scrcpy_bytes=$(wc -c <"$bundle/scrcpy/scrcpy.mp4" | tr -d ' ')
     scrcpy_sha256=$(sha256sum "$bundle/scrcpy/scrcpy.mp4" | awk '{print $1}')

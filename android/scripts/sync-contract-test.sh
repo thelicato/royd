@@ -37,7 +37,43 @@ case "$1" in
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
       art/artd packages/modules/StatsD/statsd/src system/memory/lmkd \
       frameworks/base/services/core/java/com/android/server/wm \
-      frameworks/base/services/java/com/android/server
+      frameworks/base/services/java/com/android/server \
+      packages/apps/Settings/src/com/android/settings/deviceinfo \
+      frameworks/base/packages/SettingsLib/src/com/android/settingslib
+    if [ ! -f packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java ]; then
+      cat > packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java <<'SRC'
+import android.content.Context;
+import android.net.wifi.SoftApConfiguration;
+import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+class DeviceNamePreferenceController {
+    public DeviceNamePreferenceController(Context context, String key) {
+        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+    }
+    private void setTetherSsidName(String deviceName) {
+        final SoftApConfiguration config = mWifiManager.getSoftApConfiguration();
+    }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java ]; then
+      cat > frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java <<'SRC'
+import android.os.BatteryManager;
+import android.os.Build;
+import android.os.RemoteException;
+import android.os.SystemProperties;
+import android.os.UserHandle;
+import android.os.UserManager;
+class Utils {
+    public static boolean containsIncompatibleChargers(Context context, String tag) {
+
+        final UsbManager usbManager = context.getSystemService(UsbManager.class);
+    }
+}
+SRC
+    fi
     if [ ! -f frameworks/base/services/java/com/android/server/SystemServer.java ]; then
       cat > frameworks/base/services/java/com/android/server/SystemServer.java <<'SRC'
 import android.os.Process;
@@ -2496,6 +2532,12 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   exit 1
 }
 grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
+grep -Fq 'mWifiManager = shouldSkipRoydWifi() ? null' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
+grep -Fq 'if (shouldSkipRoydWifi()) {' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
+grep -Fq '!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY)' \
+  "$tmp/src/frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java"
 grep -Fq 'it->mount_point == "/" && IsRoydContainerWithoutSelinux()' \
   "$tmp/src/art/artd/artd.cc"
 grep -Fq 'private static boolean shouldSkipForRoydContainer() {' \

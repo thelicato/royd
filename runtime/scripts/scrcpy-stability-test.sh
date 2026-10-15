@@ -184,6 +184,11 @@ recording_bytes=$(wc -c <"$recording" | tr -d ' ')
   exit 1
 }
 
+post_runtime_status=pass
+if ! ROYD_RESOURCE_PROFILE="$resource_profile" "$assert_runner" "$container" \
+    >"$output/post-runtime.log" 2>&1; then
+  post_runtime_status=fail
+fi
 "$docker_command" inspect "$container" >"$output/container-inspect.json"
 "$docker_command" logs "$container" >"$output/container.log" 2>&1
 scrcpy_version=$("$scrcpy_command" --version 2>/dev/null | head -n 1)
@@ -192,8 +197,9 @@ recording_sha256=$(sha256sum "$recording" | awk '{print $1}')
 workload_cycles=$(sed -n 's/^cycles=//p' "$workload_log" | tail -n 1)
 [ -n "$workload_cycles" ] || workload_cycles=0
 cat >"$output/manifest.env" <<MANIFEST
-ROYD_SCRCPY_EVIDENCE_FORMAT=1
-RESULT_STATUS=pass
+ROYD_SCRCPY_EVIDENCE_FORMAT=2
+RESULT_STATUS=$post_runtime_status
+POST_RUNTIME_STATUS=$post_runtime_status
 IMAGE=$image
 IMAGE_ID=$image_id
 ARCH=$runtime_arch
@@ -211,5 +217,10 @@ RECORDING_BYTES=$recording_bytes
 RECORDING_SHA256=$recording_sha256
 MANIFEST
 
+[ "$post_runtime_status" = pass ] || {
+  printf 'error: post-workload runtime assertions failed; evidence retained in %s\n' "$output" >&2
+  tail -n 80 "$output/post-runtime.log" >&2
+  exit 1
+}
 printf 'scrcpy stability test passed: %s seconds, %s bytes\n' "$elapsed_seconds" "$recording_bytes"
 printf 'Evidence written to %s\n' "$output"

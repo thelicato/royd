@@ -31,6 +31,7 @@
 .PHONY: android15-task-persister-container-test
 .PHONY: android15-host-power-container-test
 .PHONY: android15-framework-readiness-container-test
+.PHONY: android15-settings-hardware-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -388,6 +389,9 @@ android15-host-power-container-test:
 
 android15-framework-readiness-container-test:
 	./android/scripts/android15-framework-readiness-container-test.sh
+
+android15-settings-hardware-container-test:
+	./android/scripts/android15-settings-hardware-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

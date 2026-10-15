@@ -316,6 +316,9 @@ case "$1" in
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
     fi
+    if [ -n "${MOCK_SETTINGS_HARDWARE_WTF:-}" ]; then
+      printf 'am_wtf: [0,3093,com.android.settings,954973765,SystemServiceRegistry,No service published for: %s]\n' "$MOCK_SETTINGS_HARDWARE_WTF"
+    fi
     if [ "${MOCK_PACKAGE_LIST_SELINUX_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to get SELinux context for /data/system/packages.list]'
       printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to set packages.list SELinux context]'
@@ -493,6 +496,14 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_REGISTRY_WTF=1 \
   exit 1
 fi
 grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
+for service in wifi usb; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SETTINGS_HARDWARE_WTF="$service" \
+      "$script_dir/assert-runtime.sh" settings-hardware-wtf >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted a Settings missing-%s WTF\n' "$service" >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_MANAGER_BLOCKING_WTF=1 \
     "$script_dir/assert-runtime.sh" service-manager-blocking >"$tmp/error" 2>&1; then

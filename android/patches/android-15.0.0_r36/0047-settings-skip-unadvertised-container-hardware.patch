@@ -1,0 +1,47 @@
+diff --git a/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java b/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java
+@@ -20,6 +20,8 @@
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.SoftApConfiguration;
+ import android.net.wifi.WifiManager;
+ import android.os.Build;
+ import android.os.Bundle;
++import android.os.SELinux;
+ import android.provider.Settings;
+@@ -61,1 +63,2 @@
+-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
++        mWifiManager = shouldSkipRoydWifi() ? null
++                : (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+@@ -165,2 +168,10 @@
++    private boolean shouldSkipRoydWifi() {
++        return "1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                && !mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI);
++    }
++
+     private void setTetherSsidName(String deviceName) {
++        if (shouldSkipRoydWifi()) {
++            return;
++        }
+         final SoftApConfiguration config = mWifiManager.getSoftApConfiguration();
+diff --git a/frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java b/frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java
+--- a/frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java
++++ b/frameworks/base/packages/SettingsLib/src/com/android/settingslib/Utils.java
+@@ -37,6 +37,7 @@
+ import android.os.BatteryManager;
+ import android.os.Build;
+ import android.os.RemoteException;
++import android.os.SELinux;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+@@ -760,2 +761,8 @@
+
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                && !Build.IS_EMULATOR
++                && !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST)
++                && !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY)) {
++            return false;
++        }
+         final UsbManager usbManager = context.getSystemService(UsbManager.class);
