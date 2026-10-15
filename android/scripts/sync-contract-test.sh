@@ -35,7 +35,31 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/security \
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
-      art/artd
+      art/artd packages/modules/StatsD/statsd/src
+    if [ ! -f packages/modules/StatsD/statsd/src/main.cpp ]; then
+      cat > packages/modules/StatsD/statsd/src/main.cpp <<'SRC'
+#include <stdio.h>
+#include <sys/random.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+int main(int /*argc*/, char** /*argv*/) {
+    // Set up the looper
+    sp<Looper> looper(Looper::prepare(0 /* opts */));
+
+    // Create the service
+    gStatsService = SharedRefBase::make<StatsService>(uidMap, eventQueue, logEventFilter);
+    auto binder = gStatsService->asBinder();
+
+    // We want to be able to ask for the selinux context of callers:
+    if (__builtin_available(android __ANDROID_API_U__, *)) {
+        AIBinder_setRequestingSid(binder.get(), true);
+    }
+
+    binder_status_t status = AServiceManager_addService(binder.get(), "stats");
+}
+SRC
+    fi
     if [ ! -f art/artd/artd.cc ]; then
       cat > art/artd/artd.cc <<'SRC'
 constexpr const char* kArtdCancellationSignalType = "ArtdCancellationSignal";
@@ -2334,6 +2358,14 @@ grep -Fq 'access(procs_path.c_str(), F_OK) != 0 && errno == ENOENT' \
   "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
 grep -Fq 'ROYD: skipping task-profile actions for unavailable' \
   "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
+grep -Fq 'static bool IsRoydContainerWithoutSelinux() {' \
+  "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
+grep -Fq 'const bool request_sid = !IsRoydContainerWithoutSelinux();' \
+  "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
+grep -Fq 'AIBinder_setRequestingSid(binder.get(), request_sid);' \
+  "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
+grep -Fq 'ROYD: suppressing statsd Binder caller SID request' \
+  "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \

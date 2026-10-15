@@ -57,6 +57,9 @@ case "$1" in
         init.svc.netd)
           [ "${MOCK_BAD_NETD:-0}" = 1 ] && value=restarting || value=running
           ;;
+        init.svc.statsd)
+          [ "${MOCK_BAD_STATSD:-0}" = 1 ] && value=restarting || value=running
+          ;;
         service.sf.present_timestamp)
           [ "${MOCK_BAD_PRESENT_TIMESTAMP:-0}" = 1 ] && value=1 || value=0
           ;;
@@ -135,6 +138,14 @@ case "$1" in
       [ "${MOCK_BAD_CODECS:-0}" = 1 ] || printf '%s\n' '    name: c2.android.opus.encoder'
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = stats ] && [ "$3" = --metadata ]; then
+      case "${MOCK_STATSD_DUMP:-good}" in
+        good) printf '%s\n' 'Stats collection start second: 2026-10-15' ;;
+        failed) printf '%s\n' 'FAILED_TRANSACTION'; exit 1 ;;
+        invalid) printf '%s\n' "Error with service 'stats' while dumping: FAILED_TRANSACTION" ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = service ] && [ "$2" = check ]; then
       case "$3" in
         appwidget)
@@ -147,7 +158,7 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
-        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy)
+        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy|stats)
           [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
             printf 'Service %s: not found\n' "$3" || \
             printf 'Service %s: found\n' "$3"
@@ -194,6 +205,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_STATSD_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'statsd: ROYD: suppressing statsd Binder caller SID request because ROYD_CONTAINER=1 and kernel SELinux is disabled'
+    fi
+    if [ "${MOCK_STATSD_REGISTRATION_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'StatsManagerService: Failed to access statsd to register puller for atom 10000'
+    fi
     if [ "${MOCK_EARLY_DROPBOX_RECURSION:-0}" = 1 ]; then
       printf '%s\n' 'SystemServiceRegistry: No service published for: dropbox'
     fi
@@ -501,6 +518,33 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=jobscheduler \
   exit 1
 fi
 grep -Fq 'Android 15 required service jobscheduler is unavailable' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=stats \
+    "$script_dir/assert-runtime.sh" missing-stats >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent statsd Binder service' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 required service stats is unavailable' "$tmp/error"
+for failure in failed invalid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STATSD_DUMP="$failure" \
+      "$script_dir/assert-runtime.sh" broken-stats >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a broken statsd Binder response' >&2
+    exit 1
+  fi
+  grep -Eq 'statsd Binder metadata (dump failed|response is invalid)' "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_STATSD_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-stats-marker >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent statsd SID marker' >&2
+  exit 1
+fi
+grep -Fq 'statsd container Binder SID mode is not reported' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STATSD_REGISTRATION_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" broken-stats-registration >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a statsd puller registration failure' >&2
+  exit 1
+fi
+grep -Fq 'statsd Binder registration failed' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

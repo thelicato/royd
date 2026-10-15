@@ -55,6 +55,7 @@ run ./android/scripts/android15-resource-profile-container-test.sh
 run ./android/scripts/android15-artd-overlay-container-test.sh
 run ./android/scripts/android15-metadata-fsverity-container-test.sh
 run ./android/scripts/android15-legacy-cgroup-profile-container-test.sh
+run ./android/scripts/android15-statsd-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh

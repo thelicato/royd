@@ -152,11 +152,12 @@ if [ "$sdk" = 35 ]; then
   assert_property dalvik.vm.heapminfree 512k
   assert_property dalvik.vm.heapmaxfree "$resource_heap_max_free"
   assert_property init.svc.netd running
+  assert_property init.svc.statsd running
   assert_property service.sf.present_timestamp 0
   if [ "$graphics_backend" = software ]; then
     assert_property service.sf.prime_shader_cache false
   fi
-  for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy; do
+  for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy stats; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
       printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
@@ -164,6 +165,27 @@ if [ "$sdk" = 35 ]; then
       exit 1
     fi
   done
+  stats_dump=$(docker exec "$container" dumpsys stats --metadata 2>&1) || {
+    printf 'error: Android 15 statsd Binder metadata dump failed in %s: %s\n' \
+      "$container" "$stats_dump" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$stats_dump" | grep -q '^Stats collection start second:'; then
+    printf 'error: Android 15 statsd Binder metadata response is invalid in %s: %s\n' \
+      "$container" "$stats_dump" >&2
+    exit 1
+  fi
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: suppressing statsd Binder caller SID request'; then
+    printf 'error: Android 15 statsd container Binder SID mode is not reported in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      "StatsManagerService: (Failed to access statsd to register puller|StatsManager failed to)|associateClass: Expecting binder to have class 'android.os.IStatsd' but descriptor is actually ''"; then
+    printf 'error: Android 15 statsd Binder registration failed in %s\n' "$container" >&2
+    exit 1
+  fi
   dropbox_status=$(docker exec "$container" service check dropbox 2>/dev/null | tr -d '\r')
   if [ "$dropbox_status" != 'Service dropbox: found' ]; then
     printf 'error: Android 15 DropBox service is unavailable in %s: %s\n' \

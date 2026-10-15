@@ -26,6 +26,7 @@
 .PHONY: android15-artd-overlay-container-test
 .PHONY: android15-metadata-fsverity-container-test
 .PHONY: android15-legacy-cgroup-profile-container-test
+.PHONY: android15-statsd-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -368,6 +369,9 @@ android15-metadata-fsverity-container-test:
 
 android15-legacy-cgroup-profile-container-test:
 	./android/scripts/android15-legacy-cgroup-profile-container-test.sh
+
+android15-statsd-container-test:
+	./android/scripts/android15-statsd-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh
