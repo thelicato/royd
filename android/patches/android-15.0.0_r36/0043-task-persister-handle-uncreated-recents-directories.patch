@@ -1,0 +1,51 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java b/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java
+--- a/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java
++++ b/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java
+@@ -26,3 +26,7 @@
+ import android.os.FileUtils;
++import android.os.SELinux;
+ import android.os.SystemClock;
++import android.system.ErrnoException;
++import android.system.Os;
++import android.system.OsConstants;
+ import android.util.ArraySet;
+@@ -60,3 +64,4 @@
+ import java.util.Comparator;
++import java.util.concurrent.atomic.AtomicBoolean;
+
+ /**
+@@ -73,3 +78,4 @@
+     private static final String PERSISTED_TASK_IDS_FILENAME = "persisted_taskIds.txt";
++    private static final AtomicBoolean sLoggedUncreatedRecentsDirectory = new AtomicBoolean();
+
+     private static final String TAG_TASK = "task";
+@@ -498,2 +504,22 @@
++    private static File[] listRecentsFiles(File directory) {
++        final File[] files = directory.listFiles();
++        if (files == null && "1".equals(System.getenv("ROYD_CONTAINER"))
++                && !SELinux.isSELinuxEnabled()) {
++            try {
++                Os.lstat(directory.getPath());
++            } catch (ErrnoException e) {
++                // Recents directories are created lazily by their first task or icon write.
++                // Do not hide unavailable user storage or any other directory access error.
++                if (e.errno == OsConstants.ENOENT && directory.getParentFile().isDirectory()) {
++                    if (sLoggedUncreatedRecentsDirectory.compareAndSet(false, true)) {
++                        Slog.i(TAG, "ROYD: no obsolete files in uncreated recents directories");
++                    }
++                    return new File[0];
++                }
++            }
++        }
++        return files;
++    }
++
+     private void removeObsoleteFiles(ArraySet<Integer> persistentTaskIds) {
+         int[] candidateUserIds;
+@@ -505,4 +531,4 @@
+         for (int userId : candidateUserIds) {
+-            removeObsoleteFiles(persistentTaskIds, getUserImagesDir(userId).listFiles());
+-            removeObsoleteFiles(persistentTaskIds, getUserTasksDir(userId).listFiles());
++            removeObsoleteFiles(persistentTaskIds, listRecentsFiles(getUserImagesDir(userId)));
++            removeObsoleteFiles(persistentTaskIds, listRecentsFiles(getUserTasksDir(userId)));
+         }

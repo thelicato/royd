@@ -198,6 +198,14 @@ case "$1" in
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-recents-persistence-test*)
+          [ "${MOCK_BAD_RECENTS_PERSISTENCE:-0}" != 1 ] || exit 1
+          if [ "${MOCK_RECENTS_DIRECTORIES_PRESENT:-0}" = 1 ]; then
+            printf '%s\n' present
+          else
+            printf '%s\n' uncreated
+          fi
+          ;;
         *royd-runtime-video-test*)
           [ "${MOCK_BAD_CAPTURE:-0}" != 1 ] || exit 1
           ;;
@@ -208,6 +216,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_RECENTS_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'TaskPersister: ROYD: no obsolete files in uncreated recents directories'
+    fi
+    if [ "${MOCK_RECENTS_DIRECTORY_ERROR:-0}" = 1 ]; then
+      printf '%s\n' "TaskPersister: File error accessing recents directory (directory doesn't exist?)."
+    fi
     if [ "$MOCK_SDK" = 35 ]; then
       [ "${MOCK_MISSING_MEMEVENT_MODE:-}" = oom ] || \
         printf '%s\n' 'OomConnection: ROYD: not starting host-global OOM event listener'
@@ -326,6 +340,8 @@ PATH="$tmp:$PATH" MOCK_SDK=35 "$script_dir/assert-runtime.sh" android15 >/dev/nu
 PATH="$tmp:$PATH" MOCK_SDK=34 "$script_dir/assert-runtime.sh" android14 >/dev/null
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OPTIONAL_SERVICE_WARNING=1 \
   "$script_dir/assert-runtime.sh" optional-service-warning >/dev/null
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_RECENTS_DIRECTORIES_PRESENT=1 MOCK_MISSING_RECENTS_MARKER=1 \
+  "$script_dir/assert-runtime.sh" existing-recents-directories >/dev/null
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ALLOCATOR=1 \
     "$script_dir/assert-runtime.sh" bad-allocator >"$tmp/error" 2>&1; then
@@ -668,6 +684,25 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_WEBVIEW_CGROUP=1 \
   exit 1
 fi
 grep -Fq 'Android 15 WebView process groups restarted system_server' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_RECENTS_PERSISTENCE=1 \
+    "$script_dir/assert-runtime.sh" broken-recents-persistence >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted missing persisted recent tasks' >&2
+  exit 1
+fi
+grep -Fq 'recent tasks were not persisted after the workload' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_RECENTS_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-recents-marker >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unreported uncreated recents directory' >&2
+  exit 1
+fi
+grep -Fq 'uncreated recents-directory mode is not reported' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_RECENTS_DIRECTORY_ERROR=1 \
+    "$script_dir/assert-runtime.sh" recents-directory-error >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a recents-directory access error' >&2
+  exit 1
+fi
+grep -Fq 'recents cleanup could not list its directories' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_NETD=1 \
     "$script_dir/assert-runtime.sh" bad-netd >"$tmp/error" 2>&1; then

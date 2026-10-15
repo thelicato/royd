@@ -28,6 +28,7 @@
 .PHONY: android15-legacy-cgroup-profile-container-test
 .PHONY: android15-statsd-container-test
 .PHONY: android15-memory-events-container-test
+.PHONY: android15-task-persister-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -376,6 +377,9 @@ android15-statsd-container-test:
 
 android15-memory-events-container-test:
 	./android/scripts/android15-memory-events-container-test.sh
+
+android15-task-persister-container-test:
+	./android/scripts/android15-task-persister-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

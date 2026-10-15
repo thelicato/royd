@@ -35,7 +35,38 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/security \
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
-      art/artd packages/modules/StatsD/statsd/src system/memory/lmkd
+      art/artd packages/modules/StatsD/statsd/src system/memory/lmkd \
+      frameworks/base/services/core/java/com/android/server/wm
+    if [ ! -f frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java <<'SRC'
+package com.android.server.wm;
+
+import android.os.FileUtils;
+import android.os.SystemClock;
+import android.util.ArraySet;
+import java.util.Comparator;
+
+/**
+ * Persists tasks.
+ */
+public class TaskPersister {
+    private static final String PERSISTED_TASK_IDS_FILENAME = "persisted_taskIds.txt";
+
+    private static final String TAG_TASK = "task";
+
+    private void removeObsoleteFiles(ArraySet<Integer> persistentTaskIds) {
+        int[] candidateUserIds;
+        synchronized (mService.mGlobalLock) {
+            candidateUserIds = mRecentTasks.usersWithRecentsLoadedLocked();
+        }
+        for (int userId : candidateUserIds) {
+            removeObsoleteFiles(persistentTaskIds, getUserImagesDir(userId).listFiles());
+            removeObsoleteFiles(persistentTaskIds, getUserTasksDir(userId).listFiles());
+        }
+    }
+}
+SRC
+    fi
     if [ ! -f frameworks/base/services/core/java/com/android/server/am/OomConnection.java ]; then
       cat > frameworks/base/services/core/java/com/android/server/am/OomConnection.java <<'SRC'
 package com.android.server.am;
@@ -2402,6 +2433,14 @@ grep -Fq 'ROYD: not starting host-global OOM event listener' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/OomConnection.java"
 grep -Fq 'ROYD: using vmstat fallback without host-global memory-event tracing' \
   "$tmp/src/system/memory/lmkd/lmkd.cpp"
+grep -Fq 'private static File[] listRecentsFiles(File directory)' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java"
+grep -Fq 'ROYD: no obsolete files in uncreated recents directories' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java"
+grep -Fq 'removeObsoleteFiles(persistentTaskIds, listRecentsFiles(getUserImagesDir(userId)));' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java"
+grep -Fq 'removeObsoleteFiles(persistentTaskIds, listRecentsFiles(getUserTasksDir(userId)));' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \

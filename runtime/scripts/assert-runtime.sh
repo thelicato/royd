@@ -257,6 +257,12 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      "TaskPersister: File error accessing recents directory (directory doesn't exist?)."; then
+    printf 'error: Android 15 recents cleanup could not list its directories in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
   if docker exec "$container" sh -c '
     # royd-runtime-legacy-cgroup-availability-test
     for root in /dev/cpuctl /dev/cpuset /dev/blkio; do
@@ -437,6 +443,45 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     printf 'error: Android 15 WebView process groups restarted system_server in %s\n' "$container" >&2
     exit 1
   }
+
+  recents_directories=$(docker exec "$container" sh -c '
+    # royd-runtime-recents-persistence-test
+    am write >/dev/null || exit 1
+    test -d /data/system_ce/0 || exit 1
+    test -s /data/system_de/0/persisted_taskIds.txt || exit 1
+    found=0
+    for task in /data/system_ce/0/recent_tasks/*_task.xml; do
+      if [ -s "$task" ]; then found=1; fi
+    done
+    test "$found" = 1 || exit 1
+    if [ ! -e /data/system_ce/0/recent_images ]; then
+      printf "%s\n" uncreated
+    else
+      printf "%s\n" present
+    fi
+  ') || {
+    printf 'error: Android 15 recent tasks were not persisted after the workload in %s\n' \
+      "$container" >&2
+    exit 1
+  }
+  case "$recents_directories" in
+    uncreated)
+      docker logs "$container" 2>&1 | grep -Fq \
+        'ROYD: no obsolete files in uncreated recents directories' || {
+        printf 'error: Android 15 uncreated recents-directory mode is not reported in %s\n' \
+          "$container" >&2
+        exit 1
+      }
+      ;;
+    present) ;;
+    *) printf 'error: invalid Android 15 recents-directory state in %s\n' "$container" >&2; exit 1 ;;
+  esac
+  if docker logs "$container" 2>&1 | grep -Fq \
+      "TaskPersister: File error accessing recents directory (directory doesn't exist?)."; then
+    printf 'error: Android 15 recents cleanup could not list its directories in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
 
   capture_width=$(( (display_width + 7) / 8 * 8 ))
   docker exec "$container" sh -c '
