@@ -747,4 +747,26 @@ docker logs "$container" 2>&1 | grep -Fq '[royd] binderfs: ready' || {
   exit 1
 }
 
+if [ "$sdk" = 35 ]; then
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: Binder freezing disabled: PID namespace safety is unqualified'; then
+    printf 'error: Android 15 Binder-freezer isolation mode is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
+  freezer_dump=$(docker exec "$container" dumpsys activity settings 2>&1) || {
+    printf 'error: Android 15 app-freezer settings dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$freezer_dump" | grep -Eq '^[[:space:]]*use_freezer=false[[:space:]]*$' || \
+      ! printf '%s\n' "$freezer_dump" | grep -Eq '^[[:space:]]*Apps frozen: 0[[:space:]]*$'; then
+    printf 'error: Android 15 cached-app freezer is not disabled in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'Freezer[[:space:]]*: Unable to read freezer info|ActivityManager[[:space:]]*: Unable to (freeze|unfreeze|quick unfreeze) binder for'; then
+    printf 'error: Android 15 attempted unqualified Binder freezer operations in %s\n' "$container" >&2
+    exit 1
+  fi
+fi
+
 printf 'Runtime checks passed: %s\n' "$container"

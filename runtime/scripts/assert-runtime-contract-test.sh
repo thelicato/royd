@@ -152,6 +152,16 @@ case "$1" in
       esac
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = activity ] && [ "$3" = settings ]; then
+      case "${MOCK_FREEZER_DUMP:-good}" in
+        good) printf '%s\n' '  use_freezer=false' '  Apps frozen: 0' ;;
+        failed) exit 1 ;;
+        invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+        enabled) printf '%s\n' '  use_freezer=true' '  Apps frozen: 0' ;;
+        frozen) printf '%s\n' '  use_freezer=false' '  Apps frozen: 1' ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = dumpsys ] && [ "$2" = cpuinfo ]; then
       case "${MOCK_CPU_TIME_DUMP:-good}" in
         good) printf '%s\n' 'CPU usage from 1000ms to 0ms ago:' '40% TOTAL: 17% user + 23% kernel' ;;
@@ -291,6 +301,16 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_BINDER_FREEZER_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'ActivityManager: ROYD: Binder freezing disabled: PID namespace safety is unqualified'
+    fi
+    case "${MOCK_BINDER_FREEZER_ERROR:-}" in
+      probe) printf '%s\n' 'Freezer : Unable to read freezer info: Invalid argument' ;;
+      freeze) printf '%s\n' 'ActivityManager: Unable to freeze binder for 101: fault' ;;
+      unfreeze) printf '%s\n' 'ActivityManager: Unable to unfreeze binder for 101 app. Killing it' ;;
+      quick) printf '%s\n' 'ActivityManager: Unable to quick unfreeze binder for 101' ;;
+      unrelated) printf '%s\n' 'IPCThreadState: Binder transaction failure. error: -22 (Invalid argument)' ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_LEGACY_DISPLAY_MODE:-0}" != 1 ]; then
       printf '%s\n' 'HWComposer: Switching to legacy multi-display mode'
     fi
@@ -1053,5 +1073,33 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_NETD=1 \
   exit 1
 fi
 grep -Fq 'init.svc.netd expected running, got restarting' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_BINDER_FREEZER_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-freezer-policy >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unreported Binder-freezer policy' >&2
+  exit 1
+fi
+grep -Fq 'Binder-freezer isolation mode is not reported' "$tmp/error"
+for state in failed invalid enabled frozen; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_FREEZER_DUMP="$state" \
+      "$script_dir/assert-runtime.sh" bad-freezer-state >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted freezer state: %s\n' "$state" >&2
+    exit 1
+  fi
+  case "$state" in
+    failed) grep -Fq 'app-freezer settings dump failed' "$tmp/error" ;;
+    *) grep -Fq 'cached-app freezer is not disabled' "$tmp/error" ;;
+  esac
+done
+for operation in probe freeze unfreeze quick; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BINDER_FREEZER_ERROR="$operation" \
+      "$script_dir/assert-runtime.sh" bad-binder-freezer >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted Binder-freezer operation: %s\n' "$operation" >&2
+    exit 1
+  fi
+  grep -Fq 'attempted unqualified Binder freezer operations' "$tmp/error"
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BINDER_FREEZER_ERROR=unrelated \
+  "$script_dir/assert-runtime.sh" unrelated-binder-error >/dev/null
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

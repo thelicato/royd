@@ -44,6 +44,12 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
+    for fixture in Freezer ProcessList; do
+      target="frameworks/base/services/core/java/com/android/server/am/$fixture.java"
+      if [ ! -f "$target" ]; then
+        cp "$ROYD_SYNC_FREEZER_FIXTURES/$fixture.java" "$target"
+      fi
+    done
     if [ ! -f frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp ]; then
       cat > frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp <<'SRC'
 Error AidlComposer::getDisplayIdentificationData(Display display, uint8_t* outPort,
@@ -2670,6 +2676,7 @@ for pass in 1 2; do
   PATH="$tmp/bin:$PATH" \
   ROYD_REPO_LOG="$tmp/repo.log" \
   ROYD_SYNC_CPU_SPEED_FIXTURE="$tmp/repo/android/tests/fixtures/android15/KernelCpuSpeedReader.java" \
+  ROYD_SYNC_FREEZER_FIXTURES="$tmp/repo/android/tests/fixtures/android15" \
   ROYD_ANDROID_VERSION=15 \
   ROYD_ANDROID_SRC="$tmp/src" \
   JOBS=1 \
@@ -2693,6 +2700,10 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   exit 1
 }
 grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
+grep -Fq 'return isBinderFreezerAllowed() && nativeIsFreezerSupported();' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/Freezer.java"
+grep -Fq 'if (pid > 0 && mService.getFreezer().isBinderFreezerAllowed())' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ProcessList.java"
 grep -Fq 'bool shouldSkipRoydGpuMemoryTracing() {' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
 grep -Fq 'bool shouldSkipRoydGpuWorkTracing() {' \

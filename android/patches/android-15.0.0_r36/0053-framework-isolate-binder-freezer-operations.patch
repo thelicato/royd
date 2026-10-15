@@ -1,0 +1,83 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/am/Freezer.java b/frameworks/base/services/core/java/com/android/server/am/Freezer.java
+--- a/frameworks/base/services/core/java/com/android/server/am/Freezer.java
++++ b/frameworks/base/services/core/java/com/android/server/am/Freezer.java
+@@ -19,6 +19,8 @@
+ import static com.android.server.am.ActivityManagerDebugConfig.TAG_AM;
+
+ import android.os.Process;
++import android.os.SELinux;
++import android.util.Slog;
+
+ /**
+  * A collection of interfaces to manage the freezer.  All access to the freezer goes through an
+@@ -29,6 +31,21 @@
+  */
+ class Freezer {
+
++    // Older Binder freeze ioctls match host-global PIDs, not container PIDs.
++    // Keep these operations disabled until namespace-safe behaviour is qualified.
++    private static final boolean BINDER_FREEZER_ALLOWED =
++            !("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled());
++
++    static {
++        if (!BINDER_FREEZER_ALLOWED) {
++            Slog.i(TAG_AM, "ROYD: Binder freezing disabled: PID namespace safety is unqualified");
++        }
++    }
++
++    public boolean isBinderFreezerAllowed() {
++        return BINDER_FREEZER_ALLOWED;
++    }
++
+     /**
+      * Freeze or unfreeze the specified process.
+      *
+@@ -56,9 +73,12 @@
+      * @throws RuntimeException in case a flush/freeze operation could not complete successfully.
+      * @return 0 if success, or -EAGAIN indicating there's pending transaction.
+      */
+     public int freezeBinder(int pid, boolean freeze, int timeoutMs) {
++        if (!isBinderFreezerAllowed()) {
++            throw new UnsupportedOperationException("Binder freezing is unavailable in royd containers");
++        }
+         return nativeFreezeBinder(pid, freeze, timeoutMs);
+     }
+
+     /**
+      * Retrieves binder freeze info about a process.
+@@ -68,9 +88,12 @@
+      * @return a bit field reporting the binder freeze info for the process.
+      */
+     public int getBinderFreezeInfo(int pid) {
++        if (!isBinderFreezerAllowed()) {
++            throw new UnsupportedOperationException("Binder freezing is unavailable in royd containers");
++        }
+         return nativeGetBinderFreezeInfo(pid);
+     }
+
+     /**
+      * Determines whether the freezer is supported by this system.
+      * @return true if the freezer is supported.
+@@ -77,7 +100,7 @@
+      */
+     public boolean isFreezerSupported() {
+-        return nativeIsFreezerSupported();
++        return isBinderFreezerAllowed() && nativeIsFreezerSupported();
+     }
+
+     // Native methods
+
+diff --git a/frameworks/base/services/core/java/com/android/server/am/ProcessList.java b/frameworks/base/services/core/java/com/android/server/am/ProcessList.java
+--- a/frameworks/base/services/core/java/com/android/server/am/ProcessList.java
++++ b/frameworks/base/services/core/java/com/android/server/am/ProcessList.java
+@@ -3028,7 +3028,9 @@
+         for (int i = 0; i < N; i++) {
+             final int pid = procs.get(i).first.getPid();
+             int nRetries = 0;
+-            if (pid > 0) {
++            // Retain private UID-cgroup freezing and synchronous termination below,
++            // but never submit container PIDs to unqualified Binder freezer ioctls.
++            if (pid > 0 && mService.getFreezer().isBinderFreezerAllowed()) {
+                 try {
+                     int rc;
+                     do {
