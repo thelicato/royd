@@ -60,6 +60,9 @@ case "$1" in
         init.svc.statsd)
           [ "${MOCK_BAD_STATSD:-0}" = 1 ] && value=restarting || value=running
           ;;
+        init.svc.lmkd)
+          [ "${MOCK_BAD_LMKD:-0}" = 1 ] && value=restarting || value=running
+          ;;
         service.sf.present_timestamp)
           [ "${MOCK_BAD_PRESENT_TIMESTAMP:-0}" = 1 ] && value=1 || value=0
           ;;
@@ -205,6 +208,22 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ]; then
+      [ "${MOCK_MISSING_MEMEVENT_MODE:-}" = oom ] || \
+        printf '%s\n' 'OomConnection: ROYD: not starting host-global OOM event listener'
+      [ "${MOCK_MISSING_MEMEVENT_MODE:-}" = lmkd ] || \
+        printf '%s\n' 'lowmemorykiller: ROYD: using vmstat fallback without host-global memory-event tracing'
+      [ "${MOCK_MISSING_MEMEVENT_MODE:-}" = vmstat ] || \
+        printf '%s\n' 'lowmemorykiller: Using vmstats for direct reclaim and kswapd detection'
+    fi
+    case "${MOCK_MEMEVENT_FAILURE:-}" in
+      oom)
+        printf '%s\n' 'system_server: memevent failed to attach bpf program to oom/mark_victim tracepoint: Permission denied'
+        ;;
+      reclaim)
+        printf '%s\n' 'lmkd: memevent failed to attach bpf program to vmscan/mm_vmscan_direct_reclaim_begin tracepoint: Permission denied'
+        ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_STATSD_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'statsd: ROYD: suppressing statsd Binder caller SID request because ROYD_CONTAINER=1 and kernel SELinux is disabled'
     fi
@@ -545,6 +564,29 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STATSD_REGISTRATION_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'statsd Binder registration failed' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_LMKD=1 \
+    "$script_dir/assert-runtime.sh" broken-lmkd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a restarting lmkd' >&2
+  exit 1
+fi
+grep -Fq 'init.svc.lmkd expected running' "$tmp/error"
+for mode in oom lmkd vmstat; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_MEMEVENT_MODE="$mode" \
+      "$script_dir/assert-runtime.sh" missing-memory-event-mode >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an unreported memory-event fallback' >&2
+    exit 1
+  fi
+  grep -Fq 'memory-event container fallback is not reported' "$tmp/error"
+done
+for event in oom reclaim; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MEMEVENT_FAILURE="$event" \
+      "$script_dir/assert-runtime.sh" host-global-memory-events >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted host-global memory-event tracing' >&2
+    exit 1
+  fi
+  grep -Fq 'attempted host-global memory-event tracing' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APPWIDGET=1 \
     "$script_dir/assert-runtime.sh" bad-appwidget >"$tmp/error" 2>&1; then

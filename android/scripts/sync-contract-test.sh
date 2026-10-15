@@ -35,7 +35,37 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/security \
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
-      art/artd packages/modules/StatsD/statsd/src
+      art/artd packages/modules/StatsD/statsd/src system/memory/lmkd
+    if [ ! -f frameworks/base/services/core/java/com/android/server/am/OomConnection.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/am/OomConnection.java <<'SRC'
+package com.android.server.am;
+
+import android.os.OomKillRecord;
+import android.util.Slog;
+
+public final class OomConnection {
+    public OomConnection(OomConnectionListener listener) {
+        mOomListener = listener;
+        mOomConnectionThread = new OomConnectionThread();
+        mOomConnectionThread.start();
+    }
+}
+SRC
+    fi
+    if [ ! -f system/memory/lmkd/lmkd.cpp ]; then
+      cat > system/memory/lmkd/lmkd.cpp <<'SRC'
+static bool init_memevent_listener_monitoring() {
+    static struct event_handler_info direct_reclaim_poll_hinfo = {0,
+                                                                  memevent_listener_notification};
+
+    if (memevent_listener) return true;
+
+    android::bpf::waitForProgsLoaded();
+    memevent_listener = std::make_unique<android::bpf::memevents::MemEventListener>(
+            android::bpf::memevents::MemEventClient::LMKD);
+}
+SRC
+    fi
     if [ ! -f packages/modules/StatsD/statsd/src/main.cpp ]; then
       cat > packages/modules/StatsD/statsd/src/main.cpp <<'SRC'
 #include <stdio.h>
@@ -2366,6 +2396,12 @@ grep -Fq 'AIBinder_setRequestingSid(binder.get(), request_sid);' \
   "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
 grep -Fq 'ROYD: suppressing statsd Binder caller SID request' \
   "$tmp/src/packages/modules/StatsD/statsd/src/main.cpp"
+grep -Fq '"1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/OomConnection.java"
+grep -Fq 'ROYD: not starting host-global OOM event listener' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/am/OomConnection.java"
+grep -Fq 'ROYD: using vmstat fallback without host-global memory-event tracing' \
+  "$tmp/src/system/memory/lmkd/lmkd.cpp"
 grep -Fq 'IsRoydContainerWithoutSelinux' "$tmp/src/system/core/init/service.cpp"
 grep -Fq '#include <selinux/selinux.h>' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'const bool preserve_container_output = royd_container != nullptr &&' \

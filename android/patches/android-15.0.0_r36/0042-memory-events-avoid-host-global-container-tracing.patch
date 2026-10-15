@@ -1,0 +1,31 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/am/OomConnection.java b/frameworks/base/services/core/java/com/android/server/am/OomConnection.java
+--- a/frameworks/base/services/core/java/com/android/server/am/OomConnection.java
++++ b/frameworks/base/services/core/java/com/android/server/am/OomConnection.java
+@@ -19,2 +19,3 @@
+ import android.os.OomKillRecord;
++import android.os.SELinux;
+ import android.util.Slog;
+@@ -44,4 +45,9 @@
+         mOomListener = listener;
+         mOomConnectionThread = new OomConnectionThread();
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()) {
++            Slog.i(TAG, "ROYD: not starting host-global OOM event listener");
++            return;
++        }
++
+         mOomConnectionThread.start();
+     }
+diff --git a/system/memory/lmkd/lmkd.cpp b/system/memory/lmkd/lmkd.cpp
+--- a/system/memory/lmkd/lmkd.cpp
++++ b/system/memory/lmkd/lmkd.cpp
+@@ -3433,3 +3433,10 @@
+ static bool init_memevent_listener_monitoring() {
++    const char* royd_container = getenv("ROYD_CONTAINER");
++    if (royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
++        access("/sys/fs/selinux/enforce", F_OK) != 0) {
++        ALOGI("ROYD: using vmstat fallback without host-global memory-event tracing");
++        return false;
++    }
++
+     static struct event_handler_info direct_reclaim_poll_hinfo = {0,
+                                                                   memevent_listener_notification};

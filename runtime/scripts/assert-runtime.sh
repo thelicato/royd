@@ -153,6 +153,7 @@ if [ "$sdk" = 35 ]; then
   assert_property dalvik.vm.heapmaxfree "$resource_heap_max_free"
   assert_property init.svc.netd running
   assert_property init.svc.statsd running
+  assert_property init.svc.lmkd running
   assert_property service.sf.present_timestamp 0
   if [ "$graphics_backend" = software ]; then
     assert_property service.sf.prime_shader_cache false
@@ -184,6 +185,22 @@ if [ "$sdk" = 35 ]; then
   if docker logs "$container" 2>&1 | grep -Eq \
       "StatsManagerService: (Failed to access statsd to register puller|StatsManager failed to)|associateClass: Expecting binder to have class 'android.os.IStatsd' but descriptor is actually ''"; then
     printf 'error: Android 15 statsd Binder registration failed in %s\n' "$container" >&2
+    exit 1
+  fi
+  for memory_event_marker in \
+      'ROYD: not starting host-global OOM event listener' \
+      'ROYD: using vmstat fallback without host-global memory-event tracing' \
+      'Using vmstats for direct reclaim and kswapd detection'; do
+    if ! docker logs "$container" 2>&1 | grep -Fq "$memory_event_marker"; then
+      printf 'error: Android 15 memory-event container fallback is not reported in %s: %s\n' \
+        "$container" "$memory_event_marker" >&2
+      exit 1
+    fi
+  done
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'memevent failed to attach bpf program to (oom/mark_victim|vmscan/mm_vmscan_)|OomConnection: failed waiting for OOM events|Failed to register (direct reclaim|kswapd) memevents'; then
+    printf 'error: Android 15 attempted host-global memory-event tracing in %s\n' \
+      "$container" >&2
     exit 1
   fi
   dropbox_status=$(docker exec "$container" service check dropbox 2>/dev/null | tr -d '\r')
