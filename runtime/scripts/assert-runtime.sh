@@ -372,14 +372,34 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 emulated storage mount failed in %s\n' "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      'ServiceManagerCppClient: Waited one second for activity'; then
+  audio_pid=$(docker exec "$container" pidof audioserver 2>/dev/null) || audio_pid=
+  case "$audio_pid" in
+    ''|0|*[!0-9]*)
+      printf 'error: Android 15 audioserver PID is unavailable in %s\n' "$container" >&2
+      exit 1 ;;
+  esac
+  # The forwarding service uses threadtime. Attribute shared ServiceManager messages to
+  # audioserver, including former instances identified by their own native log tag.
+  audio_waits=$(docker logs "$container" 2>&1 | awk -v current="$audio_pid" '
+    BEGIN { audio[current] = 1 }
+    $3 ~ /^[0-9]+$/ && $6 == "audioserver:" { audio[$3] = 1 }
+    $3 ~ /^[0-9]+$/ && $6 == "ServiceManagerCppClient:" &&
+        $7 == "Waited" && $8 == "one" && $9 == "second" && $10 == "for" {
+      waits[$3, $11] = 1
+    }
+    END {
+      for (pid in audio) {
+        if ((pid, "activity") in waits) print "activity"
+        if ((pid, "sensor_privacy") in waits) print "sensor_privacy"
+      }
+    }
+  ')
+  if printf '%s\n' "$audio_waits" | grep -Fxq activity; then
     printf 'error: Android 15 blocked audioserver on unpublished ActivityManager in %s\n' \
       "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      'ServiceManagerCppClient: Waited one second for sensor_privacy'; then
+  if printf '%s\n' "$audio_waits" | grep -Fxq sensor_privacy; then
     printf 'error: Android 15 blocked audioserver on unpublished sensor privacy in %s\n' \
       "$container" >&2
     exit 1

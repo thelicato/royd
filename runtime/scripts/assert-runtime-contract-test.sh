@@ -17,6 +17,10 @@ case "$1" in
     shift
     container=$1
     shift
+    if [ "$1" = pidof ] && [ "$2" = audioserver ]; then
+      printf '%s\n' "${MOCK_AUDIO_PID-237}"
+      exit 0
+    fi
     if [ "$1" = getprop ]; then
       property=$2
       case "$property" in
@@ -328,10 +332,14 @@ case "$1" in
       printf '%s\n' 'am_wtf: [0,645,system_server,-1,StorageManagerService,]'
     fi
     if [ "${MOCK_AUDIO_ACTIVITY_WAIT:-0}" = 1 ]; then
-      printf '%s\n' 'ServiceManagerCppClient: Waited one second for activity (is service started?)'
+      printf '%s\n' "10-15 12:16:03.184 ${MOCK_WAIT_PID:-237} 309 W ServiceManagerCppClient: Waited one second for activity (is service started?)"
     fi
     if [ "${MOCK_AUDIO_SENSOR_PRIVACY_WAIT:-0}" = 1 ]; then
-      printf '%s\n' 'ServiceManagerCppClient: Waited one second for sensor_privacy (is service started?)'
+      printf '%s\n' "10-15 12:16:03.184 ${MOCK_WAIT_PID:-237} 309 W ServiceManagerCppClient: Waited one second for sensor_privacy (is service started?)"
+    fi
+    if [ "${MOCK_HISTORIC_AUDIO_PID:-0}" = 1 ]; then
+      # Native tag evidence may appear after the shared-tag message in the retained log.
+      printf '%s\n' '10-15 12:16:04.000 111 222 D audioserver: ordinary diagnostic'
     fi
     if [ "${MOCK_SYSTEM_SERVER_PRE_WATCHDOG:-0}" = 1 ]; then
       printf '%s\n' 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'
@@ -567,6 +575,28 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_SENSOR_PRIVACY_WAIT=1 \
   exit 1
 fi
 grep -Fq 'Android 15 blocked audioserver on unpublished sensor privacy' "$tmp/error"
+
+# Other services may legitimately wait while a framework is being replaced. Keep their
+# diagnostics visible without misclassifying them as an audioserver startup dependency.
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_ACTIVITY_WAIT=1 MOCK_AUDIO_SENSOR_PRIVACY_WAIT=1 \
+  MOCK_WAIT_PID=309 "$script_dir/assert-runtime.sh" cameraserver-wait >/dev/null
+for service in ACTIVITY SENSOR_PRIVACY; do
+  if env PATH="$tmp:$PATH" MOCK_SDK=35 "MOCK_AUDIO_${service}_WAIT=1" \
+      MOCK_WAIT_PID=111 MOCK_HISTORIC_AUDIO_PID=1 \
+      "$script_dir/assert-runtime.sh" former-audioserver-wait >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a former audioserver blocking lookup' >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 blocked audioserver on unpublished' "$tmp/error"
+done
+for pid in '' 0 '237 238' invalid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_AUDIO_PID="$pid" \
+      "$script_dir/assert-runtime.sh" missing-audio-pid >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an unavailable audioserver PID' >&2
+    exit 1
+  fi
+  grep -Fq 'audioserver PID is unavailable' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SYSTEM_SERVER_PRE_WATCHDOG=1 \
     "$script_dir/assert-runtime.sh" pre-watchdog >"$tmp/error" 2>&1; then
