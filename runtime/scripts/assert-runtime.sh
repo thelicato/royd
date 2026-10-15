@@ -538,6 +538,28 @@ for display_property in width height dpi fps; do
   esac
 done
 
+if [ "$sdk" = 35 ] && [ "$graphics_backend" = software ]; then
+  display_identity=$(docker exec "$container" dumpsys SurfaceFlinger --display-id 2>&1) || {
+    printf 'error: Android 15 display-identity dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if [ "$display_identity" != 'Display 0 (HWC display 1): no display identification data' ]; then
+    printf 'error: Android 15 software display lost its legacy identity in %s\n' "$container" >&2
+    exit 1
+  fi
+  if ! docker logs "$container" 2>&1 | grep -Fq 'HWComposer: Switching to legacy multi-display mode'; then
+    printf 'error: Android 15 software legacy-display fallback is not reported in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      "HwcComposer: getDisplayIdentificationData failed Status(-8, EX_SERVICE_SPECIFIC): '8:"; then
+    printf 'error: Android 15 optional display identification was reported as a failure in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+fi
+
 if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
   appwidget_status=$(docker exec "$container" service check appwidget 2>/dev/null | tr -d '\r')
   if [ "$appwidget_status" != 'Service appwidget: found' ]; then

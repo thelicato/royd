@@ -36,6 +36,7 @@ case "$1" in
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
       frameworks/base/core/java/com/android/internal/os \
+      frameworks/native/services/surfaceflinger/DisplayHardware \
       art/artd packages/modules/StatsD/statsd/src system/memory/lmkd \
       frameworks/base/services/core/java/com/android/server/wm \
       frameworks/base/services/java/com/android/server \
@@ -43,6 +44,26 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
+    if [ ! -f frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp ]; then
+      cat > frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp <<'SRC'
+Error AidlComposer::getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                                 std::vector<uint8_t>* outData) {
+    AidlDisplayIdentification displayIdentification;
+    const auto status =
+            mAidlComposerClient->getDisplayIdentificationData(translate<int64_t>(display),
+                                                              &displayIdentification);
+    if (!status.isOk()) {
+        ALOGE("getDisplayIdentificationData failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+
+    *outPort = static_cast<uint8_t>(displayIdentification.port);
+    *outData = displayIdentification.data;
+
+    return Error::NONE;
+}
+SRC
+    fi
     if [ ! -f frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java ]; then
       cp "$ROYD_SYNC_CPU_SPEED_FIXTURE" frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java
     fi
@@ -2678,6 +2699,8 @@ grep -Fq 'bool shouldSkipRoydGpuWorkTracing() {' \
   "$tmp/src/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp"
 grep -Fq 'private void reportReadError(IOException error)' \
   "$tmp/src/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java"
+grep -Fq 'if (status.getExceptionCode() == EX_SERVICE_SPECIFIC' \
+  "$tmp/src/frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp"
 [ "$(grep -c 'reportReadError(e);' "$tmp/src/frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java")" -eq 2 ]
 [ "$(grep -c 'if (shouldSkipRoydGpuWorkTracing())' "$tmp/src/frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp")" -eq 2 ]
 grep -Fq 'ROYD: not starting host-global GPU work tracing' \

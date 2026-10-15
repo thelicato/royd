@@ -142,6 +142,16 @@ case "$1" in
       printf '%s\n' "$value"
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = SurfaceFlinger ] && [ "$3" = --display-id ]; then
+      case "${MOCK_DISPLAY_IDENTITY:-good}" in
+        good) printf '%s\n' 'Display 0 (HWC display 1): no display identification data' ;;
+        failed) exit 1 ;;
+        invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+        wrong_id) printf '%s\n' 'Display 1 (HWC display 2): no display identification data' ;;
+        edid) printf '%s\n' 'Display 123 (HWC display 1): port=1 pnpId=ABC displayName=Monitor' ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = dumpsys ] && [ "$2" = cpuinfo ]; then
       case "${MOCK_CPU_TIME_DUMP:-good}" in
         good) printf '%s\n' 'CPU usage from 1000ms to 0ms ago:' '40% TOTAL: 17% user + 23% kernel' ;;
@@ -281,6 +291,15 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_LEGACY_DISPLAY_MODE:-0}" != 1 ]; then
+      printf '%s\n' 'HWComposer: Switching to legacy multi-display mode'
+    fi
+    if [ "${MOCK_UNSUPPORTED_DISPLAY_REPORT:-0}" = 1 ]; then
+      printf '%s\n' "HwcComposer: getDisplayIdentificationData failed Status(-8, EX_SERVICE_SPECIFIC): '8: '"
+    fi
+    if [ "${MOCK_OTHER_DISPLAY_ERROR:-0}" = 1 ]; then
+      printf '%s\n' "HwcComposer: getDisplayIdentificationData failed Status(-8, EX_SERVICE_SPECIFIC): '3: '"
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_GPU_WORK_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'GpuWork : ROYD: not starting host-global GPU work tracing'
     fi
@@ -543,6 +562,29 @@ for status in failed invalid no_total no_header; do
   fi
   grep -Eq 'CPU-time status dump failed|CPU-time accounting response is invalid' "$tmp/error"
 done
+
+for identity in failed invalid wrong_id edid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_DISPLAY_IDENTITY="$identity" \
+      "$script_dir/assert-runtime.sh" bad-display-identity >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an invalid software display identity' >&2
+    exit 1
+  fi
+  grep -Eq 'display-identity dump failed|software display lost its legacy identity' "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_LEGACY_DISPLAY_MODE=1 \
+    "$script_dir/assert-runtime.sh" missing-legacy-display-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported legacy-display fallback' >&2
+  exit 1
+fi
+grep -Fq 'software legacy-display fallback is not reported' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_UNSUPPORTED_DISPLAY_REPORT=1 \
+    "$script_dir/assert-runtime.sh" unsupported-display-report >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted the redundant unsupported-display error' >&2
+  exit 1
+fi
+grep -Fq 'optional display identification was reported as a failure' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_DISPLAY_ERROR=1 \
+  "$script_dir/assert-runtime.sh" other-display-error >/dev/null
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_INIT_LOGGING_MODE=1 \
     "$script_dir/assert-runtime.sh" missing-init-logging-mode >"$tmp/error" 2>&1; then
