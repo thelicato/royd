@@ -158,7 +158,8 @@ if [ "$sdk" = 35 ]; then
   if [ "$graphics_backend" = software ]; then
     assert_property service.sf.prime_shader_cache false
   fi
-  for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy stats; do
+  for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy \
+      stats suspend_control suspend_control_internal android.system.suspend.ISystemSuspend/default; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
       printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
@@ -166,6 +167,45 @@ if [ "$sdk" = 35 ]; then
       exit 1
     fi
   done
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: keeping native wake locks in-process without host kernel wake locks'; then
+    printf 'error: Android 15 in-process wake-lock mode is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
+  suspend_dump=$(docker exec "$container" dumpsys suspend_control_internal 2>&1) || {
+    printf 'error: Android 15 native wake-lock statistics dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$suspend_dump" | grep -Eq \
+      'PowerManagerService\.[A-Za-z]+[[:space:]]*\|[[:space:]]*[0-9]+[[:space:]]*\|[[:space:]]*Native'; then
+    printf 'error: Android 15 native wake-lock statistics are unavailable in %s\n' "$container" >&2
+    exit 1
+  fi
+  docker exec "$container" sh -c '
+    # royd-runtime-host-power-test
+    suspend=$(pidof android.system.suspend-service) || exit 1
+    case "$suspend" in ""|*[!0-9]*) exit 1 ;; esac
+    ls "/proc/$suspend/fd" >/dev/null || exit 1
+    count=0
+    for descriptor in /proc/$suspend/fd/*; do
+      target=$(readlink "$descriptor") || continue
+      case "$target" in
+        /sys/power/state|/sys/power/wakeup_count|/sys/power/wake_lock|/sys/power/wake_unlock)
+          exit 1 ;;
+      esac
+      count=$((count + 1))
+    done
+    test "$count" -gt 0
+  ' || {
+    printf 'error: Android 15 SystemSuspend host-power descriptor isolation failed in %s\n' \
+      "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'suspend-service: error (opening|writing).* /sys/power/(state|wakeup_count|wake_lock|wake_unlock)(:|$)'; then
+    printf 'error: Android 15 SystemSuspend attempted host power control in %s\n' "$container" >&2
+    exit 1
+  fi
   stats_dump=$(docker exec "$container" dumpsys stats --metadata 2>&1) || {
     printf 'error: Android 15 statsd Binder metadata dump failed in %s: %s\n' \
       "$container" "$stats_dump" >&2

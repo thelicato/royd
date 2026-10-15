@@ -149,6 +149,14 @@ case "$1" in
       esac
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = suspend_control_internal ]; then
+      case "${MOCK_SUSPEND_DUMP:-good}" in
+        good) printf '%s\n' '| PowerManagerService.Booting | 455 | Native | Inactive | 0 |' ;;
+        failed) exit 1 ;;
+        invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = service ] && [ "$2" = check ]; then
       case "$3" in
         appwidget)
@@ -161,7 +169,8 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
-        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy|stats)
+        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy|stats|\
+        suspend_control|suspend_control_internal|android.system.suspend.ISystemSuspend/default)
           [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
             printf 'Service %s: not found\n' "$3" || \
             printf 'Service %s: found\n' "$3"
@@ -179,6 +188,9 @@ case "$1" in
       case "$3" in
         *royd-runtime-cgroup-test*)
           [ "${MOCK_BAD_CGROUP:-0}" != 1 ] || exit 1
+          ;;
+        *royd-runtime-host-power-test*)
+          [ "${MOCK_BAD_HOST_POWER_FD:-0}" != 1 ] || exit 1
           ;;
         *royd-runtime-launcher-test*)
           [ "${MOCK_BAD_LAUNCHER:-0}" != 1 ] || exit 1
@@ -216,6 +228,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_WAKELOCK_MODE:-0}" != 1 ]; then
+      printf '%s\n' 'android.system.suspend-service: ROYD: keeping native wake locks in-process without host kernel wake locks'
+    fi
+    if [ "${MOCK_HOST_POWER_WRITE:-0}" = 1 ]; then
+      printf '%s\n' 'android.system.suspend-service: error writing zygote_kwl to /sys/power/wake_unlock: Invalid argument'
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_RECENTS_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'TaskPersister: ROYD: no obsolete files in uncreated recents directories'
     fi
@@ -560,6 +578,40 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=stats \
   exit 1
 fi
 grep -Fq 'Android 15 required service stats is unavailable' "$tmp/error"
+for service in suspend_control suspend_control_internal android.system.suspend.ISystemSuspend/default; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE="$service" \
+      "$script_dir/assert-runtime.sh" missing-suspend-service >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an absent suspend service' >&2
+    exit 1
+  fi
+  grep -Fq "Android 15 required service $service is unavailable" "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_WAKELOCK_MODE=1 \
+    "$script_dir/assert-runtime.sh" missing-wakelock-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported native wake-lock mode' >&2
+  exit 1
+fi
+grep -Fq 'in-process wake-lock mode is not reported' "$tmp/error"
+for response in failed invalid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SUSPEND_DUMP="$response" \
+      "$script_dir/assert-runtime.sh" missing-native-wakelocks >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted unavailable native wake-lock statistics' >&2
+    exit 1
+  fi
+  grep -Eq 'native wake-lock statistics (dump failed|are unavailable)' "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_HOST_POWER_FD=1 \
+    "$script_dir/assert-runtime.sh" host-power-fd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a SystemSuspend host-power descriptor' >&2
+  exit 1
+fi
+grep -Fq 'SystemSuspend host-power descriptor isolation failed' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_HOST_POWER_WRITE=1 \
+    "$script_dir/assert-runtime.sh" host-power-write >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a SystemSuspend host-power write' >&2
+  exit 1
+fi
+grep -Fq 'SystemSuspend attempted host power control' "$tmp/error"
 for failure in failed invalid; do
   if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STATSD_DUMP="$failure" \
       "$script_dir/assert-runtime.sh" broken-stats >"$tmp/error" 2>&1; then

@@ -58,6 +58,7 @@ run ./android/scripts/android15-legacy-cgroup-profile-container-test.sh
 run ./android/scripts/android15-statsd-container-test.sh
 run ./android/scripts/android15-memory-events-container-test.sh
 run ./android/scripts/android15-task-persister-container-test.sh
+run ./android/scripts/android15-host-power-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh

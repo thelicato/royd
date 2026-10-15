@@ -1538,6 +1538,58 @@ cc_defaults {
 }
 SRC
     fi
+    if [ ! -f system/core/init/builtins.cpp ]; then
+      cat > system/core/init/builtins.cpp <<'SRC'
+#include <map>
+#include <memory>
+
+#include <android-base/chrono_utils.h>
+
+static Result<void> do_write(const BuiltinArguments& args) {
+    if (auto result = WriteFile(args[1], args[2]); !result.ok()) {
+        return ErrorIgnoreEnoent()
+               << "Unable to write to file '" << args[1] << "': " << result.error();
+    }
+    return {};
+}
+SRC
+    fi
+    if [ ! -f system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h ]; then
+      cat > system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h <<'SRC'
+class SystemSuspend {
+    SystemSuspend(
+                  const sp<SuspendControlServiceInternal>& controlServiceInternal,
+                  bool useSuspendCounter = true);
+    void incSuspendCounter(const std::string& name);
+    bool mUseSuspendCounter;
+    unique_fd mWakeLockFd;
+    unique_fd mWakeUnlockFd;
+};
+SRC
+    fi
+    if [ ! -f system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp ]; then
+      cat > system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp <<'SRC'
+SystemSuspend::SystemSuspend(
+                             const sp<SuspendControlServiceInternal>& controlServiceInternal,
+                             bool useSuspendCounter)
+    : mSuspendCounter(0),
+      mUseSuspendCounter(useSuspendCounter),
+      mWakeLockFd(-1),
+      mWakeUnlockFd(-1),
+      mWakeupReasonsFd(std::move(wakeupReasonsFd)) {
+    mControlServiceInternal->setSuspendService(this);
+
+    if (!mUseSuspendCounter) {
+        mWakeLockFd.reset(TEMP_FAILURE_RETRY(open(kSysPowerWakeLock, O_CLOEXEC | O_RDWR)));
+    }
+}
+bool SystemSuspend::enableAutosuspend(const sp<IBinder>& token) {
+    if (!WriteStringToFd(kZygoteKernelWakelock, mWakeUnlockFd)) {
+        PLOG(ERROR) << "error writing " << kZygoteKernelWakelock << " to " << kSysPowerWakeUnlock;
+    }
+}
+SRC
+    fi
     if [ ! -f system/hardware/interfaces/suspend/1.0/default/main.cpp ]; then
       cat > system/hardware/interfaces/suspend/1.0/default/main.cpp <<'SRC'
 #include <binder/IServiceManager.h>
@@ -1575,6 +1627,13 @@ int main() {
         // This will block all reads/writes to these fds from the suspend thread.
         Socketpair(SOCK_STREAM, &wakeupCountFd, &stateFd);
     }
+    sp<SystemSuspend> suspend = new SystemSuspend(
+        std::move(wakeupCountFd), std::move(stateFd), std::move(suspendStatsFd), kStatsCapacity,
+        std::move(kernelWakelockStatsFd), std::move(wakeupReasonsFd), std::move(suspendTimeFd),
+        sleepTimeConfig, suspendControl, suspendControlInternal, true /* mUseSuspendCounter*/);
+
+    std::shared_ptr<SystemSuspendAidl> suspendAidl =
+        ndk::SharedRefBase::make<SystemSuspendAidl>(suspend.get());
 }
 SRC
     fi
@@ -2495,6 +2554,16 @@ grep -Fq 'const bool disableHostSuspend = isRoydContainerWithoutSelinux();' \
   "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
 grep -Fq 'if (disableHostSuspend || wakeupCountFd < 0 || stateFd < 0) {' \
   "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
+grep -Fq 'disableHostSuspend);' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/main.cpp"
+grep -Fq 'mUseSuspendCounter(useSuspendCounter || disableKernelWakeLocks)' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp"
+grep -Fq 'ROYD: keeping native wake locks in-process without host kernel wake locks' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp"
+grep -Fq 'bool useSuspendCounter = true, bool disableKernelWakeLocks = false);' \
+  "$tmp/src/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h"
+grep -Fq 'ShouldSkipRoydHostPowerWrite(args[1])' "$tmp/src/system/core/init/builtins.cpp"
+grep -Fq 'ROYD: skipping init writes to host power controls' "$tmp/src/system/core/init/builtins.cpp"
 grep -Fq 'pub fn is_selinux_enabled() -> i32 {' \
   "$tmp/src/system/security/keystore2/selinux/src/lib.rs"
 [ "$(grep -R -c 'crate::utils::binder_features(BinderFeatures {' \

@@ -1,0 +1,80 @@
+diff --git a/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h b/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h
+--- a/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h
++++ b/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h
+@@ -86,3 +86,3 @@
+                   const sp<SuspendControlServiceInternal>& controlServiceInternal,
+-                  bool useSuspendCounter = true);
++                  bool useSuspendCounter = true, bool disableKernelWakeLocks = false);
+     void incSuspendCounter(const std::string& name);
+@@ -153,3 +153,4 @@
++    const bool mDisableKernelWakeLocks;
+     bool mUseSuspendCounter;
+     unique_fd mWakeLockFd;
+     unique_fd mWakeUnlockFd;
+diff --git a/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp b/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp
+--- a/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp
++++ b/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.cpp
+@@ -150,3 +150,3 @@
+                              const sp<SuspendControlServiceInternal>& controlServiceInternal,
+-                             bool useSuspendCounter)
++                             bool useSuspendCounter, bool disableKernelWakeLocks)
+     : mSuspendCounter(0),
+@@ -164,3 +164,4 @@
+-      mUseSuspendCounter(useSuspendCounter),
++      mDisableKernelWakeLocks(disableKernelWakeLocks),
++      mUseSuspendCounter(useSuspendCounter || disableKernelWakeLocks),
+       mWakeLockFd(-1),
+       mWakeUnlockFd(-1),
+@@ -168,4 +169,9 @@
+     mControlServiceInternal->setSuspendService(this);
+
++    if (mDisableKernelWakeLocks) {
++        LOG(INFO) << "ROYD: keeping native wake locks in-process without host kernel wake locks";
++        return;
++    }
++
+     if (!mUseSuspendCounter) {
+         mWakeLockFd.reset(TEMP_FAILURE_RETRY(open(kSysPowerWakeLock, O_CLOEXEC | O_RDWR)));
+@@ -191,3 +197,3 @@
+-    if (!WriteStringToFd(kZygoteKernelWakelock, mWakeUnlockFd)) {
++    if (!mDisableKernelWakeLocks && !WriteStringToFd(kZygoteKernelWakelock, mWakeUnlockFd)) {
+         PLOG(ERROR) << "error writing " << kZygoteKernelWakelock << " to " << kSysPowerWakeUnlock;
+     }
+diff --git a/system/hardware/interfaces/suspend/1.0/default/main.cpp b/system/hardware/interfaces/suspend/1.0/default/main.cpp
+--- a/system/hardware/interfaces/suspend/1.0/default/main.cpp
++++ b/system/hardware/interfaces/suspend/1.0/default/main.cpp
+@@ -166,4 +166,5 @@
+         std::move(kernelWakelockStatsFd), std::move(wakeupReasonsFd), std::move(suspendTimeFd),
+-        sleepTimeConfig, suspendControl, suspendControlInternal, true /* mUseSuspendCounter*/);
++        sleepTimeConfig, suspendControl, suspendControlInternal, true /* mUseSuspendCounter*/,
++        disableHostSuspend);
+
+     std::shared_ptr<SystemSuspendAidl> suspendAidl =
+diff --git a/system/core/init/builtins.cpp b/system/core/init/builtins.cpp
+--- a/system/core/init/builtins.cpp
++++ b/system/core/init/builtins.cpp
+@@ -47,4 +47,5 @@
+ #include <map>
+ #include <memory>
++#include <mutex>
+
+ #include <android-base/chrono_utils.h>
+@@ -860,2 +861,18 @@
++static bool ShouldSkipRoydHostPowerWrite(const std::string& path) {
++    if (path != "/sys/power/state" && path != "/sys/power/wakeup_count" &&
++        path != "/sys/power/wake_lock" && path != "/sys/power/wake_unlock") {
++        return false;
++    }
++    const char* container = getenv("ROYD_CONTAINER");
++    return container != nullptr && strcmp(container, "1") == 0 && is_selinux_enabled() <= 0;
++}
++
+ static Result<void> do_write(const BuiltinArguments& args) {
++    if (ShouldSkipRoydHostPowerWrite(args[1])) {
++        static std::once_flag logged;
++        std::call_once(logged, [] {
++            LOG(INFO) << "ROYD: skipping init writes to host power controls";
++        });
++        return {};
++    }
+     if (auto result = WriteFile(args[1], args[2]); !result.ok()) {
