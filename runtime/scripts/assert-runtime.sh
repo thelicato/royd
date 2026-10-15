@@ -143,6 +143,11 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: routing init diagnostics to container stderr'; then
+    printf 'error: Android 15 init stderr logging mode is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
   assert_property sys.royd.framework_ready 1
   for framework_marker in \
       'ROYD: starting framework service initialisation' \

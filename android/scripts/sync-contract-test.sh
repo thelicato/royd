@@ -2067,6 +2067,9 @@ void SetStdioToDevNull(char** argv) {
 }
 
 void InitKernelLogging(char** argv) {
+    SetFatalRebootTarget();
+    android::base::InitLogging(argv, &android::base::KernelLogger, InitAborter);
+}
 SRC
     fi
     if [ ! -f system/core/init/service.cpp ]; then
@@ -2595,6 +2598,9 @@ grep -Fq 'bool useSuspendCounter = true, bool disableKernelWakeLocks = false);' 
   "$tmp/src/system/hardware/interfaces/suspend/1.0/default/SystemSuspend.h"
 grep -Fq 'ShouldSkipRoydHostPowerWrite(args[1])' "$tmp/src/system/core/init/builtins.cpp"
 grep -Fq 'ROYD: skipping init writes to host power controls' "$tmp/src/system/core/init/builtins.cpp"
+grep -Fq 'android::base::InitLogging(argv, &android::base::StderrLogger, InitAborter);' \
+  "$tmp/src/system/core/init/util.cpp"
+grep -Fq 'ROYD: routing init diagnostics to container stderr' "$tmp/src/system/core/init/util.cpp"
 grep -Fq 'pub fn is_selinux_enabled() -> i32 {' \
   "$tmp/src/system/security/keystore2/selinux/src/lib.rs"
 [ "$(grep -R -c 'crate::utils::binder_features(BinderFeatures {' \

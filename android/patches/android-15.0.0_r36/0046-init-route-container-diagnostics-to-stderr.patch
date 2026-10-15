@@ -1,0 +1,14 @@
+diff --git a/system/core/init/util.cpp b/system/core/init/util.cpp
+--- a/system/core/init/util.cpp
++++ b/system/core/init/util.cpp
+@@ -674,4 +674,10 @@
+ void InitKernelLogging(char** argv) {
+     SetFatalRebootTarget();
++    const char* container = getenv("ROYD_CONTAINER");
++    if (container != nullptr && strcmp(container, "1") == 0 && is_selinux_enabled() <= 0) {
++        android::base::InitLogging(argv, &android::base::StderrLogger, InitAborter);
++        LOG(INFO) << "ROYD: routing init diagnostics to container stderr";
++        return;
++    }
+     android::base::InitLogging(argv, &android::base::KernelLogger, InitAborter);
+ }

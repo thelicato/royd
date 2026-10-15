@@ -235,6 +235,9 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_INIT_LOGGING_MODE:-0}" != 1 ]; then
+      printf '%s\n' 'init: ROYD: routing init diagnostics to container stderr'
+    fi
     if [ "$MOCK_SDK" = 35 ]; then
       [ "${MOCK_MISSING_FRAMEWORK_MARKER:-}" = begin ] || \
         printf '%s\n' 'SystemServer: ROYD: starting framework service initialisation'
@@ -377,6 +380,13 @@ PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OPTIONAL_SERVICE_WARNING=1 \
   "$script_dir/assert-runtime.sh" optional-service-warning >/dev/null
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_RECENTS_DIRECTORIES_PRESENT=1 MOCK_MISSING_RECENTS_MARKER=1 \
   "$script_dir/assert-runtime.sh" existing-recents-directories >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_INIT_LOGGING_MODE=1 \
+    "$script_dir/assert-runtime.sh" missing-init-logging-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported Android 15 init logging mode' >&2
+  exit 1
+fi
+grep -Fq 'init stderr logging mode is not reported' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_FRAMEWORK_READY=1 \
     "$script_dir/assert-runtime.sh" stale-device-boot-completion >"$tmp/error" 2>&1; then
