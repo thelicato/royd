@@ -39,7 +39,41 @@ case "$1" in
       frameworks/base/services/core/java/com/android/server/wm \
       frameworks/base/services/java/com/android/server \
       packages/apps/Settings/src/com/android/settings/deviceinfo \
-      frameworks/base/packages/SettingsLib/src/com/android/settingslib
+      frameworks/base/packages/SettingsLib/src/com/android/settingslib \
+      frameworks/native/services/gpuservice
+    if [ ! -f frameworks/native/services/gpuservice/GpuService.cpp ]; then
+      cat > frameworks/native/services/gpuservice/GpuService.cpp <<'SRC'
+#include <vkprofiles.h>
+
+#include <thread>
+#include <memory>
+
+namespace android {
+
+namespace {
+status_t cmdHelp(int out);
+status_t cmdVkjson(int out, int err);
+status_t cmdVkprofiles(int out, int err);
+void dumpGameDriverInfo(std::string* result);
+} // namespace
+
+const String16 sDump("android.permission.DUMP");
+
+GpuService::GpuService() {
+    mGpuMemAsyncInitThread = std::make_unique<std::thread>([this] (){
+        mGpuMem->initialize();
+        mGpuMemTracer->initialize(mGpuMem);
+    });
+}
+void dump() {
+        if (dumpAll || dumpMem) {
+            mGpuMem->dump(args, &result);
+            result.append("\n");
+        }
+}
+}
+SRC
+    fi
     if [ ! -f packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java ]; then
       cat > packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java <<'SRC'
 import android.content.Context;
@@ -2532,6 +2566,11 @@ grep -Fq "forall -c git lfs pull" "$tmp/repo.log" || {
   exit 1
 }
 grep -Fq 'bool IsRoydContainerWithoutSelinux() {' "$tmp/src/art/artd/artd.cc"
+grep -Fq 'bool shouldSkipRoydGpuMemoryTracing() {' \
+  "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
+[ "$(grep -c 'if (shouldSkipRoydGpuMemoryTracing())' "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp")" -eq 2 ]
+grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
+  "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
 grep -Fq 'mWifiManager = shouldSkipRoydWifi() ? null' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
 grep -Fq 'if (shouldSkipRoydWifi()) {' \

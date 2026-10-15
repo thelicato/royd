@@ -174,7 +174,7 @@ if [ "$sdk" = 35 ]; then
     assert_property service.sf.prime_shader_cache false
   fi
   for required_service in jobscheduler uimode activity sensor_privacy media.audio_flinger media.audio_policy \
-      stats suspend_control suspend_control_internal android.system.suspend.ISystemSuspend/default; do
+      stats gpu suspend_control suspend_control_internal android.system.suspend.ISystemSuspend/default; do
     service_status=$(docker exec "$container" service check "$required_service" 2>/dev/null | tr -d '\r')
     if [ "$service_status" != "Service $required_service: found" ]; then
       printf 'error: Android 15 required service %s is unavailable in %s: %s\n' \
@@ -240,6 +240,35 @@ if [ "$sdk" = 35 ]; then
   if docker logs "$container" 2>&1 | grep -Eq \
       "StatsManagerService: (Failed to access statsd to register puller|StatsManager failed to)|associateClass: Expecting binder to have class 'android.os.IStatsd' but descriptor is actually ''"; then
     printf 'error: Android 15 statsd Binder registration failed in %s\n' "$container" >&2
+    exit 1
+  fi
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: not starting host-global GPU memory tracing'; then
+    printf 'error: Android 15 container GPU-memory tracing policy is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
+  gpu_memory_dump=$(docker exec "$container" dumpsys gpu --gpumem 2>&1) || {
+    printf 'error: Android 15 GPU-memory status dump failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$gpu_memory_dump" | grep -Fxq \
+      'GPU memory tracing unavailable: host-global accounting is not container-scoped'; then
+    printf 'error: Android 15 GPU-memory accounting is not explicitly unavailable in %s\n' "$container" >&2
+    exit 1
+  fi
+  if [ "$hal_profile" = graphical ]; then
+    gpu_stats_dump=$(docker exec "$container" dumpsys gpu --gpustats 2>&1) || {
+      printf 'error: Android 15 GPU driver statistics dump failed in %s\n' "$container" >&2
+      exit 1
+    }
+    if ! printf '%s\n' "$gpu_stats_dump" | grep -q '^driverPackageName = '; then
+      printf 'error: Android 15 GPU driver statistics are unavailable in %s\n' "$container" >&2
+      exit 1
+    fi
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'GpuMem[[:space:]]*: Failed to attach bpf program to gpu_mem/gpu_mem_total tracepoint|GpuMemTracer: Cannot initialize GpuMemTracer before GpuMem'; then
+    printf 'error: Android 15 attempted host-global GPU-memory tracing in %s\n' "$container" >&2
     exit 1
   fi
   for memory_event_marker in \

@@ -148,6 +148,25 @@ case "$1" in
       [ "${MOCK_BAD_CODECS:-0}" = 1 ] || printf '%s\n' '    name: c2.android.opus.encoder'
       exit 0
     fi
+    if [ "$1" = dumpsys ] && [ "$2" = gpu ]; then
+      case "$3" in
+        --gpumem)
+          case "${MOCK_GPU_MEMORY_DUMP:-good}" in
+            good) printf '%s\n' 'GPU memory tracing unavailable: host-global accounting is not container-scoped' ;;
+            failed) exit 1 ;;
+            zero) printf '%s\n' 'Global total: 0' ;;
+            invalid) printf '%s\n' 'Failed to initialize GPU memory eBPF' ;;
+          esac ;;
+        --gpustats)
+          case "${MOCK_GPU_STATS_DUMP:-good}" in
+            good) printf '%s\n' 'driverPackageName = system' ;;
+            failed) exit 1 ;;
+            invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+          esac ;;
+        *) exit 1 ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = dumpsys ] && [ "$2" = stats ] && [ "$3" = --metadata ]; then
       case "${MOCK_STATSD_DUMP:-good}" in
         good) printf '%s\n' 'Stats collection start second: 2026-10-15' ;;
@@ -176,7 +195,7 @@ case "$1" in
             printf '%s\n' 'Service dropbox: not found' || \
             printf '%s\n' 'Service dropbox: found'
           ;;
-        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy|stats|\
+        jobscheduler|uimode|activity|sensor_privacy|media.audio_flinger|media.audio_policy|stats|gpu|\
         suspend_control|suspend_control_internal|android.system.suspend.ISystemSuspend/default)
           [ "${MOCK_BAD_REQUIRED_SERVICE:-}" = "$3" ] && \
             printf 'Service %s: not found\n' "$3" || \
@@ -235,6 +254,13 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_GPU_MEMORY_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'GpuService: ROYD: not starting host-global GPU memory tracing'
+    fi
+    case "${MOCK_GPU_MEMORY_TRACE_FAILURE:-}" in
+      attach) printf '%s\n' 'GpuMem  : Failed to attach bpf program to gpu_mem/gpu_mem_total tracepoint [2(No such file or directory)]' ;;
+      tracer) printf '%s\n' 'GpuMemTracer: Cannot initialize GpuMemTracer before GpuMem' ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_INIT_LOGGING_MODE:-0}" != 1 ]; then
       printf '%s\n' 'init: ROYD: routing init diagnostics to container stderr'
     fi
@@ -383,6 +409,43 @@ PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OPTIONAL_SERVICE_WARNING=1 \
   "$script_dir/assert-runtime.sh" optional-service-warning >/dev/null
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_RECENTS_DIRECTORIES_PRESENT=1 MOCK_MISSING_RECENTS_MARKER=1 \
   "$script_dir/assert-runtime.sh" existing-recents-directories >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=gpu \
+    "$script_dir/assert-runtime.sh" missing-gpu-service >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent GPU service' >&2
+  exit 1
+fi
+grep -Fq 'required service gpu is unavailable' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_GPU_MEMORY_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-gpu-memory-mode >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreported GPU-memory tracing policy' >&2
+  exit 1
+fi
+grep -Fq 'container GPU-memory tracing policy is not reported' "$tmp/error"
+for status in failed zero invalid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_GPU_MEMORY_DUMP="$status" \
+      "$script_dir/assert-runtime.sh" bad-gpu-memory-dump >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a broken or fabricated GPU-memory dump' >&2
+    exit 1
+  fi
+  grep -Eq 'GPU-memory status dump failed|GPU-memory accounting is not explicitly unavailable' "$tmp/error"
+done
+for status in failed invalid; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_GPU_STATS_DUMP="$status" \
+      "$script_dir/assert-runtime.sh" bad-gpu-stats-dump >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted unavailable GPU driver statistics' >&2
+    exit 1
+  fi
+  grep -Eq 'GPU driver statistics (dump failed|are unavailable)' "$tmp/error"
+done
+for failure in attach tracer; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_GPU_MEMORY_TRACE_FAILURE="$failure" \
+      "$script_dir/assert-runtime.sh" gpu-memory-tracing >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted host-global GPU-memory tracing failure' >&2
+    exit 1
+  fi
+  grep -Fq 'attempted host-global GPU-memory tracing' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_INIT_LOGGING_MODE=1 \
     "$script_dir/assert-runtime.sh" missing-init-logging-mode >"$tmp/error" 2>&1; then

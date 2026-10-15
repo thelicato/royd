@@ -1,0 +1,48 @@
+diff --git a/frameworks/native/services/gpuservice/GpuService.cpp b/frameworks/native/services/gpuservice/GpuService.cpp
+--- a/frameworks/native/services/gpuservice/GpuService.cpp
++++ b/frameworks/native/services/gpuservice/GpuService.cpp
+@@ -36,6 +36,10 @@
+ #include <vkprofiles.h>
+
++#include <cerrno>
++#include <cstdlib>
++#include <cstring>
+ #include <thread>
+ #include <memory>
++#include <unistd.h>
+
+ namespace android {
+@@ -47,6 +51,13 @@
+ status_t cmdVkjson(int out, int err);
+ status_t cmdVkprofiles(int out, int err);
+ void dumpGameDriverInfo(std::string* result);
++
++// The optional GPU-memory tracepoint collects host-global, unfiltered data.
++bool shouldSkipRoydGpuMemoryTracing() {
++    const char* container = getenv("ROYD_CONTAINER");
++    if (container == nullptr || strcmp(container, "1") != 0) return false;
++    return access("/sys/fs/selinux/enforce", F_OK) != 0 && errno == ENOENT;
++}
+ } // namespace
+
+ const String16 sDump("android.permission.DUMP");
+@@ -64,4 +75,8 @@
+     mGpuMemAsyncInitThread = std::make_unique<std::thread>([this] (){
++        if (shouldSkipRoydGpuMemoryTracing()) {
++            ALOGI("ROYD: not starting host-global GPU memory tracing");
++            return;
++        }
+         mGpuMem->initialize();
+         mGpuMemTracer->initialize(mGpuMem);
+     });
+@@ -205,4 +220,9 @@
+         if (dumpAll || dumpMem) {
+-            mGpuMem->dump(args, &result);
++            if (shouldSkipRoydGpuMemoryTracing()) {
++                result.append("GPU memory tracing unavailable: "
++                              "host-global accounting is not container-scoped\n");
++            } else {
++                mGpuMem->dump(args, &result);
++            }
+             result.append("\n");
+         }
