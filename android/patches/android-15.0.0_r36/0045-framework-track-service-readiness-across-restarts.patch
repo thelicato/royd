@@ -1,0 +1,46 @@
+diff --git a/frameworks/base/core/java/android/app/SystemServiceRegistry.java b/frameworks/base/core/java/android/app/SystemServiceRegistry.java
+--- a/frameworks/base/core/java/android/app/SystemServiceRegistry.java
++++ b/frameworks/base/core/java/android/app/SystemServiceRegistry.java
+@@ -310,7 +310,8 @@
+
+     private static boolean shouldSuppressRoydPreBootServiceNotFound() {
+         return "1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
+-                && !SystemProperties.getBoolean("sys.boot_completed", false);
++                && (!SystemProperties.getBoolean("sys.boot_completed", false)
++                        || !SystemProperties.getBoolean("sys.royd.framework_ready", false));
+     }
+
+     /**
+diff --git a/frameworks/base/services/java/com/android/server/SystemServer.java b/frameworks/base/services/java/com/android/server/SystemServer.java
+--- a/frameworks/base/services/java/com/android/server/SystemServer.java
++++ b/frameworks/base/services/java/com/android/server/SystemServer.java
+@@ -79,2 +79,3 @@
+ import android.os.Process;
++import android.os.SELinux;
+ import android.os.ServiceManager;
+@@ -686,3 +687,8 @@
+     public SystemServer() {
++        if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()) {
++            SystemProperties.set("sys.royd.framework_ready", "0");
++            Slog.i(TAG, "ROYD: starting framework service initialisation");
++        }
++
+         // Check for factory test mode.
+         mFactoryTestMode = FactoryTest.getMode();
+diff --git a/frameworks/base/services/core/java/com/android/server/SystemServiceManager.java b/frameworks/base/services/core/java/com/android/server/SystemServiceManager.java
+--- a/frameworks/base/services/core/java/com/android/server/SystemServiceManager.java
++++ b/frameworks/base/services/core/java/com/android/server/SystemServiceManager.java
+@@ -28,3 +28,5 @@
+ import android.os.Environment;
++import android.os.SELinux;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.Trace;
+@@ -332,3 +334,7 @@
+         if (phase == SystemService.PHASE_BOOT_COMPLETED) {
++            if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()) {
++                SystemProperties.set("sys.royd.framework_ready", "1");
++                Slog.i(TAG, "ROYD: framework services initialised");
++            }
+             final long totalBootTime = SystemClock.uptimeMillis() - mRuntimeStartUptime;
+             t.logDuration("TotalBootTime", totalBootTime);

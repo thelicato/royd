@@ -36,7 +36,38 @@ case "$1" in
       frameworks/av/services/audiopolicy/service \
       frameworks/base/core/java/android/app frameworks/base/core/java/android/os \
       art/artd packages/modules/StatsD/statsd/src system/memory/lmkd \
-      frameworks/base/services/core/java/com/android/server/wm
+      frameworks/base/services/core/java/com/android/server/wm \
+      frameworks/base/services/java/com/android/server
+    if [ ! -f frameworks/base/services/java/com/android/server/SystemServer.java ]; then
+      cat > frameworks/base/services/java/com/android/server/SystemServer.java <<'SRC'
+import android.os.Process;
+import android.os.ServiceManager;
+
+class SystemServer {
+    public SystemServer() {
+        // Check for factory test mode.
+        mFactoryTestMode = FactoryTest.getMode();
+    }
+}
+SRC
+    fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/SystemServiceManager.java ]; then
+      cat > frameworks/base/services/core/java/com/android/server/SystemServiceManager.java <<'SRC'
+import android.os.Environment;
+import android.os.SystemClock;
+import android.os.Trace;
+
+class SystemServiceManager {
+    public void startBootPhase(TimingsTraceAndSlog t, int phase) {
+        if (phase == SystemService.PHASE_BOOT_COMPLETED) {
+            final long totalBootTime = SystemClock.uptimeMillis() - mRuntimeStartUptime;
+            t.logDuration("TotalBootTime", totalBootTime);
+            shutdownInitThreadPool();
+        }
+    }
+}
+SRC
+    fi
     if [ ! -f frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java ]; then
       cat > frameworks/base/services/core/java/com/android/server/wm/TaskPersister.java <<'SRC'
 package com.android.server.wm;
@@ -2691,8 +2722,12 @@ grep -Fq 'import android.os.SystemProperties;' \
   "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
 grep -Fq 'private static boolean shouldSuppressRoydPreBootServiceNotFound() {' \
   "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
-grep -Fq '!SystemProperties.getBoolean("sys.boot_completed", false);' \
+grep -Fq '|| !SystemProperties.getBoolean("sys.royd.framework_ready", false));' \
   "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java"
+grep -Fq 'SystemProperties.set("sys.royd.framework_ready", "0");' \
+  "$tmp/src/frameworks/base/services/java/com/android/server/SystemServer.java"
+grep -Fq 'SystemProperties.set("sys.royd.framework_ready", "1");' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemServiceManager.java"
 [ "$(grep -c 'if (shouldSuppressRoydPreBootServiceNotFound()) {' \
   "$tmp/src/frameworks/base/core/java/android/app/SystemServiceRegistry.java")" -eq 2 ]
 grep -Fq 'Slog.wtf(TAG, "Manager wrapper not available: " + name);' \

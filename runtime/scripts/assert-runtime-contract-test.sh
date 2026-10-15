@@ -22,6 +22,9 @@ case "$1" in
       case "$property" in
         ro.build.version.sdk) value=$MOCK_SDK ;;
         sys.boot_completed) value=1 ;;
+        sys.royd.framework_ready)
+          [ "${MOCK_BAD_FRAMEWORK_READY:-0}" = 1 ] && value=0 || value=1
+          ;;
         ro.config.low_ram)
           if [ "${ROYD_RESOURCE_PROFILE:-low-memory}" = performance ]; then
             value=false
@@ -228,6 +231,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ]; then
+      [ "${MOCK_MISSING_FRAMEWORK_MARKER:-}" = begin ] || \
+        printf '%s\n' 'SystemServer: ROYD: starting framework service initialisation'
+      [ "${MOCK_MISSING_FRAMEWORK_MARKER:-}" = ready ] || \
+        printf '%s\n' 'SystemServiceManager: ROYD: framework services initialised'
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_WAKELOCK_MODE:-0}" != 1 ]; then
       printf '%s\n' 'android.system.suspend-service: ROYD: keeping native wake locks in-process without host kernel wake locks'
     fi
@@ -360,6 +369,21 @@ PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OPTIONAL_SERVICE_WARNING=1 \
   "$script_dir/assert-runtime.sh" optional-service-warning >/dev/null
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_RECENTS_DIRECTORIES_PRESENT=1 MOCK_MISSING_RECENTS_MARKER=1 \
   "$script_dir/assert-runtime.sh" existing-recents-directories >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_FRAMEWORK_READY=1 \
+    "$script_dir/assert-runtime.sh" stale-device-boot-completion >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unready framework with stock boot completion set' >&2
+  exit 1
+fi
+grep -Fq 'sys.royd.framework_ready expected 1, got 0' "$tmp/error"
+for transition in begin ready; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_FRAMEWORK_MARKER="$transition" \
+      "$script_dir/assert-runtime.sh" missing-framework-transition >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an unreported framework lifecycle transition' >&2
+    exit 1
+  fi
+  grep -Fq 'framework readiness transition is not reported' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ALLOCATOR=1 \
     "$script_dir/assert-runtime.sh" bad-allocator >"$tmp/error" 2>&1; then

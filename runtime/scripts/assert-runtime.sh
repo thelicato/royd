@@ -143,6 +143,16 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  assert_property sys.royd.framework_ready 1
+  for framework_marker in \
+      'ROYD: starting framework service initialisation' \
+      'ROYD: framework services initialised'; do
+    if ! docker logs "$container" 2>&1 | grep -Fq "$framework_marker"; then
+      printf 'error: Android 15 framework readiness transition is not reported in %s: %s\n' \
+        "$container" "$framework_marker" >&2
+      exit 1
+    fi
+  done
   assert_property ro.vendor.royd.resource_profile "$resource_profile"
   assert_property ro.config.per_app_memcg true
   assert_property dalvik.vm.heapstartsize "$resource_heap_start"
