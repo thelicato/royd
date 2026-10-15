@@ -1,0 +1,8 @@
+diff --git a/system/core/libprocessgroup/task_profiles.cpp b/system/core/libprocessgroup/task_profiles.cpp
+--- a/system/core/libprocessgroup/task_profiles.cpp
++++ b/system/core/libprocessgroup/task_profiles.cpp
+@@ -70,2 +70,3 @@ bool ShouldSkipRoydLegacyCgroup(const CgroupControllerWrapper& controller) {
++    const std::string procs_path = std::string(controller.path()) + "/cgroup.procs";
+     errno = 0;
+-    return access(controller.path(), F_OK) != 0 && errno == ENOENT;
++    return access(procs_path.c_str(), F_OK) != 0 && errno == ENOENT;

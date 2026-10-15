@@ -2328,7 +2328,9 @@ grep -Fq 'VerityUtils.setUpFsverity(parcelFileDescriptor.getFd());' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/security/FileIntegrity.java"
 grep -Fq 'bool ShouldSkipRoydLegacyCgroup(const CgroupControllerWrapper& controller)' \
   "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
-grep -Fq 'access(controller.path(), F_OK) != 0 && errno == ENOENT' \
+grep -Fq 'const std::string procs_path = std::string(controller.path()) + "/cgroup.procs";' \
+  "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
+grep -Fq 'access(procs_path.c_str(), F_OK) != 0 && errno == ENOENT' \
   "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"
 grep -Fq 'ROYD: skipping task-profile actions for unavailable' \
   "$tmp/src/system/core/libprocessgroup/task_profiles.cpp"

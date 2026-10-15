@@ -172,6 +172,9 @@ case "$1" in
         *royd-runtime-memcg-path-test*)
           [ "${MOCK_BAD_MEMCG_PATH:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-legacy-cgroup-availability-test*)
+          [ "${MOCK_ALL_LEGACY_CGROUPS_MOUNTED:-0}" != 1 ]
+          ;;
         *royd-runtime-package-list-test*)
           [ "${MOCK_BAD_PACKAGE_LIST:-0}" != 1 ] || exit 1
           ;;
@@ -222,6 +225,9 @@ case "$1" in
     fi
     if [ "${MOCK_LEGACY_CGROUP_PROFILE_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'libprocessgroup: SetCgroup::ExecuteForProcess: failed to open /dev/cpuctl/top-app/cgroup.procs: No such file or directory'
+    fi
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_LEGACY_CGROUP_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'libprocessgroup: ROYD: skipping task-profile actions for unavailable legacy cgroup controllers'
     fi
     if [ "${MOCK_OPTIONAL_SERVICE_WARNING:-0}" = 1 ]; then
       printf '%s\n' 'W SystemServiceRegistry: No service published for: usb'
@@ -551,6 +557,17 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_LEGACY_CGROUP_PROFILE_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 attempted unavailable legacy cgroup task profiles' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_LEGACY_CGROUP_MARKER=1 \
+    "$script_dir/assert-runtime.sh" missing-legacy-cgroup-marker >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing legacy cgroup-profile marker' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 did not report unavailable legacy cgroup task profiles' "$tmp/error"
+
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_LEGACY_CGROUP_MARKER=1 \
+  MOCK_ALL_LEGACY_CGROUPS_MOUNTED=1 \
+  "$script_dir/assert-runtime.sh" mounted-legacy-cgroups >/dev/null
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CGROUP=1 \
     "$script_dir/assert-runtime.sh" bad-cgroup >"$tmp/error" 2>&1; then

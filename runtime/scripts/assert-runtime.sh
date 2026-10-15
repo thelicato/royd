@@ -218,6 +218,20 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker exec "$container" sh -c '
+    # royd-runtime-legacy-cgroup-availability-test
+    for root in /dev/cpuctl /dev/cpuset /dev/blkio; do
+      [ -e "$root/cgroup.procs" ] || exit 0
+    done
+    exit 1
+  '; then
+    if ! docker logs "$container" 2>&1 | grep -Fq \
+        'ROYD: skipping task-profile actions for unavailable legacy cgroup controllers'; then
+      printf 'error: Android 15 did not report unavailable legacy cgroup task profiles in %s\n' \
+        "$container" >&2
+      exit 1
+    fi
+  fi
   docker exec "$container" sh -c '
     # royd-runtime-package-list-test
     test -s /data/system/packages.list
