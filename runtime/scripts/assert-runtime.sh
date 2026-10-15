@@ -536,6 +536,7 @@ for display_property in width height dpi fps; do
   case "$display_property" in
     width) display_width=$value ;;
     height) display_height=$value ;;
+    dpi) display_dpi=$value ;;
   esac
 done
 
@@ -562,6 +563,22 @@ if [ "$sdk" = 35 ] && [ "$graphics_backend" = software ]; then
 fi
 
 if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
+  assert_property ro.sf.lcd_density "$display_dpi"
+  effective_density=$(docker exec "$container" wm density 2>&1) || {
+    printf 'error: Android 15 effective display density query failed in %s\n' "$container" >&2
+    exit 1
+  }
+  if [ "$effective_density" != "Physical density: $display_dpi" ]; then
+    printf 'error: Android 15 effective display density does not match %s dpi in %s: %s\n' \
+      "$display_dpi" "$container" "$effective_density" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq 'ro.sf.lcd_density must be defined as a build property'; then
+    printf 'error: Android 15 SurfaceFlinger used its fallback display density in %s\n' "$container" >&2
+    exit 1
+  fi
+  printf 'Android 15 effective display density: %s dpi\n' "$display_dpi"
+
   appwidget_status=$(docker exec "$container" service check appwidget 2>/dev/null | tr -d '\r')
   if [ "$appwidget_status" != 'Service appwidget: found' ]; then
     printf 'error: Android 15 AppWidget service is unavailable in %s: %s\n' \

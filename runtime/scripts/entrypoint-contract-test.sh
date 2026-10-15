@@ -47,6 +47,7 @@ dalvik.vm.heapsize=128m
 dalvik.vm.heaptargetutilization=0.75
 dalvik.vm.heapminfree=512k
 dalvik.vm.heapmaxfree=2m
+ro.sf.lcd_density=160
 EOF_EXPECTED
 cmp "$tmp/graphical-resource.expected" "$tmp/graphical-resource.prop"
 
@@ -63,6 +64,7 @@ dalvik.vm.heapsize=512m
 dalvik.vm.heaptargetutilization=0.75
 dalvik.vm.heapminfree=512k
 dalvik.vm.heapmaxfree=8m
+ro.sf.lcd_density=240
 EOF_EXPECTED
 cmp "$tmp/performance-resource.expected" "$tmp/performance-resource.prop"
 
@@ -103,6 +105,29 @@ ROYD_FPS=5
 ROYD_RESOURCE_PROFILE=low-memory
 EOF_EXPECTED
 cmp "$tmp/headless.expected" "$tmp/headless.conf"
+! grep -q '^ro.sf.lcd_density=' "$tmp/headless-resource.prop"
+! grep -q '^ro.sf.lcd_density=' "$tmp/non-executable-resource.prop"
+
+for selected_dpi in 1 160 240 320 2000 000240; do
+  run_entrypoint "$tmp/graphical-release" "$tmp/density.conf" "$tmp/density.prop" \
+    "royd.dpi=$selected_dpi"
+  expected_dpi=$selected_dpi
+  [ "$selected_dpi" != 000240 ] || expected_dpi=240
+  grep -Fxq "ROYD_DPI=$expected_dpi" "$tmp/density.conf"
+  grep -Fxq "ro.sf.lcd_density=$expected_dpi" "$tmp/density.prop"
+done
+for invalid_dpi in 0 00 000 2001 99999 999999999999999999999999; do
+  if run_entrypoint "$tmp/graphical-release" "$tmp/bad-density.conf" "$tmp/bad-density.prop" \
+      "royd.dpi=$invalid_dpi" >/dev/null 2>&1; then
+    printf 'error: entrypoint accepted invalid Android 15 dpi: %s\n' "$invalid_dpi" >&2
+    exit 1
+  fi
+done
+for version in 8.0 14 16 17; do
+  printf 'ROYD_ANDROID_VERSION=%s\nROYD_HAL_PROFILE=graphical\n' "$version" >"$tmp/other-release"
+  run_entrypoint "$tmp/other-release" "$tmp/other.conf" "$tmp/other.prop"
+  ! grep -q '^ro.sf.lcd_density=' "$tmp/other.prop"
+done
 
 if run_entrypoint "$tmp/graphical-release" "$tmp/invalid.conf" "$tmp/invalid-resource.prop" \
     royd.width=0 >/dev/null 2>&1; then

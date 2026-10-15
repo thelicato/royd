@@ -69,6 +69,18 @@ positive_integer height "$height"
 positive_integer dpi "$dpi"
 positive_integer fps "$fps"
 
+if [ "$android_version" = 15 ]; then
+  # Match the display bootstrap range and publish one canonical density value.
+  while [ "${dpi#0}" != "$dpi" ]; do dpi=${dpi#0}; done
+  case "$dpi" in
+    ''|?????*) echo 'royd: dpi must be between 1 and 2000' >&2; exit 64 ;;
+  esac
+  if [ "$dpi" -gt 2000 ]; then
+    echo 'royd: dpi must be between 1 and 2000' >&2
+    exit 64
+  fi
+fi
+
 case "$resource_profile" in
   low-memory)
     low_ram=true
@@ -117,6 +129,9 @@ umask 077
   echo "dalvik.vm.heaptargetutilization=$heap_target"
   echo "dalvik.vm.heapminfree=$heap_min_free"
   echo "dalvik.vm.heapmaxfree=$heap_max_free"
+  if [ "$android_version" = 15 ]; then
+    echo "ro.sf.lcd_density=$dpi"
+  fi
 } > "$resource_file"
 
 if [ "${ROYD_ENTRYPOINT_TEST_ONLY:-0}" = 1 ]; then

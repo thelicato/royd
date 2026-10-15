@@ -135,11 +135,24 @@ case "$1" in
         vendor.royd.boot_watchdog) value=complete ;;
         vendor.royd.display.width) value=540 ;;
         vendor.royd.display.height) value=960 ;;
-        vendor.royd.display.dpi) value=240 ;;
+        vendor.royd.display.dpi) value=${MOCK_DISPLAY_DPI:-240} ;;
+        ro.sf.lcd_density)
+          [ "${MOCK_BAD_LOGICAL_DENSITY:-0}" = 1 ] && value=213 || value=${MOCK_DISPLAY_DPI:-240}
+          ;;
         vendor.royd.display.fps) value=30 ;;
         *) printf 'unexpected property: %s\n' "$property" >&2; exit 1 ;;
       esac
       printf '%s\n' "$value"
+      exit 0
+    fi
+    if [ "$1" = wm ] && [ "$2" = density ]; then
+      case "${MOCK_EFFECTIVE_DENSITY:-good}" in
+        good) printf 'Physical density: %s\n' "${MOCK_DISPLAY_DPI:-240}" ;;
+        failed) exit 1 ;;
+        fallback) printf '%s\n' 'Physical density: 213' ;;
+        invalid) printf '%s\n' 'Error: FAILED_TRANSACTION' ;;
+        override) printf 'Physical density: %s\nOverride density: 160\n' "${MOCK_DISPLAY_DPI:-240}" ;;
+      esac
       exit 0
     fi
     if [ "$1" = dumpsys ] && [ "$2" = SurfaceFlinger ] && [ "$3" = --display-id ]; then
@@ -304,6 +317,9 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_FALLBACK_DENSITY_LOG:-0}" = 1 ]; then
+      printf '%s\n' 'SurfaceFlinger: ro.sf.lcd_density must be defined as a build property'
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_BINDER_FREEZER_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'ActivityManager: ROYD: Binder freezing disabled: PID namespace safety is unqualified'
     fi
@@ -1111,5 +1127,31 @@ for operation in probe freeze unfreeze quick; do
 done
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BINDER_FREEZER_ERROR=unrelated \
   "$script_dir/assert-runtime.sh" unrelated-binder-error >/dev/null
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_LOGICAL_DENSITY=1 \
+    "$script_dir/assert-runtime.sh" bad-logical-density >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an incorrect logical density property' >&2
+  exit 1
+fi
+grep -Fq 'ro.sf.lcd_density expected 240, got 213' "$tmp/error"
+for mode in failed fallback invalid override; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_EFFECTIVE_DENSITY="$mode" \
+      "$script_dir/assert-runtime.sh" bad-effective-density >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted effective density: %s\n' "$mode" >&2
+    exit 1
+  fi
+  grep -Eq 'effective display density (query failed|does not match)' "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_FALLBACK_DENSITY_LOG=1 \
+    "$script_dir/assert-runtime.sh" fallback-density-log >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted the SurfaceFlinger density fallback' >&2
+  exit 1
+fi
+grep -Fq 'SurfaceFlinger used its fallback display density' "$tmp/error"
+for selected_dpi in 160 320; do
+  PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_DISPLAY_DPI="$selected_dpi" \
+    "$script_dir/assert-runtime.sh" matched-logical-density >"$tmp/density-result" 2>&1
+  grep -Fq "Android 15 effective display density: $selected_dpi dpi" "$tmp/density-result"
+done
 
 printf '%s\n' 'Runtime version-specific assertion contract test passed'
