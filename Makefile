@@ -33,6 +33,7 @@
 .PHONY: android15-framework-readiness-container-test
 .PHONY: android15-settings-hardware-container-test
 .PHONY: android15-gpu-memory-container-test
+.PHONY: android15-wifi-mac-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -396,6 +397,9 @@ android15-settings-hardware-container-test:
 
 android15-gpu-memory-container-test:
 	./android/scripts/android15-gpu-memory-container-test.sh
+
+android15-wifi-mac-container-test:
+	./android/scripts/android15-wifi-mac-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

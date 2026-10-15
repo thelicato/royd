@@ -62,6 +62,7 @@ run ./android/scripts/android15-host-power-container-test.sh
 run ./android/scripts/android15-framework-readiness-container-test.sh
 run ./android/scripts/android15-settings-hardware-container-test.sh
 run ./android/scripts/android15-gpu-memory-container-test.sh
+run ./android/scripts/android15-wifi-mac-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh

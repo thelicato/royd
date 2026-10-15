@@ -548,6 +548,31 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     exit 1
   }
 
+  docker exec "$container" sh -c '
+    # royd-runtime-about-phone-test
+    before=$(pidof system_server) || exit 1
+    trap '\''input keyevent KEYCODE_HOME >/dev/null 2>&1 || true'\'' EXIT INT TERM
+    launch=$(am start -W -a android.settings.DEVICE_INFO_SETTINGS) || exit 1
+    printf "%s\n" "$launch" | grep -Fxq "Status: ok" || exit 1
+    printf "%s\n" "$launch" | grep -Fxq \
+      "Activity: com.android.settings/.Settings\$MyDeviceInfoActivity" || exit 1
+    first=$(pidof com.android.settings) || exit 1
+    sleep 4
+    second=$(pidof com.android.settings) || exit 1
+    [ "$first" = "$second" ] || exit 1
+    after=$(pidof system_server) || exit 1
+    [ "$before" = "$after" ]
+  ' || {
+    printf 'error: Android 15 About-phone activity did not remain stable in %s\n' \
+      "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Eq 'am_wtf.*SystemServiceRegistry'; then
+    printf 'error: Android 15 About-phone workload emitted missing-service WTF diagnostics in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+
   recents_directories=$(docker exec "$container" sh -c '
     # royd-runtime-recents-persistence-test
     am write >/dev/null || exit 1

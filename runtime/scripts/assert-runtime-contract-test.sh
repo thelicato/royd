@@ -236,6 +236,12 @@ case "$1" in
         *royd-runtime-webview-cgroup-test*)
           [ "${MOCK_BAD_WEBVIEW_CGROUP:-0}" != 1 ] || exit 1
           ;;
+        *royd-runtime-about-phone-test*)
+          [ "${MOCK_BAD_ABOUT_PHONE:-0}" != 1 ] || exit 1
+          if [ -n "${MOCK_ABOUT_PHONE_STATE:-}" ]; then
+            : >"$MOCK_ABOUT_PHONE_STATE"
+          fi
+          ;;
         *royd-runtime-recents-persistence-test*)
           [ "${MOCK_BAD_RECENTS_PERSISTENCE:-0}" != 1 ] || exit 1
           if [ "${MOCK_RECENTS_DIRECTORIES_PRESENT:-0}" = 1 ]; then
@@ -344,6 +350,9 @@ case "$1" in
     fi
     if [ -n "${MOCK_SETTINGS_HARDWARE_WTF:-}" ]; then
       printf 'am_wtf: [0,3093,com.android.settings,954973765,SystemServiceRegistry,No service published for: %s]\n' "$MOCK_SETTINGS_HARDWARE_WTF"
+    fi
+    if [ -n "${MOCK_ABOUT_PHONE_STATE:-}" ] && [ -f "$MOCK_ABOUT_PHONE_STATE" ]; then
+      printf '%s\n' 'am_wtf: [0,3780,com.android.settings,952876613,SystemServiceRegistry,No service published for: wifi]'
     fi
     if [ "${MOCK_PACKAGE_LIST_SELINUX_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,505,system_server,-1,PackageSettings,Failed to get SELinux context for /data/system/packages.list]'
@@ -874,6 +883,20 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_WEBVIEW_CGROUP=1 \
   exit 1
 fi
 grep -Fq 'Android 15 WebView process groups restarted system_server' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ABOUT_PHONE=1 \
+    "$script_dir/assert-runtime.sh" bad-about-phone >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unstable About-phone activity' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 About-phone activity did not remain stable' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_ABOUT_PHONE_STATE="$tmp/about-phone.state" \
+    "$script_dir/assert-runtime.sh" about-phone-wtf >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a new About-phone missing-service WTF' >&2
+  exit 1
+fi
+test -f "$tmp/about-phone.state"
+grep -Fq 'About-phone workload emitted missing-service WTF diagnostics' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_RECENTS_PERSISTENCE=1 \
     "$script_dir/assert-runtime.sh" broken-recents-persistence >"$tmp/error" 2>&1; then

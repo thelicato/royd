@@ -1,0 +1,32 @@
+diff --git a/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java b/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java
+--- a/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java
++++ b/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java
+@@ -19,7 +19,9 @@
+ import android.annotation.SuppressLint;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.ConnectivityManager;
+ import android.net.wifi.WifiInfo;
+ import android.net.wifi.WifiManager;
++import android.os.SELinux;
+ import android.text.TextUtils;
+
+@@ -52,14 +54,17 @@
+     private Preference mWifiMacAddress;
+     private final WifiManager mWifiManager;
+
+     public AbstractWifiMacAddressPreferenceController(Context context, Lifecycle lifecycle) {
+         super(context, lifecycle);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        final boolean skipRoydWifi = "1".equals(System.getenv("ROYD_CONTAINER"))
++                && !SELinux.isSELinuxEnabled()
++                && !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI);
++        mWifiManager = skipRoydWifi ? null : context.getSystemService(WifiManager.class);
+     }
+
+     @Override
+     public boolean isAvailable() {
+         return mWifiManager != null;
+     }
+
+     @Override

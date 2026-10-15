@@ -40,7 +40,36 @@ case "$1" in
       frameworks/base/services/java/com/android/server \
       packages/apps/Settings/src/com/android/settings/deviceinfo \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib \
+      frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice
+    if [ ! -f frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java ]; then
+      cat > frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java <<'SRC'
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.text.TextUtils;
+
+class AbstractWifiMacAddressPreferenceController {
+    private Preference mWifiMacAddress;
+    private final WifiManager mWifiManager;
+
+    public AbstractWifiMacAddressPreferenceController(Context context, Lifecycle lifecycle) {
+        super(context, lifecycle);
+        mWifiManager = context.getSystemService(WifiManager.class);
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return mWifiManager != null;
+    }
+
+    @Override
+    public String getPreferenceKey() { return KEY_WIFI_MAC_ADDRESS; }
+}
+SRC
+    fi
     if [ ! -f frameworks/native/services/gpuservice/GpuService.cpp ]; then
       cat > frameworks/native/services/gpuservice/GpuService.cpp <<'SRC'
 #include <vkprofiles.h>
@@ -2573,6 +2602,10 @@ grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
 grep -Fq 'mWifiManager = shouldSkipRoydWifi() ? null' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
+grep -Fq 'mWifiManager = skipRoydWifi ? null : context.getSystemService(WifiManager.class);' \
+  "$tmp/src/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java"
+grep -Fq '!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)' \
+  "$tmp/src/frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo/AbstractWifiMacAddressPreferenceController.java"
 grep -Fq 'if (shouldSkipRoydWifi()) {' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
 grep -Fq '!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY)' \
