@@ -86,7 +86,7 @@ Runtime qualification records both values. A profile-policy change invalidates a
 - PID 1 `NoNewPrivs`
 - PID 1 seccomp mode and filter count
 
-Linux exposes the capability, no-new-privileges, and seccomp values through `/proc/<pid>/status`. Runtime qualification treats successful evidence capture as a separate required stage.
+Linux exposes the capability, no-new-privileges, and seccomp values through `/proc/<pid>/status`. Runtime qualification captures this after boot readiness, when Android's userspace is mounted, rather than racing early init or recording the entrypoint. Successful evidence capture remains a separate required stage; a read failure still fails qualification.
 
 ## Capability reduction sweep
 

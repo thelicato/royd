@@ -77,5 +77,16 @@ grep -Fq '/dev/zero=' "$tmp/binder-info.out"
 [ "$("$script_dir/resource-profile.sh" performance)" = 'royd.resource_profile=performance' ]
 grep -Fq 'container-evidence.sh' "$script_dir/qualification.sh"
 grep -Fq 'CONTAINER_EVIDENCE_STATUS=' "$script_dir/qualification.sh"
+# PID 1 evidence requires booted Android userspace; capture failures remain fatal.
+awk '
+  /run_stage boot / { boot = NR }
+  /run_stage health / { health = NR }
+  /run_stage security_evidence / {
+    if (!boot || !health || boot >= NR || health >= NR) exit 1
+    found++
+  }
+  END { if (found != 1) exit 1 }
+' "$script_dir/qualification.sh"
+grep -Fq 'if [ "$security_status" = pass ] && [ "$boot_status" = pass ]; then' "$script_dir/qualification.sh"
 
 printf '%s\n' 'Runtime qualification contract test passed'

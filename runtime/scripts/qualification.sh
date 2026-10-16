@@ -125,7 +125,11 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
   if docker run -d $security_args $gpu_args $container_args --name "$container" -p 127.0.0.1::5555 -v "$volume:/data" "$image" $profile_args >>"$log_file" 2>&1; then
     image_id=$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || printf unknown)
     run_stage security "$script_dir/assert-security.sh" "$container" "$security_mode"
-    if [ "$security_status" = pass ]; then
+    run_stage boot "$script_dir/wait-for-boot.sh" "$container" "$timeout"
+    [ "$boot_status" = pass ] && run_stage health "$script_dir/wait-for-health.sh" "$container" "$health_timeout"
+    # docker exec needs Android's mounted userspace. Record the booted init state,
+    # not a transient entrypoint or unavailable executable during early mounts.
+    if [ "$security_status" = pass ] && [ "$boot_status" = pass ]; then
       run_stage security_evidence "$script_dir/security-evidence.sh" "$container" "$security_mode"
       if [ "$security_evidence_status" = pass ]; then
         evidence_file="$log_file.security_evidence"
@@ -141,8 +145,6 @@ gpu_args=$(ROYD_GRAPHICS_ARCH="$arch" "$script_dir/gpu-args.sh" "$graphics_backe
         pid1_seccomp=$(evidence_get PID1_SECCOMP)
       fi
     fi
-    run_stage boot "$script_dir/wait-for-boot.sh" "$container" "$timeout"
-    [ "$boot_status" = pass ] && run_stage health "$script_dir/wait-for-health.sh" "$container" "$health_timeout"
     [ "$boot_status" = pass ] && run_stage runtime env ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" ROYD_RESOURCE_PROFILE="$resource_profile" "$script_dir/assert-runtime.sh" "$container"
     if [ "$boot_status" = pass ]; then
       run_stage logs sh -c 'docker logs "$1" 2>&1 | grep -Fq "[royd] logcat: forwarding Android logs to container output"' sh "$container"
