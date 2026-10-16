@@ -6,6 +6,9 @@ image=${1:-${ROYD_IMAGE:-$($script_dir/default-image.sh standard x86_64)}}
 output=${ROYD_NETWORK_DNS_OUTPUT_DIR:-$root/.work/network-dns-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 container=royd-network-dns-$$
 volume=$container-data
+network_mode=${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}
+network=bridge
+network_owned=0
 build_runner=${ROYD_NETWORK_DNS_BUILD_RUNNER:-$script_dir/network-dns-build.sh}
 assert_runner=${ROYD_NETWORK_DNS_ASSERT_RUNNER:-$script_dir/assert-runtime.sh}
 request_timeout=${ROYD_NETWORK_DNS_REQUEST_TIMEOUT:-30}
@@ -19,6 +22,7 @@ runtime=not-tested
 ownership=not-tested
 started=$(date -u +%FT%TZ)
 case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
+case "$network_mode" in bridge|private) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -43,6 +47,7 @@ finish() {
   cat >"$output/manifest.env" <<MANIFEST
 ROYD_NETWORK_DNS_EVIDENCE_FORMAT=2
 NETWORK_SCOPE=app-system-dns-framework
+NETWORK_MODE=$network_mode
 RESULT_STATUS=$result
 RUNTIME_STATUS=$runtime
 OCI_OWNERSHIP_STATUS=$ownership
@@ -58,13 +63,22 @@ MANIFEST
   fi
   if [ "$container_owned" = 1 ]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
   if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >/dev/null 2>&1 || true; fi
+  if [ "$network_owned" = 1 ]; then docker network rm "$network" >/dev/null 2>&1 || true; fi
   exit "$status"
 }
 trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
 image_id=$(docker image inspect --format '{{.Id}}' "$image")
-gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
+if [ "$network_mode" = private ]; then
+  network=$container-net
+  if docker network inspect "$network" >/dev/null 2>&1; then exit 1; fi
+  docker network create "$network" >"$output/network.log"
+  network_owned=1
+fi
+gateway=$(docker network inspect "$network" --format '{{(index .IPAM.Config 0).Gateway}}')
+expected_resolver=$gateway
+if [ "$network_mode" = private ]; then expected_resolver=127.0.0.11; fi
 "$build_runner" "$output/build" >"$output/build.log" 2>&1
 "$output/build/dns-fixture" -listen "$gateway:53" >"$output/dns-server.log" 2>&1 &
 dns_pid=$!
@@ -83,7 +97,7 @@ container_args=$("$script_dir/container-args.sh")
 profile_args=$(ROYD_RESOURCE_PROFILE=low-memory "$script_dir/profile.sh" default)
 # Word splitting is intentional for repository-generated arguments.
 # shellcheck disable=SC2086
-docker create $security_args $container_args --network bridge --dns "$gateway" --name "$container" \
+docker create $security_args $container_args --network "$network" --dns "$gateway" --name "$container" \
   -v "$volume:/data" "$image_id" $profile_args >"$output/create.log"
 container_owned=1
 docker start "$container" >>"$output/create.log"
@@ -91,7 +105,7 @@ docker start "$container" >>"$output/create.log"
 "${ROYD_NETWORK_DNS_HEALTH_RUNNER:-$script_dir/wait-for-health.sh}" "$container" "${ROYD_HEALTH_TIMEOUT:-240}" >"$output/health.log" 2>&1
 "${ROYD_NETWORK_DNS_SECURITY_RUNNER:-$script_dir/assert-security.sh}" "$container" privileged >"$output/security.log" 2>&1
 [ "$(docker exec "$container" getprop ro.build.version.sdk)" = 35 ]
-docker inspect --format '{{with index .NetworkSettings.Networks "bridge"}}{{.IPAddress}}/{{.IPPrefixLen}} {{.Gateway}}{{end}}' "$container" >"$output/oci-endpoint.txt"
+docker inspect --format '{{with index .NetworkSettings.Networks "'"$network"'"}}{{.IPAddress}}/{{.IPPrefixLen}} {{.Gateway}}{{end}}' "$container" >"$output/oci-endpoint.txt"
 endpoint=$(cat "$output/oci-endpoint.txt")
 expected_cidr=${endpoint% *}
 [ "${endpoint#* }" = "$gateway" ]
@@ -143,7 +157,7 @@ snapshot_oci >"$output/oci-after.log"
 ownership=pass
 cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
-"$output/build/dns-fixture" -result "$output/observation.json" -expected "$gateway" >"$output/assessment.env" || assessment=$?
+"$output/build/dns-fixture" -result "$output/observation.json" -expected "$gateway" -resolver "$expected_resolver" >"$output/assessment.env" || assessment=$?
 if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ] || [ "$ownership" != pass ]; then exit 1; fi
 result=pass
 printf 'Android 15 application DNS and network-state test passed: %s\n' "$output"

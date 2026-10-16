@@ -64,8 +64,12 @@ type observation struct {
 }
 
 func assess(raw []byte, expected net.IP) (string, bool) {
+	return assessResolver(raw, expected, expected)
+}
+
+func assessResolver(raw []byte, expected, resolver net.IP) (string, bool) {
 	var result observation
-	if json.Unmarshal(raw, &result) != nil || !result.Done || result.UID < 10000 || expected.To4() == nil {
+	if json.Unmarshal(raw, &result) != nil || !result.Done || result.UID < 10000 || expected.To4() == nil || resolver.To4() == nil {
 		return "OBSERVATION_STATUS=fail\n", false
 	}
 	control := result.Direct == "pass" && result.HTTP == "pass"
@@ -75,12 +79,7 @@ func assess(raw []byte, expected net.IP) (string, bool) {
 			dns = true
 		}
 	}
-	configured := false
-	for _, address := range result.ConfiguredDNS {
-		if expected.Equal(net.ParseIP(address)) {
-			configured = true
-		}
-	}
+	configured := len(result.ConfiguredDNS) == 1 && resolver.Equal(net.ParseIP(result.ConfiguredDNS[0]))
 	id, err := strconv.ParseUint(result.Active, 10, 32)
 	framework := err == nil && id > 0 && result.Networks > 0 && result.Callback > 0 && result.Interface == "eth0" && configured
 	dns = dns && result.NamedHTTP == "pass"
@@ -97,13 +96,17 @@ func main() {
 	listen := flag.String("listen", "", "specific private Docker bridge IPv4 address, port 53")
 	resultFile := flag.String("result", "", "assess an application JSON result without a listener")
 	expected := flag.String("expected", "", "expected literal IPv4 answer")
+	resolver := flag.String("resolver", "", "expected configured resolver, defaults to answer address")
 	flag.Parse()
 	if *resultFile != "" {
 		raw, err := os.ReadFile(*resultFile)
 		if err != nil {
 			log.Fatal(err)
 		}
-		text, pass := assess(raw, net.ParseIP(*expected))
+		if *resolver == "" {
+			*resolver = *expected
+		}
+		text, pass := assessResolver(raw, net.ParseIP(*expected), net.ParseIP(*resolver))
 		fmt.Print(text)
 		if !pass {
 			os.Exit(1)

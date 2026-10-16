@@ -79,3 +79,16 @@ func TestAssessment(t *testing.T) {
 		}
 	}
 }
+
+func TestEmbeddedResolver(t *testing.T) {
+	raw := []byte(`{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["127.0.0.11"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.18.0.1"]}`)
+	if _, pass := assessResolver(raw, net.ParseIP("172.18.0.1"), net.ParseIP("127.0.0.11")); !pass {
+		t.Fatal("embedded resolver and returned address have different roles")
+	}
+	if _, pass := assess(raw, net.ParseIP("172.18.0.1")); pass {
+		t.Fatal("accepted a different published resolver")
+	}
+	if _, pass := assessResolver(raw, net.ParseIP("172.18.0.1"), nil); pass {
+		t.Fatal("accepted an invalid expected resolver")
+	}
+}

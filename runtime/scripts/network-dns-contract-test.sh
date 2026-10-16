@@ -36,7 +36,13 @@ case "$1" in
   context)
     if [ "$MOCK_CASE" = remote_context ]; then printf '%s\n' ssh://remote; else printf '%s\n' unix:///var/run/docker.sock; fi ;;
   image) printf 'sha256:%064d\n' 1 ;;
-  network) printf '%s\n' 172.17.0.1 ;;
+  network)
+    case "$2" in
+      create) : >"$MOCK_STATE/network" ;;
+      rm) rm "$MOCK_STATE/network" ;;
+      inspect) [ "$3" = bridge ] || [ -e "$MOCK_STATE/network" ]; printf '%s\n' 172.17.0.1 ;;
+      *) exit 99 ;;
+    esac ;;
   inspect)
     if [ "${2:-}" = --format ]; then printf '%s\n' '172.17.0.2/16 172.17.0.1'; exit 0; fi
     [ "$MOCK_CASE" = existing_container ] || [ -e "$MOCK_STATE/container" ]
@@ -72,6 +78,8 @@ case "$1" in
       *'cat /data/user/'*)
         if [ "$MOCK_CASE" = dns_gap ] || [ "$MOCK_CASE" = both_gaps ]; then
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"null","network_count":0,"default_callback_available":0,"system_dns_addresses":[]}'
+        elif [ "$MOCK_CASE" = embedded ]; then
+          printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["127.0.0.11"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
         else
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["172.17.0.1"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
         fi ;;
@@ -99,7 +107,7 @@ cat >"$tmp/bin/pass" <<'MOCK'
 exit 0
 MOCK
 chmod +x "$tmp/bin/"*
-for mode in good dns_gap both_gaps ownership_changed fixture_failure wrong_sdk root_app wrong_owner install_failure no_result \
+for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wrong_sdk root_app wrong_owner install_failure no_result \
     wrong_activity before_failure after_failure server_changed start_failure capture_failure \
     remote_context existing_container existing_volume existing_evidence; do
   state="$tmp/$mode"
@@ -107,13 +115,16 @@ for mode in good dns_gap both_gaps ownership_changed fixture_failure wrong_sdk r
   printf '%s\n' 0 >"$state/asserts"
   if [ "$mode" = existing_evidence ]; then mkdir "$state/evidence"; : >"$state/evidence/preserve"; fi
   status=0
+  network_mode=bridge
+  if [ "$mode" = embedded ]; then network_mode=private; fi
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_TOOLS="$tmp/bin" MOCK_ASSESS="$tmp/assess" \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_REQUEST_TIMEOUT=2 \
+    ROYD_NETWORK_DNS_NETWORK_MODE="$network_mode" \
     ROYD_NETWORK_DNS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_DNS_WAIT_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_HEALTH_RUNNER="$tmp/bin/pass" ROYD_NETWORK_DNS_SECURITY_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
-  if [ "$mode" = good ]; then
+  if [ "$mode" = good ] || [ "$mode" = embedded ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq SYSTEM_DNS_STATUS=pass "$state/evidence/manifest.env"
@@ -147,5 +158,6 @@ for mode in good dns_gap both_gaps ownership_changed fixture_failure wrong_sdk r
   fi
   [ ! -e "$state/container" ]
   [ ! -e "$state/volume" ]
+  [ ! -e "$state/network" ]
 done
 printf '%s\n' 'Android 15 application DNS and network-state contract test passed'
