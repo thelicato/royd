@@ -1,0 +1,65 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/SystemClockTime.java b/frameworks/base/services/core/java/com/android/server/SystemClockTime.java
+--- a/frameworks/base/services/core/java/com/android/server/SystemClockTime.java
++++ b/frameworks/base/services/core/java/com/android/server/SystemClockTime.java
+@@ -81,6 +81,28 @@
+     private static @TimeConfidence int sTimeConfidence = TIME_CONFIDENCE_LOW;
+
+     private static final long sNativeData = init();
++    private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();
++
++    private static boolean detectRoydHostClock() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
++
++    /** Container wall time is owned by the host, not Android's time detector. */
++    public static boolean isRoydHostClockReadOnly() {
++        return sRoydHostClockReadOnly;
++    }
++
++    static {
++        if (sRoydHostClockReadOnly) {
++            Slog.i(TAG, "ROYD: host wall clock is read-only");
++        }
++    }
+
+     private SystemClockTime() {
+     }
+@@ -115,8 +137,12 @@
+     public static void setTimeAndConfidence(
+             @CurrentTimeMillisLong long unixEpochMillis, int confidence, @NonNull String logMsg) {
+         synchronized (SystemClockTime.class) {
++            if (sRoydHostClockReadOnly) {
++                sTimeDebugLog.log("ROYD: refused host clock update: " + logMsg);
++                return;
++            }
+             setTime(sNativeData, unixEpochMillis);
+             sTimeConfidence = confidence;
+             sTimeDebugLog.log(logMsg);
+         }
+     }
+diff --git a/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java b/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java
+--- a/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java
++++ b/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java
+@@ -2089,12 +2089,16 @@
+     boolean setTimeImpl(
+             @CurrentTimeMillisLong long newSystemClockTimeMillis, @TimeConfidence int confidence,
+             @NonNull String logMsg) {
++        if (SystemClockTime.isRoydHostClockReadOnly()) {
++            SystemClockTime.addDebugLogEntry("ROYD: refused host clock update: " + logMsg);
++            return false;
++        }
+         synchronized (mLock) {
+             mInjector.setCurrentTimeMillis(newSystemClockTimeMillis, confidence, logMsg);
+
+             // The native implementation of setKernelTime can return -1 even when the kernel
+             // time was set correctly, so assume setting kernel time was successful and always
+             // return true.
+             return true;
+         }
+     }

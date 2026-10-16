@@ -40,6 +40,7 @@
 .PHONY: android15-binder-freezer-container-test
 .PHONY: android15-installer-frp-container-test
 .PHONY: android15-oci-network-container-test
+.PHONY: android15-host-clock-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -456,6 +457,9 @@ android15-installer-frp-container-test:
 
 android15-oci-network-container-test:
 	./android/scripts/android15-oci-network-container-test.sh
+
+android15-host-clock-container-test:
+	./android/scripts/android15-host-clock-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

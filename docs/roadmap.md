@@ -72,6 +72,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add controlled ordinary-app DNS and framework-network diagnostics with direct UDP/HTTP controls and retained failing evidence.
 - [x] Avoid an absent optional FRP-service lookup during container app installation while preserving configured/published FRP and installer security checks.
 - [x] Implement IPv4 `eth0` OCI network publication and per-network resolver integration without taking over interface provisioning.
+- [x] Keep framework host-clock writes read-only before enabling automatic time suggestions through network publication.
 - [ ] Extend and qualify IPv6, multi-NIC/default-route policies and network transitions beyond the IPv4 bridge baseline.
 - [ ] Qualify application DNS, TLS, framework network state/callbacks and network-aware workloads; literal-IP transport alone is insufficient.
 - [ ] Validate the multiple-instance example on a documented reference host.

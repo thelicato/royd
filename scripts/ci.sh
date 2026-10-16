@@ -69,6 +69,7 @@ run ./android/scripts/android15-display-identification-test.sh
 run ./android/scripts/android15-binder-freezer-container-test.sh
 run ./android/scripts/android15-installer-frp-container-test.sh
 run ./android/scripts/android15-oci-network-container-test.sh
+run ./android/scripts/android15-host-clock-container-test.sh
 run ./android/scripts/android15-mnt-tmpfs-container-test.sh
 run ./android/scripts/android15-audio-activity-manager-container-test.sh
 run ./android/scripts/android15-audio-sensor-privacy-container-test.sh

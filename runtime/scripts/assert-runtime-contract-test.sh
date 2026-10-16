@@ -322,6 +322,7 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_WRITABLE_HOST_CLOCK:-0}" != 1 ]; then printf '%s\n' 'SystemClockTime: ROYD: host wall clock is read-only'; fi
     if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1200,4 +1201,10 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_DEFAULT_NETWORK=1 \
   exit 1
 fi
 grep -Fq 'Android 15 has no framework default network' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_WRITABLE_HOST_CLOCK=1 \
+    "$script_dir/assert-runtime.sh" writable-host-clock >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted missing host-clock protection' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 read-only host-clock policy is missing' "$tmp/error"
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

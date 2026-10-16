@@ -150,6 +150,10 @@ if [ "$sdk" = 35 ]; then
     exit 1
   fi
   assert_property sys.royd.framework_ready 1
+  if ! docker logs "$container" 2>&1 | grep -Fq 'ROYD: host wall clock is read-only'; then
+    printf 'error: Android 15 read-only host-clock policy is missing in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! docker logs "$container" 2>&1 | grep -Fq 'ROYD: published OCI-owned eth0 network '; then
     printf 'error: Android 15 OCI network publication is missing in %s\n' "$container" >&2
     exit 1

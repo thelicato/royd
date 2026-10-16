@@ -44,6 +44,11 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib \
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
+    mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
+    if [ ! -f frameworks/base/services/core/java/com/android/server/SystemClockTime.java ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/SystemClockTime.java" frameworks/base/services/core/java/com/android/server/SystemClockTime.java
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/AlarmManagerService.java" frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java
+    fi
     for fixture in Freezer ProcessList; do
       target="frameworks/base/services/core/java/com/android/server/am/$fixture.java"
       if [ ! -f "$target" ]; then
@@ -3172,6 +3177,8 @@ grep -Fq 'throw new SecurityException("Can' \
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
 grep -Fq 'RoydOciNetwork.startIfContainer(mContext);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
+grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
+grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"
 
 # Adding a new patch at the end of an already applied set must not require a
 # fresh multi-gigabyte AOSP checkout. Changed or reordered existing patches
