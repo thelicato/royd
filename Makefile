@@ -81,6 +81,13 @@ runtime-network-http-test:
 runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
+.PHONY: runtime-network-dns-test runtime-network-dns-contract-test
+runtime-network-dns-test:
+	./runtime/scripts/network-dns-test.sh
+
+runtime-network-dns-contract-test:
+	./runtime/scripts/network-dns-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 

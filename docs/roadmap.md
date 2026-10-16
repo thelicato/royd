@@ -69,6 +69,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add multiple-instance Compose and smoke-test workflows.
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
+- [x] Add controlled ordinary-app DNS and framework-network diagnostics with direct UDP/HTTP controls and retained failing evidence.
+- [ ] Integrate OCI-owned networking with Android framework network publication and per-network resolver configuration without taking over `eth0`.
 - [ ] Qualify application DNS, TLS, framework network state/callbacks and network-aware workloads; literal-IP transport alone is insufficient.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
