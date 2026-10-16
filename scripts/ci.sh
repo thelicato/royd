@@ -95,6 +95,7 @@ run ./runtime/scripts/rootless-probe-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
 run ./runtime/scripts/assert-runtime-contract-test.sh
 run ./runtime/scripts/app-lifecycle-contract-test.sh
+run ./runtime/scripts/restart-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/security-capability-sweep-test.sh
 run ./runtime/scripts/security-evidence-test.sh

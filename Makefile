@@ -60,6 +60,13 @@ runtime-container-evidence-test:
 runtime-app-lifecycle-contract-test:
 	./runtime/scripts/app-lifecycle-contract-test.sh
 
+.PHONY: runtime-restart-test runtime-restart-contract-test
+runtime-restart-test:
+	./runtime/scripts/restart-test.sh
+
+runtime-restart-contract-test:
+	./runtime/scripts/restart-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 

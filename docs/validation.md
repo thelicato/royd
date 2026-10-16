@@ -89,6 +89,12 @@ After rebuilding, require the bounded `ROYD: Binder freezing disabled: PID names
 
 Android 15 graphical runtime assertions also execute `runtime/scripts/assert-app-lifecycle.sh`: launch WebView, stop it, require its old process to disappear, then require a different PID with the same UID after relaunch and an unchanged SystemServer. A surviving private UID cgroup must be readable and thawed; a removed UID root is permitted. Launches and force-stop calls are bounded, and cleanup stops the test app and returns Home. `make runtime-app-lifecycle-contract-test` executes the actual container-side shell body with controlled Android commands and covers failure paths without requiring Android or ADB.
 
+## Persistent data and container restarts
+
+Run `make runtime-restart-test` against an imported Android 15 graphical image. It creates disposable resources, pins the image ID, and checks fresh boot, Docker restart and container recreation using the same `/data` volume. Each phase requires boot, health, security and full runtime assertions. A data-file checksum, durably written global setting, Android ID and WebView package UID must survive unchanged; the restart must change the start time without replacing the container, and recreation must change its identity.
+
+Select a fresh evidence directory with `ROYD_RESTART_OUTPUT_DIR`; existing directories, containers and volumes are never adopted or replaced. The format-1 manifest and per-phase runtime, persistence, identity, full Docker log and inspect evidence are retained before disposable-resource cleanup, including on failure where capture remains possible. Restart-phase Docker logs include the earlier boot. `make runtime-restart-contract-test` exercises orchestration, persistence mismatches, failed checks, evidence retention and cleanup without Android. This does not test image upgrades, framework-only restarts, long soaks or unclean host power loss, and requires no Android rebuild.
+
 ## scrcpy streaming stability
 
 After runtime qualification passes, validate the host ADB, scrcpy server, H.264 encoder and changing UI stream together with:

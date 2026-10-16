@@ -63,6 +63,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a configurable Docker Compose example.
 - [x] Add Compose lifecycle Make targets.
 - [x] Add persistent `/data` and ADB configuration.
+- [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
+- [ ] Validate longer restart/application soaks and framework-only restarts on documented reference hosts.
 - [x] Add multiple-instance Compose and smoke-test workflows.
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [ ] Validate the multiple-instance example on a documented reference host.
