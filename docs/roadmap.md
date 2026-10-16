@@ -68,6 +68,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
 - [x] Add multiple-instance Compose and smoke-test workflows.
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
+- [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
+- [ ] Qualify application DNS, TLS, framework network state/callbacks and network-aware workloads; literal-IP transport alone is insufficient.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
 

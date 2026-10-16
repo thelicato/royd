@@ -74,6 +74,13 @@ runtime-framework-restart-test:
 runtime-framework-restart-contract-test:
 	./runtime/scripts/framework-restart-contract-test.sh
 
+.PHONY: runtime-network-http-test runtime-network-http-contract-test
+runtime-network-http-test:
+	./runtime/scripts/network-http-test.sh
+
+runtime-network-http-contract-test:
+	./runtime/scripts/network-http-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 
