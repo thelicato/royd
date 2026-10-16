@@ -12,23 +12,33 @@ resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
 security_mode=${ROYD_SECURITY_MODE:-privileged}
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 arch=${ROYD_ARCH:-x86_64}
+mode=${ROYD_RESTART_MODE:-container}
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 health_timeout=${ROYD_HEALTH_TIMEOUT:-240}
 wait_runner=${ROYD_RESTART_WAIT_RUNNER:-$script_dir/wait-for-boot.sh}
 health_runner=${ROYD_RESTART_HEALTH_RUNNER:-$script_dir/wait-for-health.sh}
 assert_runner=${ROYD_RESTART_ASSERT_RUNNER:-$script_dir/assert-runtime.sh}
 security_runner=${ROYD_RESTART_SECURITY_RUNNER:-$script_dir/assert-security.sh}
+framework_runner=${ROYD_RESTART_FRAMEWORK_RUNNER:-$script_dir/framework-restart.sh}
 phase=fresh
 result=fail
 fresh_status=not-run
 restart_status=not-run
 recreate_status=not-run
+framework_status=not-run
 container_owned=0
 volume_owned=0
 image_id=unknown
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 command -v docker >/dev/null 2>&1 || { printf '%s\n' 'error: docker is required' >&2; exit 1; }
+case "$mode" in container|framework) ;; *) printf '%s\n' 'error: invalid restart mode' >&2; exit 2 ;; esac
+if [ "$mode" = framework ]; then
+  [ "$arch:$graphics_backend:$security_mode" = x86_64:software:privileged ] || {
+    printf '%s\n' 'error: framework restart validation requires the privileged x86_64 software baseline' >&2
+    exit 2
+  }
+fi
 case "$output" in ''|/|.|..) printf '%s\n' 'error: unsafe restart evidence directory' >&2; exit 2 ;; esac
 # Never adopt or delete an existing container, volume or evidence directory.
 if docker inspect "$container" >/dev/null 2>&1 || docker volume inspect "$volume" >/dev/null 2>&1; then
@@ -54,11 +64,13 @@ finish() {
     fi
   fi
   cat >"$output/manifest.env" <<MANIFEST
-ROYD_RESTART_EVIDENCE_FORMAT=1
+ROYD_RESTART_EVIDENCE_FORMAT=2
+RESTART_MODE=$mode
 RESULT_STATUS=$result
 FRESH_STATUS=$fresh_status
 RESTART_STATUS=$restart_status
 RECREATE_STATUS=$recreate_status
+FRAMEWORK_STATUS=$framework_status
 IMAGE=$image
 IMAGE_ID=$image_id
 ARCH=$arch
@@ -144,6 +156,25 @@ sed -n '4p' "$output/$phase/persistence.txt" | grep -Eq '^package:org.chromium.w
 docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
 capture
 fresh_status=pass
+
+if [ "$mode" = framework ]; then
+  phase=framework
+  mkdir "$output/$phase"
+  ROYD_RESTART_ASSERT_RUNNER="$assert_runner" ROYD_GRAPHICS_BACKEND="$graphics_backend" \
+    ROYD_RESOURCE_PROFILE="$resource_profile" \
+    "$framework_runner" "$container" "$output/$phase" "$timeout" >"$output/$phase/restart.log" 2>&1
+  "$health_runner" "$container" "$health_timeout" >"$output/$phase/health.log" 2>&1
+  "$security_runner" "$container" "$security_mode" >"$output/$phase/security.log" 2>&1
+  read_persistence >"$output/$phase/persistence.txt"
+  cmp "$output/fresh/persistence.txt" "$output/$phase/persistence.txt"
+  docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
+  cmp "$output/fresh/identity.txt" "$output/$phase/identity.txt"
+  capture
+  framework_status=pass
+  result=pass
+  printf 'Android 15 framework restart test passed: %s\n' "$output"
+  exit 0
+fi
 
 phase=restart
 mkdir "$output/$phase"

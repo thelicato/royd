@@ -67,6 +67,13 @@ runtime-restart-test:
 runtime-restart-contract-test:
 	./runtime/scripts/restart-contract-test.sh
 
+.PHONY: runtime-framework-restart-test runtime-framework-restart-contract-test
+runtime-framework-restart-test:
+	ROYD_RESTART_MODE=framework ./runtime/scripts/restart-test.sh
+
+runtime-framework-restart-contract-test:
+	./runtime/scripts/framework-restart-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 

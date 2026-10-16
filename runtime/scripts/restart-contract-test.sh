@@ -27,6 +27,7 @@ case "$1" in
           id=container-one
           start=start-one
           case "$current" in
+            framework) [ "$MOCK_CASE" != framework_container_restart ] || start=start-two ;;
             restart) [ "$MOCK_CASE" = no_restart ] || start=start-two ;;
             recreate) start=start-three; [ "$MOCK_CASE" = no_recreate ] || id=container-two ;;
           esac
@@ -103,14 +104,24 @@ set -eu
 current=$(cat "$MOCK_STATE/phase")
 stage=${0##*/}
 printf '%s %s\n' "$current" "$stage" >>"$MOCK_STATE/checks.log"
-[ "$MOCK_CASE" != "${stage}_failure" ] || [ "$current" != restart ]
+if [ "$MOCK_CASE" = "${stage}_failure" ]; then
+  case "$current" in restart|framework) exit 1 ;; esac
+fi
 MOCK
-chmod +x "$tmp/bin/docker" "$tmp/bin/runner"
+cat >"$tmp/bin/framework" <<'MOCK'
+#!/bin/sh
+set -eu
+printf '%s\n' framework >"$MOCK_STATE/phase"
+[ "$MOCK_CASE" != framework_failure ]
+"$ROYD_RESTART_ASSERT_RUNNER" "$1" >"$2/runtime.log" 2>&1
+MOCK
+chmod +x "$tmp/bin/docker" "$tmp/bin/runner" "$tmp/bin/framework"
 for stage in wait health security assert; do ln -s runner "$tmp/bin/$stage"; done
 
 run_case() {
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" \
     ROYD_RESTART_OUTPUT_DIR="$state/evidence" \
+    ROYD_RESTART_MODE="${restart_mode:-container}" ROYD_RESTART_FRAMEWORK_RUNNER="$tmp/bin/framework" \
     ROYD_RESTART_WAIT_RUNNER="$tmp/bin/wait" ROYD_RESTART_HEALTH_RUNNER="$tmp/bin/health" \
     ROYD_RESTART_SECURITY_RUNNER="$tmp/bin/security" ROYD_RESTART_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/restart-test.sh" royd:test >"$state/result.log" 2>&1
@@ -131,6 +142,8 @@ for mode in good file_changed setting_changed identity_changed uid_changed missi
   if [ "$mode" = good ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq ROYD_RESTART_EVIDENCE_FORMAT=2 "$state/evidence/manifest.env"
+    for key in FRESH RESTART RECREATE; do grep -Fxq "${key}_STATUS=pass" "$state/evidence/manifest.env"; done
     [ "$(grep -c ' assert$' "$state/checks.log")" -eq 3 ]
     [ "$(grep -c '^create .*sha256:0*1 ' "$state/docker.log")" -eq 2 ]
     grep -q '^restart -t 10 ' "$state/docker.log"
@@ -161,6 +174,33 @@ for mode in good file_changed setting_changed identity_changed uid_changed missi
         ;;
     esac
   fi
+  [ ! -e "$state/container" ]
+  [ ! -e "$state/volume" ]
+done
+restart_mode=framework
+for mode in good file_changed setting_changed identity_changed uid_changed framework_failure \
+    assert_failure health_failure security_failure framework_container_restart; do
+  state="$tmp/framework-$mode"
+  mkdir "$state"
+  status=0
+  run_case || status=$?
+  if [ "$mode" = good ]; then
+    [ "$status" -eq 0 ]
+    grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq FRAMEWORK_STATUS=pass "$state/evidence/manifest.env"
+    [ "$(grep -c ' assert$' "$state/checks.log")" -eq 2 ]
+    [ "$(grep -c '^create ' "$state/docker.log")" -eq 1 ]
+    ! grep -Eq '^(restart|stop) ' "$state/docker.log"
+  else
+    [ "$status" -ne 0 ]
+    grep -Fxq RESULT_STATUS=fail "$state/evidence/manifest.env"
+    grep -Fxq FRAMEWORK_STATUS=fail "$state/evidence/manifest.env"
+  fi
+  grep -Fxq RESTART_MODE=framework "$state/evidence/manifest.env"
+  grep -Fxq FRESH_STATUS=pass "$state/evidence/manifest.env"
+  grep -Fxq RESTART_STATUS=not-run "$state/evidence/manifest.env"
+  grep -Fxq RECREATE_STATUS=not-run "$state/evidence/manifest.env"
+  [ -s "$state/evidence/framework/container-inspect.json" ]
   [ ! -e "$state/container" ]
   [ ! -e "$state/volume" ]
 done
