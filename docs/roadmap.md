@@ -75,7 +75,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Keep framework host-clock writes read-only before enabling automatic time suggestions through network publication.
 - [x] Avoid NetworkMonitor's unadvertised Wi-Fi lookup during OCI network recovery without bypassing validation or missing-service assertions.
 - [ ] Extend and qualify IPv6, multi-NIC/default-route policies and network transitions beyond the IPv4 bridge baseline.
-- [ ] Qualify application DNS, TLS, framework network state/callbacks and network-aware workloads; literal-IP transport alone is insufficient.
+- [x] Qualify controlled ordinary-app IPv4 DNS, hostname HTTP, default-network callbacks and unchanged OCI configuration on Docker bridge and embedded DNS, including post-boot link recovery.
+- [ ] Qualify public DNS/TLS and broader network-aware application workloads; controlled local fixtures do not establish general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
 
