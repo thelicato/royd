@@ -1,0 +1,30 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java b/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java
+--- a/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java
++++ b/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java
+@@ -2438,20 +2438,25 @@
+             boolean isSecureFrpEnabled;
+             if (android.security.Flags.frpEnforcement()) {
++                final boolean skipRoydPdbLookup = "1".equals(System.getenv("ROYD_CONTAINER"))
++                        && !SELinux.isSELinuxEnabled()
++                        && SystemProperties.get("ro.frp.pst").isEmpty()
++                        && ServiceManager.checkService(Context.PERSISTENT_DATA_BLOCK_SERVICE) == null;
+                 PersistentDataBlockManager pdbManager =
+-                        mContext.getSystemService(PersistentDataBlockManager.class);
++                        skipRoydPdbLookup ? null
++                                : mContext.getSystemService(PersistentDataBlockManager.class);
+                 if (pdbManager == null) {
+                     // Some devices may not support FRP. In that case, we can't block the install
+                     // accordingly.
+                     isSecureFrpEnabled = false;
+                 } else {
+                     isSecureFrpEnabled = pdbManager.isFactoryResetProtectionActive();
+                 }
+             } else {
+                 isSecureFrpEnabled = Global.getInt(mContext.getContentResolver(),
+                         Global.SECURE_FRP_MODE, 0) == 1;
+             }
+
+             if (isSecureFrpEnabled
+                     && !isSecureFrpInstallAllowed(mContext, Binder.getCallingUid())) {
+                 throw new SecurityException("Can't install packages while in secure FRP");
+             }

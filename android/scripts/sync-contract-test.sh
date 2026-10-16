@@ -50,6 +50,10 @@ case "$1" in
         cp "$ROYD_SYNC_FREEZER_FIXTURES/$fixture.java" "$target"
       fi
     done
+    if [ ! -f frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/PackageInstallerSession.java" \
+        frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java
+    fi
     if [ ! -f frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp ]; then
       cat > frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp <<'SRC'
 Error AidlComposer::getDisplayIdentificationData(Display display, uint8_t* outPort,
@@ -3139,6 +3143,14 @@ grep -Fq 'sConfigurationMap.updateEntry(CURRENT_STATS_MAP_CONFIGURATION_KEY,' \
   "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
 grep -Fq 'maybeThrow(err, "synchronizeKernelRCU failed");' \
   "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'final boolean skipRoydPdbLookup = "1".equals(System.getenv("ROYD_CONTAINER"))' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
+grep -Fq '&& SystemProperties.get("ro.frp.pst").isEmpty()' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
+grep -Fq '&& ServiceManager.checkService(Context.PERSISTENT_DATA_BLOCK_SERVICE) == null;' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
+grep -Fq 'throw new SecurityException("Can' \
+  "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 
 # Adding a new patch at the end of an already applied set must not require a

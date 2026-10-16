@@ -70,6 +70,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
 - [x] Add controlled ordinary-app DNS and framework-network diagnostics with direct UDP/HTTP controls and retained failing evidence.
+- [x] Avoid an absent optional FRP-service lookup during container app installation while preserving configured/published FRP and installer security checks.
 - [ ] Integrate OCI-owned networking with Android framework network publication and per-network resolver configuration without taking over `eth0`.
 - [ ] Qualify application DNS, TLS, framework network state/callbacks and network-aware workloads; literal-IP transport alone is insufficient.
 - [ ] Validate the multiple-instance example on a documented reference host.

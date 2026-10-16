@@ -418,6 +418,9 @@ case "$1" in
       printf '%s\n' 'am_wtf: [0,1000,system_server,-1,SystemServiceRegistry,No service published for: jobscheduler]'
       printf '%s\n' 'am_wtf: [0,1073,com.android.networkstack.process,-1,SystemServiceRegistry,No service published for: ethernet]'
     fi
+    if [ "${MOCK_INSTALLER_FRP_WTF:-0}" = 1 ]; then
+      printf '%s\n' 'am_wtf: [0,3544,system_server,-1,SystemServiceRegistry,No service published for: persistent_data_block]'
+    fi
     if [ "${MOCK_SERVICE_MANAGER_BLOCKING_WTF:-0}" = 1 ]; then
       printf '%s\n' 'Binder: Outgoing transactions from this process must be FLAG_ONEWAY'
       printf '%s\n' 'Binder: at android.os.IServiceManager$Stub$Proxy.checkService(IServiceManager.java:507)'
@@ -740,6 +743,12 @@ grep -Fq 'Android 15 repeated unavailable inet-diag socket dumps' "$tmp/error"
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SERVICE_REGISTRY_WTF=1 \
     "$script_dir/assert-runtime.sh" service-registry-wtf >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted Android 15 service-registry WTFs' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INSTALLER_FRP_WTF=1 \
+    "$script_dir/assert-runtime.sh" installer-frp-wtf >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an installer FRP missing-service WTF' >&2
   exit 1
 fi
 grep -Fq 'Android 15 emitted missing-service WTF diagnostics' "$tmp/error"

@@ -38,6 +38,7 @@
 .PHONY: android15-cpu-residency-container-test
 .PHONY: android15-display-identification-test
 .PHONY: android15-binder-freezer-container-test
+.PHONY: android15-installer-frp-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -448,6 +449,9 @@ android15-display-identification-test:
 
 android15-binder-freezer-container-test:
 	./android/scripts/android15-binder-freezer-container-test.sh
+
+android15-installer-frp-container-test:
+	./android/scripts/android15-installer-frp-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh
