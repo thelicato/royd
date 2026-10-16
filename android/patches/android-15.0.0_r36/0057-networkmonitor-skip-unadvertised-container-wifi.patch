@@ -1,0 +1,42 @@
+diff --git a/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java b/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
+--- a/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
++++ b/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
+@@ -475,4 +475,5 @@
+     private final TelephonyManager mTelephonyManager;
+     private final WifiManager mWifiManager;
++    private final boolean mSkipRoydWifi;
+     private final ConnectivityManager mCm;
+     private final NetworkStackNotifier mNotifier;
+@@ -614,3 +615,16 @@
++    private static boolean shouldSkipRoydWifi(Context context) {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))
++                || context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)) {
++            return false;
++        }
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
++
+     public NetworkMonitor(Context context, INetworkMonitorCallbacks cb, Network network,
+             SharedLog validationLog, @NonNull NetworkStackServiceManager serviceManager) {
+         this(context, cb, network, new IpConnectivityLog(), validationLog, serviceManager,
+@@ -640,5 +654,7 @@
+         mCleartextDnsNetwork = deps.getPrivateDnsBypassNetwork(network);
+         mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
++        mSkipRoydWifi = shouldSkipRoydWifi(context);
++        mWifiManager = mSkipRoydWifi ? null
++                : (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+         mCm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+         mNotifier = serviceManager.getNotifier();
+@@ -1376,5 +1392,5 @@
+             case NetworkCapabilities.TRANSPORT_WIFI:
+                 // TODO: Update it if status query in dual wifi is supported.
+-                final WifiInfo wifiInfo = mWifiManager.getConnectionInfo();
++                final WifiInfo wifiInfo = mSkipRoydWifi ? null : mWifiManager.getConnectionInfo();
+                 stats.setWiFiData(wifiInfo);
+                 break;

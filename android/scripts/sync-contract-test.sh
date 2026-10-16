@@ -45,6 +45,10 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
     mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
+    mkdir -p packages/modules/NetworkStack/src/com/android/server/connectivity
+    if [ ! -f packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/NetworkMonitor.java" packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
+    fi
     if [ ! -f frameworks/base/services/core/java/com/android/server/SystemClockTime.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/SystemClockTime.java" frameworks/base/services/core/java/com/android/server/SystemClockTime.java
       cp "$ROYD_SYNC_FREEZER_FIXTURES/AlarmManagerService.java" frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java
@@ -3177,6 +3181,7 @@ grep -Fq 'throw new SecurityException("Can' \
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
 grep -Fq 'RoydOciNetwork.startIfContainer(mContext);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
+grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"
 
