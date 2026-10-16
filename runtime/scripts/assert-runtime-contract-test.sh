@@ -17,6 +17,11 @@ case "$1" in
     shift
     container=$1
     shift
+    if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = connectivity ]; then
+      if [ "${MOCK_NO_DEFAULT_NETWORK:-0}" = 1 ]; then printf '%s\n' 'Active default network: none';
+      else printf '%s\n' 'Active default network: 100'; fi
+      exit 0
+    fi
     if [ "$1" = pidof ] && [ "$2" = audioserver ]; then
       printf '%s\n' "${MOCK_AUDIO_PID-237}"
       exit 0
@@ -317,6 +322,7 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
     fi
@@ -1182,4 +1188,16 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INVALID_DISPLAY_CONFIG=1 \
 fi
 grep -Fq 'display bootstrap rejected the runtime configuration' "$tmp/error"
 
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_OCI_NETWORK=1 \
+    "$script_dir/assert-runtime.sh" no-oci-network >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted absent OCI network publication' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 OCI network publication is missing' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_DEFAULT_NETWORK=1 \
+    "$script_dir/assert-runtime.sh" no-default-network >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted absent framework default network' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 has no framework default network' "$tmp/error"
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

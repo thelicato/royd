@@ -50,14 +50,17 @@ func answer(query []byte, address net.IP) []byte {
 }
 
 type observation struct {
-	UID      int      `json:"uid"`
-	Done     bool     `json:"done"`
-	Direct   string   `json:"direct_udp_dns"`
-	HTTP     string   `json:"literal_http"`
-	Active   string   `json:"active_network"`
-	Networks int      `json:"network_count"`
-	Callback int      `json:"default_callback_available"`
-	DNS      []string `json:"system_dns_addresses"`
+	UID           int      `json:"uid"`
+	Done          bool     `json:"done"`
+	Direct        string   `json:"direct_udp_dns"`
+	HTTP          string   `json:"literal_http"`
+	Active        string   `json:"active_network"`
+	Networks      int      `json:"network_count"`
+	Callback      int      `json:"default_callback_available"`
+	DNS           []string `json:"system_dns_addresses"`
+	NamedHTTP     string   `json:"hostname_http"`
+	Interface     string   `json:"active_interface"`
+	ConfiguredDNS []string `json:"configured_dns"`
 }
 
 func assess(raw []byte, expected net.IP) (string, bool) {
@@ -72,8 +75,15 @@ func assess(raw []byte, expected net.IP) (string, bool) {
 			dns = true
 		}
 	}
+	configured := false
+	for _, address := range result.ConfiguredDNS {
+		if expected.Equal(net.ParseIP(address)) {
+			configured = true
+		}
+	}
 	id, err := strconv.ParseUint(result.Active, 10, 32)
-	framework := err == nil && id > 0 && result.Networks > 0 && result.Callback > 0
+	framework := err == nil && id > 0 && result.Networks > 0 && result.Callback > 0 && result.Interface == "eth0" && configured
+	dns = dns && result.NamedHTTP == "pass"
 	status := func(pass bool) string {
 		if pass {
 			return "pass"

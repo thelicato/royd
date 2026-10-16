@@ -3,6 +3,8 @@ package org.royd.networkprobe;
 import android.app.Activity;
 import android.net.ConnectivityManager;
 import android.net.Network;
+import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -28,7 +30,7 @@ public final class NetworkProbe extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         TextView text = new TextView(this);
-        text.setPadding(24, 80, 24, 24);
+        text.setPadding(24, 160, 24, 24);
         text.setTextColor(android.graphics.Color.BLACK);
         setContentView(text);
         new Thread(() -> {
@@ -45,6 +47,17 @@ public final class NetworkProbe extends Activity {
                 result.put("uid", Process.myUid());
                 result.put("active_network", String.valueOf(cm.getActiveNetwork()));
                 result.put("network_count", cm.getAllNetworks().length);
+                Network active = cm.getActiveNetwork();
+                LinkProperties link = active == null ? null : cm.getLinkProperties(active);
+                result.put("active_interface", link == null ? "" : link.getInterfaceName());
+                JSONArray configuredDns = new JSONArray();
+                if (link != null) for (InetAddress address : link.getDnsServers()) {
+                    configuredDns.put(address.getHostAddress());
+                }
+                result.put("configured_dns", configuredDns);
+                NetworkCapabilities caps = active == null ? null : cm.getNetworkCapabilities(active);
+                result.put("internet_validated", caps != null
+                        && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
                 cm.registerDefaultNetworkCallback(callback);
                 try (DatagramSocket socket = new DatagramSocket()) {
                     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -90,6 +103,18 @@ public final class NetworkProbe extends Activity {
                     Log.e("RoydNetworkProbe", "system DNS failed", error);
                 }
                 result.put("system_dns_addresses", addresses);
+                try {
+                    URL literal = new URL(url);
+                    URL named = new URL(literal.getProtocol(), host, literal.getPort(), literal.getFile());
+                    HttpURLConnection connection = (HttpURLConnection) named.openConnection();
+                    connection.setConnectTimeout(3000); connection.setReadTimeout(3000);
+                    try (InputStream input = connection.getInputStream()) {
+                        String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                        String nonce = literal.getPath().substring(literal.getPath().lastIndexOf('/') + 1);
+                        result.put("hostname_http", connection.getResponseCode() == 200
+                                && body.contains(nonce) ? "pass" : "bad-response");
+                    } finally { connection.disconnect(); }
+                } catch (Exception error) { result.put("hostname_http", error.toString()); }
                 Thread.sleep(2000);
                 result.put("default_callback_available", available.get());
                 result.put("done", true);

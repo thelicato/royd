@@ -54,6 +54,24 @@ case "$1" in
       cp "$ROYD_SYNC_FREEZER_FIXTURES/PackageInstallerSession.java" \
         frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java
     fi
+    if [ ! -f packages/modules/Connectivity/service/Android.bp ]; then
+      cat >packages/modules/Connectivity/service/Android.bp <<'SRC'
+    // variable here.
+    defaults: ["NetworkStackApiShimSettingsForCurrentBranch"],
+    srcs: [
+        "src/**/*.java",
+        ":framework-connectivity-shared-srcs",
+        ":services-connectivity-shared-srcs",
+SRC
+      cat >packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java <<'SRC'
+        // forever, this replaces a synchronous call to PermissionMonitor#startMonitoring, which
+        // could have blocked forever too.
+        startMonitoringDone.block();
+    }
+
+    /**
+SRC
+    fi
     if [ ! -f frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp ]; then
       cat > frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp <<'SRC'
 Error AidlComposer::getDisplayIdentificationData(Display display, uint8_t* outPort,
@@ -3152,6 +3170,8 @@ grep -Fq '&& ServiceManager.checkService(Context.PERSISTENT_DATA_BLOCK_SERVICE) 
 grep -Fq 'throw new SecurityException("Can' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
+grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
+grep -Fq 'RoydOciNetwork.startIfContainer(mContext);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
 
 # Adding a new patch at the end of an already applied set must not require a
 # fresh multi-gigabyte AOSP checkout. Changed or reordered existing patches

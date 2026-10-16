@@ -1,0 +1,24 @@
+diff --git a/packages/modules/Connectivity/service/Android.bp b/packages/modules/Connectivity/service/Android.bp
+--- a/packages/modules/Connectivity/service/Android.bp
++++ b/packages/modules/Connectivity/service/Android.bp
+@@ -155,6 +155,7 @@
+     // variable here.
+     defaults: ["NetworkStackApiShimSettingsForCurrentBranch"],
+     srcs: [
++        ":royd-oci-network-sources",
+         "src/**/*.java",
+         ":framework-connectivity-shared-srcs",
+         ":services-connectivity-shared-srcs",
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+@@ -4130,6 +4130,9 @@
+         // forever, this replaces a synchronous call to PermissionMonitor#startMonitoring, which
+         // could have blocked forever too.
+         startMonitoringDone.block();
++        if (SdkLevel.isAtLeastV()) {
++            com.android.server.connectivity.RoydOciNetwork.startIfContainer(mContext);
++        }
+     }
+
+     /**

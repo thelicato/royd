@@ -16,6 +16,7 @@ volume_owned=0
 image_id=unknown
 result=fail
 runtime=not-tested
+ownership=not-tested
 started=$(date -u +%FT%TZ)
 case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
@@ -40,10 +41,11 @@ finish() {
   fi
   [ "$status" -eq 0 ] || result=fail
   cat >"$output/manifest.env" <<MANIFEST
-ROYD_NETWORK_DNS_EVIDENCE_FORMAT=1
+ROYD_NETWORK_DNS_EVIDENCE_FORMAT=2
 NETWORK_SCOPE=app-system-dns-framework
 RESULT_STATUS=$result
 RUNTIME_STATUS=$runtime
+OCI_OWNERSHIP_STATUS=$ownership
 IMAGE=$image
 IMAGE_ID=$image_id
 TLS_STATUS=not-tested
@@ -89,6 +91,16 @@ docker start "$container" >>"$output/create.log"
 "${ROYD_NETWORK_DNS_HEALTH_RUNNER:-$script_dir/wait-for-health.sh}" "$container" "${ROYD_HEALTH_TIMEOUT:-240}" >"$output/health.log" 2>&1
 "${ROYD_NETWORK_DNS_SECURITY_RUNNER:-$script_dir/assert-security.sh}" "$container" privileged >"$output/security.log" 2>&1
 [ "$(docker exec "$container" getprop ro.build.version.sdk)" = 35 ]
+docker inspect --format '{{with index .NetworkSettings.Networks "bridge"}}{{.IPAddress}}/{{.IPPrefixLen}} {{.Gateway}}{{end}}' "$container" >"$output/oci-endpoint.txt"
+endpoint=$(cat "$output/oci-endpoint.txt")
+expected_cidr=${endpoint% *}
+[ "${endpoint#* }" = "$gateway" ]
+snapshot_oci() {
+  docker exec "$container" sh -c 'ip -o -4 addr show dev eth0; ip -4 route show table main; ip link show dev eth0; cat /etc/resolv.conf'
+}
+snapshot_oci >"$output/oci-before.log"
+grep -Fq "inet $expected_cidr " "$output/oci-before.log"
+grep -Fq "default via $gateway dev eth0" "$output/oci-before.log"
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/before-runtime.log" 2>&1
 system_before=$(docker exec "$container" pidof system_server)
@@ -127,8 +139,11 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
+snapshot_oci >"$output/oci-after.log"
+ownership=pass
+cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
 "$output/build/dns-fixture" -result "$output/observation.json" -expected "$gateway" >"$output/assessment.env" || assessment=$?
-if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ]; then exit 1; fi
+if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ] || [ "$ownership" != pass ]; then exit 1; fi
 result=pass
 printf 'Android 15 application DNS and network-state test passed: %s\n' "$output"

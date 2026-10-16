@@ -51,14 +51,17 @@ func TestAnswers(t *testing.T) {
 }
 
 func TestAssessment(t *testing.T) {
-	good := `{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}`
+	good := `{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["172.17.0.1"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}`
 	cases := []struct{ name, from, to string }{
 		{"root", "10054", "0"}, {"incomplete", "true", "false"},
 		{"control", `"direct_udp_dns":"pass"`, `"direct_udp_dns":"fail"`},
 		{"http", `"literal_http":"pass"`, `"literal_http":"fail"`},
+		{"hostname-http", `"hostname_http":"pass"`, `"hostname_http":"fail"`},
+		{"wrong-interface", "eth0", "eth1"},
+		{"wrong-resolver", `"configured_dns":["172.17.0.1"]`, `"configured_dns":["172.17.0.2"]`},
 		{"no-network", `"100"`, `"null"`}, {"no-networks", `"network_count":1`, `"network_count":0`},
 		{"no-callback", `"default_callback_available":1`, `"default_callback_available":0`},
-		{"wrong-answer", "172.17.0.1", "172.17.0.2"},
+		{"wrong-answer", `"system_dns_addresses":["172.17.0.1"]`, `"system_dns_addresses":["172.17.0.2"]`},
 	}
 	if _, pass := assess([]byte(good), net.ParseIP("172.17.0.1")); !pass {
 		t.Fatal("rejected complete positive evidence")

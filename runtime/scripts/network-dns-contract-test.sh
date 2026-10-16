@@ -38,6 +38,7 @@ case "$1" in
   image) printf 'sha256:%064d\n' 1 ;;
   network) printf '%s\n' 172.17.0.1 ;;
   inspect)
+    if [ "${2:-}" = --format ]; then printf '%s\n' '172.17.0.2/16 172.17.0.1'; exit 0; fi
     [ "$MOCK_CASE" = existing_container ] || [ -e "$MOCK_STATE/container" ]
     printf '%s\n' '[{"State":{"Running":true}}]' ;;
   volume)
@@ -72,8 +73,11 @@ case "$1" in
         if [ "$MOCK_CASE" = dns_gap ] || [ "$MOCK_CASE" = both_gaps ]; then
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"null","network_count":0,"default_callback_available":0,"system_dns_addresses":[]}'
         else
-          printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
+          printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["172.17.0.1"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
         fi ;;
+      *'ip -o -4 addr show dev eth0;'*)
+        printf '%s\n' '2: eth0 inet 172.17.0.2/16 scope global' 'default via 172.17.0.1 dev eth0'
+        if [ "$MOCK_CASE" = ownership_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' changed; fi ;;
       *'dumpsys '*|*'logcat -d '*|*'screencap -p'|*'cat /etc/resolv.conf; ip rule;'*) printf '%s\n' evidence ;;
       *) printf 'unexpected Docker exec: %s\n' "$*" >&2; exit 99 ;;
     esac ;;
@@ -95,7 +99,7 @@ cat >"$tmp/bin/pass" <<'MOCK'
 exit 0
 MOCK
 chmod +x "$tmp/bin/"*
-for mode in good dns_gap both_gaps fixture_failure wrong_sdk root_app wrong_owner install_failure no_result \
+for mode in good dns_gap both_gaps ownership_changed fixture_failure wrong_sdk root_app wrong_owner install_failure no_result \
     wrong_activity before_failure after_failure server_changed start_failure capture_failure \
     remote_context existing_container existing_volume existing_evidence; do
   state="$tmp/$mode"
@@ -115,6 +119,8 @@ for mode in good dns_gap both_gaps fixture_failure wrong_sdk root_app wrong_owne
     grep -Fxq SYSTEM_DNS_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq FRAMEWORK_NETWORK_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq RUNTIME_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=2 "$state/evidence/manifest.env"
+    grep -Fxq OCI_OWNERSHIP_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq 'full container log' "$state/evidence/container/container.log"
     grep -q '^create .*--dns 172.17.0.1 .*sha256:0*1 ' "$state/docker.log"
     [ "$(cat "$state/asserts")" = 2 ]
@@ -135,6 +141,7 @@ for mode in good dns_gap both_gaps fixture_failure wrong_sdk root_app wrong_owne
       after_failure|server_changed)
         grep -Fxq SYSTEM_DNS_STATUS=pass "$state/evidence/manifest.env"
         grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
+      ownership_changed) grep -Fxq OCI_OWNERSHIP_STATUS=fail "$state/evidence/manifest.env" ;;
     esac
     if [ "$mode" = both_gaps ]; then grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env"; fi
   fi
