@@ -3,6 +3,7 @@ set -eu
 
 container=${1:-royd}
 timeout=${2:-${ROYD_BOOT_TIMEOUT:-180}}
+init_marker=${ROYD_BOOT_WAIT_MARKER:-}
 
 case "$timeout" in
   ''|*[!0-9]*)
@@ -31,7 +32,16 @@ while :; do
     exit 1
   fi
 
-  completed=$(docker exec "$container" getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+  completed=
+  # Optional observation-only startup gate. An eager exec can populate the root
+  # cgroup while init is still enabling its delegated memory controller.
+  if [ -n "$init_marker" ] && docker logs "$container" 2>&1 | grep -Fq "$init_marker"; then
+    printf 'Observed init marker before boot polling in %s\n' "$container"
+    init_marker=
+  fi
+  if [ -z "$init_marker" ]; then
+    completed=$(docker exec "$container" getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+  fi
   if [ "$completed" = '1' ]; then
     printf 'Android boot completed in %s\n' "$container"
     exit 0

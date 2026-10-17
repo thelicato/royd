@@ -103,6 +103,8 @@ run ./runtime/scripts/restart-contract-test.sh
 run ./runtime/scripts/framework-restart-contract-test.sh
 run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
+run ./runtime/scripts/network-tls-contract-test.sh
+run ./runtime/scripts/wait-for-boot-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
 run ./runtime/scripts/security-capability-sweep-test.sh
 run ./runtime/scripts/security-evidence-test.sh

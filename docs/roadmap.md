@@ -66,6 +66,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
 - [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
 - [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
+- [ ] Harden Android 15 memory-controller delegation against arbitrary early external exec processes, retaining domain-controller constraints and failure diagnostics.
 - [x] Add multiple-instance Compose and smoke-test workflows.
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
@@ -76,7 +77,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Avoid NetworkMonitor's unadvertised Wi-Fi lookup during OCI network recovery without bypassing validation or missing-service assertions.
 - [ ] Extend and qualify IPv6, multi-NIC/default-route policies and network transitions beyond the IPv4 bridge baseline.
 - [x] Qualify controlled ordinary-app IPv4 DNS, hostname HTTP, default-network callbacks and unchanged OCI configuration on Docker bridge and embedded DNS, including post-boot link recovery.
-- [ ] Qualify public DNS/TLS and broader network-aware application workloads; controlled local fixtures do not establish general Internet compatibility.
+- [x] Add and locally qualify ordinary-UID public IPv4 DNS/HTTPS with platform trust, self-signed certificate rejection, Docker/embedded DNS and retained pre/post runtime evidence.
+- [ ] Qualify broader network-aware applications, WebView TLS, additional certificate/hostname failure modes and network lifecycle soaks; one public endpoint is not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
 

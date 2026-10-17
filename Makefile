@@ -92,6 +92,17 @@ runtime-network-dns-test:
 runtime-network-dns-contract-test:
 	./runtime/scripts/network-dns-contract-test.sh
 
+.PHONY: runtime-network-tls-test runtime-network-tls-contract-test
+runtime-network-tls-test:
+	./runtime/scripts/network-tls-test.sh
+
+runtime-network-tls-contract-test:
+	./runtime/scripts/network-tls-contract-test.sh
+
+.PHONY: runtime-wait-for-boot-contract-test
+runtime-wait-for-boot-contract-test:
+	./runtime/scripts/wait-for-boot-contract-test.sh
+
 runtime-assert-contract-test:
 	./runtime/scripts/assert-runtime-contract-test.sh
 
