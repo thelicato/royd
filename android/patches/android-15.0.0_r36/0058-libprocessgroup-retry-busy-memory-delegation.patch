@@ -1,0 +1,53 @@
+diff --git a/system/core/libprocessgroup/setup/cgroup_map_write.cpp b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+--- a/system/core/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/system/core/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -29,4 +29,6 @@
+ #include <unistd.h>
+
++#include <chrono>
+ #include <optional>
++#include <thread>
+
+@@ -147,4 +149,5 @@ static bool IsRoydContainerCgroup(const CgroupController* controller) {
+     return royd_container != nullptr && strcmp(royd_container, "1") == 0 &&
+             access("/sys/fs/selinux/enforce", F_OK) != 0 &&
++            errno == ENOENT &&
+             controller->name() == CGROUPV2_HIERARCHY_NAME &&
+             strcmp(controller->path(), "/sys/fs/cgroup/royd") == 0 &&
+@@ -173,1 +176,29 @@
++static bool DelegateRoydMemoryController() {
++    // An early OCI exec can temporarily occupy the namespace-root cgroup.
++    // Wait without moving external processes or bypassing domain constraints.
++    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
++    bool waiting = false;
++    while (true) {
++        if (android::base::WriteStringToFile(
++                    "+memory", "/sys/fs/cgroup/cgroup.subtree_control")) {
++            if (waiting) {
++                LOG(INFO) << "ROYD: enabled container memory delegation after retry";
++            }
++            return true;
++        }
++        const int error = errno;
++        if (error != EBUSY || std::chrono::steady_clock::now() >= deadline) {
++            errno = error;
++            PLOG(ERROR) << "Failed to delegate the memory controller to /sys/fs/cgroup/royd";
++            errno = error;
++            return false;
++        }
++        if (!waiting) {
++            LOG(INFO) << "ROYD: waiting for busy container memory delegation";
++            waiting = true;
++        }
++        std::this_thread::sleep_for(std::chrono::milliseconds(50));
++    }
++}
++
+ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+@@ -192,4 +223,3 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+-        if (!android::base::WriteStringToFile(
+-                    "+memory", "/sys/fs/cgroup/cgroup.subtree_control")) {
+-            PLOG(WARNING) << "Failed to delegate the memory controller to " << controller->path();
++        if (!DelegateRoydMemoryController()) {
++            return false;
+         }

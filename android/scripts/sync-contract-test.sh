@@ -2982,6 +2982,10 @@ grep -Fq '"+memory", "/sys/fs/cgroup/cgroup.subtree_control"' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'Failed to delegate the memory controller to' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+"$android_dir/scripts/android15-cgroup-delegation-container-test.sh" \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
+grep -Fq 'if (!DelegateRoydMemoryController()) {' \
+  "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'ROYD: using delegated cgroup v2 subtree at' \
   "$tmp/src/system/core/libprocessgroup/setup/cgroup_map_write.cpp"
 grep -Fq 'mount("none", controller->path(), "cgroup2"' \

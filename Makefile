@@ -13,6 +13,8 @@
 .PHONY: android15-init-stdio-container-test
 .PHONY: android15-oci-network-route-test
 .PHONY: android15-cgroup-v2-container-test
+.PHONY: android15-cgroup-delegation-container-test
+.PHONY: runtime-cgroup-delegation-test
 .PHONY: android15-dropbox-boot-container-test
 .PHONY: android15-tether-stats-container-test
 .PHONY: android15-inet-diag-container-test
@@ -388,6 +390,12 @@ android15-init-stdio-container-test:
 
 android15-cgroup-v2-container-test:
 	./android/scripts/android15-cgroup-v2-container-test.sh
+
+android15-cgroup-delegation-container-test:
+	./android/scripts/android15-cgroup-delegation-container-test.sh
+
+runtime-cgroup-delegation-test:
+	./runtime/scripts/cgroup-delegation-test.sh
 
 android15-dropbox-boot-container-test:
 	./android/scripts/android15-dropbox-boot-container-test.sh

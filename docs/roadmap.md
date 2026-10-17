@@ -66,7 +66,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
 - [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
 - [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
-- [ ] Harden Android 15 memory-controller delegation against arbitrary early external exec processes, retaining domain-controller constraints and failure diagnostics.
+- [x] Add bounded Android 15 memory-controller delegation recovery for transient early external exec processes, retaining domain-controller constraints and explicit persistent-failure diagnostics.
+- [ ] Validate broader early-exec timing and host/runtime combinations; indefinite root-cgroup occupants remain unsupported by bounded recovery.
 - [x] Add multiple-instance Compose and smoke-test workflows.
 - [x] Add persisted runtime qualification results and compatibility-matrix integration.
 - [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
