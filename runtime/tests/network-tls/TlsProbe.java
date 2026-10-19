@@ -26,6 +26,14 @@ import org.json.JSONObject;
 
 /** Ordinary test UID using platform DNS, HTTPS trust and hostname verification unchanged. */
 public final class TlsProbe extends Activity {
+    private String resultFile;
+
+    private static String resultName(String name) {
+        if (name == null) return "result.json";
+        if (!name.matches("round-[0-9]{3}\\.json")) throw new IllegalArgumentException("invalid result name");
+        return name;
+    }
+
     private static boolean isCertificateTrustFailure(Throwable error) {
         if (!(error instanceof SSLHandshakeException)) return false;
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
@@ -54,6 +62,7 @@ public final class TlsProbe extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        resultFile = resultName(getIntent().getStringExtra("result_name"));
         TextView text = new TextView(this);
         text.setPadding(24, 160, 24, 24);
         text.setTextColor(android.graphics.Color.BLACK);
@@ -69,6 +78,7 @@ public final class TlsProbe extends Activity {
                 URL target = new URL(getIntent().getStringExtra("url"));
                 URL untrusted = new URL(getIntent().getStringExtra("untrusted"));
                 result.put("uid", Process.myUid());
+                result.put("result_name", resultFile);
                 result.put("url", target.toString());
                 result.put("untrusted_url", untrusted.toString());
                 Network active = cm.getActiveNetwork();
@@ -150,10 +160,10 @@ public final class TlsProbe extends Activity {
     private void publish(JSONObject result, TextView text) {
         Log.i("RoydTlsProbe", result.toString());
         try {
-            try (FileOutputStream file = openFileOutput("result.tmp", MODE_PRIVATE)) {
+            try (FileOutputStream file = openFileOutput(resultFile + ".tmp", MODE_PRIVATE)) {
                 file.write(result.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
-            if (!new File(getFilesDir(), "result.tmp").renameTo(new File(getFilesDir(), "result.json"))) {
+            if (!new File(getFilesDir(), resultFile + ".tmp").renameTo(new File(getFilesDir(), resultFile))) {
                 throw new java.io.IOException("could not publish complete result");
             }
         } catch (Exception error) { Log.e("RoydTlsProbe", "could not persist result", error); }

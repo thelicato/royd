@@ -85,6 +85,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add ordinary-UID WebView HTTPS document/DOM and untrusted-certificate qualification alongside native TLS controls, with retained independent runtime and OCI evidence.
 - [x] Run the WebView HTTPS qualification on the baseline image in Docker bridge mode and retain passing real-runtime evidence.
 - [x] Run WebView HTTPS qualification with Docker embedded DNS and retain passing real-runtime evidence.
+- [x] Add same-instance ordinary-UID native/WebView HTTPS repetition with fresh app processes, exact round identities, retained failures and per-round runtime/OCI stability checks.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.

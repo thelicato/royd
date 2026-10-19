@@ -173,6 +173,14 @@ func assessWebView(raw []byte, target, untrusted string, expectedStatus, expecte
 		native && document && rejected
 }
 
+func resultIdentity(raw []byte, name string) bool {
+	var o struct {
+		Name string `json:"result_name"`
+	}
+	return regexp.MustCompile(`^round-[0-9]{3}\.json$`).MatchString(name) &&
+		json.Unmarshal(raw, &o) == nil && o.Name == name
+}
+
 // Ephemeral self-signed negative control. Its key never leaves process memory.
 func certificate(ip net.IP) (tls.Certificate, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -203,6 +211,7 @@ func main() {
 	expectedUID := flag.Int("uid", 0, "observed ordinary application UID")
 	webview := flag.String("webview-url", "", "optional public WebView HTTPS page")
 	title := flag.String("webview-title", "", "expected WebView document title and h1")
+	name := flag.String("result-name", "", "optional exact round result identity")
 	flag.Parse()
 	if (*webview != "" || *title != "") && !webTarget(*webview, *title) {
 		log.Fatal("valid public WebView URL and bounded plain title required together")
@@ -223,6 +232,10 @@ func main() {
 		raw, err := os.ReadFile(*result)
 		if err != nil {
 			log.Fatal(err)
+		}
+		if *name != "" && !resultIdentity(raw, *name) {
+			fmt.Println("OBSERVATION_STATUS=fail")
+			os.Exit(1)
 		}
 		text, pass := assess(raw, *target, *untrusted, *expectedStatus, *expectedUID)
 		if *webview != "" {

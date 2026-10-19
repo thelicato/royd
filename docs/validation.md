@@ -133,6 +133,22 @@ A separate off-screen WebView loads the same ephemeral matching-IP negative cont
 
 These modes do not qualify IPv6, VPN/proxy/private-DNS configurations, general application/browser compatibility, long soaks or every public CA/hostname failure mode. Dedicated trusted-chain hostname-mismatch and expired-certificate matrices remain open; no certificate is installed or trusted by either mode.
 
+### Same-instance HTTPS repetition
+
+`make runtime-network-webview-soak-test` uses the same ordinary test APK, public targets and unchanged platform trust for 20 rounds, with 30 seconds between rounds. Each round verifies force-stop/process absence, wakes and unlocks normally, relaunches the app with its original UID and requires native DNS/HTTPS, default-network callbacks, the exact committed WebView document and both certificate-rejection controls. A unique bounded private result filename and matching JSON identity prevent an earlier result satisfying a later round. No app data, resolver caches, timeout settings or host configuration are cleared or changed. The APK is rebuilt by the host test; Android itself needs no rebuild.
+
+Choose a fresh evidence directory and optionally select embedded DNS:
+
+```sh
+ROYD_NETWORK_TLS_OUTPUT_DIR="$PWD/.work/network-webview-soak-new" \
+  ROYD_NETWORK_TLS_NETWORK_MODE=private \
+  make runtime-network-webview-soak-test
+```
+
+`ROYD_NETWORK_TLS_ROUNDS` accepts 1 to 100 and `ROYD_NETWORK_TLS_INTERVAL` accepts 0 to 300 seconds, both canonical decimal. One round retains the original format-1/2 workflow. Multiple rounds use format 3, with requested/completed counts, last round, aggregate round status and host-uptime elapsed seconds for the repetition interval, excluding the final runtime assertion. `rounds/NNN` retains each observation, assessment, application identity/log/screenshot, OCI snapshot, SystemServer PID and Docker identity. The runner checks unchanged Docker ID/start time, running state, zero restarts/OOM and unchanged OCI addresses/routes/MTU/resolvers on every round, plus full runtime checks before and after the workload. A failed assessment stops further rounds while retaining independent post-runtime results; interruption or an earlier command failure also retains a failed manifest and full container evidence. Public endpoint outages fail the run rather than becoming certificate-rejection proof.
+
+These are cold app-process repetitions in one persistent Android instance, not a continuously running application or reset host/resolver/WebView storage. Elapsed seconds are not throughput or latency scores, and configured round count is not a guaranteed soak duration. This does not exercise network withdrawal/recovery, arbitrary third-party apps, IPv6, VPNs, additional certificate failure classes or day-long reliability. Repeat both Docker DNS modes and inspect actual per-round evidence before recording a local qualification result.
+
 Check host Docker diagnostics when embedded DNS fails before considering an Android change. Missing host TCP/UDP match support or DNAT/SNAT targets can prevent Docker's resolver setup and loopback-only ADB publication, especially with module autoloading disabled. On modular kernels, check the matching `xt_tcpudp` and `xt_nat` providers; built-in support needs no module load. Retain the daemon's rule-setup error alongside app/resolver evidence, repair the host prerequisite separately and repeat in a fresh evidence directory. royd must not load host modules or enable global autoloading. Do not bypass this by changing Android DNS policy, publishing ADB on all interfaces or marking the failed network mode as qualified.
 
 ## Read-only host wall clock

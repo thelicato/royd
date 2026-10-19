@@ -107,7 +107,10 @@ runtime-network-dns-contract-test:
 	./runtime/scripts/network-dns-contract-test.sh
 
 .PHONY: runtime-network-tls-test runtime-network-tls-contract-test
-.PHONY: runtime-network-webview-tls-test
+.PHONY: runtime-network-webview-tls-test runtime-network-webview-soak-test
+runtime-network-webview-soak-test:
+	ROYD_NETWORK_TLS_WEBVIEW=1 ROYD_NETWORK_TLS_ROUNDS=$${ROYD_NETWORK_TLS_ROUNDS:-20} ROYD_NETWORK_TLS_INTERVAL=$${ROYD_NETWORK_TLS_INTERVAL:-30} ./runtime/scripts/network-tls-test.sh
+
 runtime-network-webview-tls-test:
 	ROYD_NETWORK_TLS_WEBVIEW=1 ./runtime/scripts/network-tls-test.sh
 

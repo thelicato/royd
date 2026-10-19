@@ -14,6 +14,27 @@ import (
 const target = "https://www.google.com/generate_204"
 const untrusted = "https://172.17.0.1:43210/reject"
 
+func TestResultIdentity(t *testing.T) {
+	for _, test := range []struct {
+		raw, name string
+		pass      bool
+	}{
+		{`{"result_name":"round-001.json"}`, "round-001.json", true},
+		{`{"result_name":"round-100.json"}`, "round-100.json", true},
+		{`{"result_name":"round-001.json"}`, "round-002.json", false},
+		{`{}`, "round-001.json", false},
+		{`{`, "round-001.json", false},
+		{`{"result_name":1}`, "round-001.json", false},
+		{`{"result_name":"../result.json"}`, "../result.json", false},
+		{`{"result_name":"round-1.json"}`, "round-1.json", false},
+		{`{"result_name":"round-001.json\n"}`, "round-001.json\n", false},
+	} {
+		if got := resultIdentity([]byte(test.raw), test.name); got != test.pass {
+			t.Fatalf("result identity (%q, %q) = %v", test.raw, test.name, got)
+		}
+	}
+}
+
 func TestPublicURLs(t *testing.T) {
 	for _, raw := range []string{target, "https://probe.example.org:443/status/204"} {
 		if _, err := publicURL(raw); err != nil {

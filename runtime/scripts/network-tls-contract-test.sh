@@ -64,6 +64,26 @@ JAVA
 JAVA
   "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/WebViewDenial.java"
   "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" WebViewDenial
+  printf '%s\n' 'class ResultName {' >"$tmp/ResultName.java"
+  awk '/^    private static String resultName/ { copy=1 } copy { print } copy && /^    }/ { exit }' \
+    "$source_dir/TlsProbe.java" >>"$tmp/ResultName.java"
+  cat >>"$tmp/ResultName.java" <<'JAVA'
+    public static void main(String[] args) {
+        if (!resultName(null).equals("result.json")) throw new AssertionError();
+        for (String name : new String[] {"round-001.json", "round-100.json"}) {
+            if (!resultName(name).equals(name)) throw new AssertionError();
+        }
+        for (String name : new String[] {"", "../result.json", "/round-001.json", "round-1.json",
+                "round-1000.json", "round-001.json\n", "round-001.json/extra", "round-001.json\0"}) {
+            try { resultName(name); throw new AssertionError(name); }
+            catch (IllegalArgumentException expected) { }
+        }
+        System.out.println("Production per-round result filename validation passed");
+    }
+}
+JAVA
+  "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/ResultName.java"
+  "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" ResultName
 else
   printf '%s\n' 'Java execution skipped: set ROYD_TEST_JAVA_HOME for TLS failure-classifier contracts'
 fi
@@ -98,7 +118,24 @@ case "$1" in
       *) exit 99 ;;
     esac ;;
   inspect)
-    if [ "${2:-}" = --format ]; then printf '%s\n' '172.17.0.2/16 172.17.0.1'; exit 0; fi
+    if [ "${2:-}" = --format ]; then
+      case "$3" in
+        *'.State.StartedAt'*)
+          started=2026-10-19T12:00:00Z
+          running=true; restarts=0; oom=false
+          if [ -f "$MOCK_STATE/round" ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; then
+            case "$MOCK_CASE" in
+              webview_round_restart) started=2026-10-19T12:01:00Z ;;
+              webview_round_oom) oom=true ;;
+              webview_round_stopped) running=false ;;
+              webview_round_auto_restart) restarts=1 ;;
+            esac
+          fi
+          printf '%064d %s %s %s %s\n' 1 "$running" "$started" "$restarts" "$oom" ;;
+        *) printf '%s\n' '172.17.0.2/16 172.17.0.1' ;;
+      esac
+      exit 0
+    fi
     [ "$MOCK_CASE" = existing_container ] || [ -e "$MOCK_STATE/container" ]
     printf '%s\n' '[{"State":{"Running":true}}]' ;;
   volume)
@@ -117,18 +154,53 @@ case "$1" in
     case "$*" in
       *'getprop ro.build.version.sdk') if [ "$MOCK_CASE" = wrong_sdk ]; then printf '%s\n' 34; else printf '%s\n' 35; fi ;;
       *'pidof system_server')
-        if [ "$MOCK_CASE" = server_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' 501; else printf '%s\n' 500; fi ;;
-      *'pidof org.royd.tlsprobe') printf '%s\n' 900 ;;
-      *'stat -c %u /proc/900') if [ "$MOCK_CASE" = root_app ]; then printf '%s\n' 0; else printf '%s\n' 10054; fi ;;
-      *'stat -c %u /data/user/'*) if [ "$MOCK_CASE" = wrong_owner ]; then printf '%s\n' 10055; else printf '%s\n' 10054; fi ;;
+        if { [ "$MOCK_CASE" = server_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; } ||
+            { [ "$MOCK_CASE" = webview_round_server ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; }; then
+          printf '%s\n' 501
+        else printf '%s\n' 500; fi ;;
+      *'am force-stop --user 0 org.royd.tlsprobe') : >"$MOCK_STATE/stopped" ;;
+      *'pidof org.royd.tlsprobe')
+        if [ -f "$MOCK_STATE/stopped" ]; then
+          case "$MOCK_CASE" in
+            webview_round_stop_failure) printf '%s\n' 900 ;;
+            webview_round_pid_error) exit 125 ;;
+            *) exit 1 ;;
+          esac
+        else printf '%s\n' 900; fi ;;
+      *'stat -c %u /proc/900')
+        if [ "$MOCK_CASE" = root_app ]; then printf '%s\n' 0
+        elif [ "$MOCK_CASE" = webview_round_uid ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; then printf '%s\n' 10055
+        else printf '%s\n' 10054; fi ;;
+      *'stat -c %u /data/user/'*)
+        if [ "$MOCK_CASE" = wrong_owner ] ||
+            { [ "$MOCK_CASE" = webview_round_uid ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; }; then
+          printf '%s\n' 10055
+        else printf '%s\n' 10054; fi ;;
       *'pm install -t '*) [ "$MOCK_CASE" != install_failure ]; printf '%s\n' Success ;;
-      *'am start -W '*) printf '%s\n' 'Status: ok' 'Activity: org.royd.tlsprobe/.TlsProbe' ;;
+      *'am start -W '*)
+        rm -f "$MOCK_STATE/stopped"
+        count=0; if [ -f "$MOCK_STATE/round" ]; then count=$(cat "$MOCK_STATE/round"); fi
+        printf '%s\n' "$((count + 1))" >"$MOCK_STATE/round"
+        if [ "$MOCK_CASE" = webview_round_interrupted ]; then kill -TERM "$PPID"; exit 1; fi
+        printf '%s\n' 'Status: ok' 'Activity: org.royd.tlsprobe/.TlsProbe'
+        if [ "$MOCK_CASE" = webview_round_warm ]; then printf '%s\n' 'LaunchState: WARM'; else printf '%s\n' 'LaunchState: COLD'; fi ;;
       *'test -s '*) [ "$MOCK_CASE" != no_result ] ;;
       *'cat /data/user/'*)
         raw='{"uid":10054,"done":true,"url":"https://www.google.com/generate_204","untrusted_url":"https://172.17.0.1:43210/reject","active_network":"100","active_interface":"eth0","configured_dns":["127.0.0.11"],"default_callback_available":1,"dns_answers":["142.250.1.1"],"public_https":"pass","http_status":204,"cipher_suite":"TLS_AES_256_GCM_SHA384","peer_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","peer_subject":"CN=www.google.com","peer_issuer":"CN=issuer","body_bytes":0,"body_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","untrusted_rejected":true,"untrusted_causes":["javax.net.ssl.SSLHandshakeException","java.security.cert.CertPathValidatorException"]}'
         case "$MOCK_CASE" in webview*)
           raw=${raw%?}',"webview_url":"https://www.iana.org/help/example-domains","webview_untrusted_url":"https://172.17.0.1:43210/reject","webview_provider_package":"com.android.webview","webview_provider_version":"test","webview_user_agent":"Android; wv)","webview_certificate_subject":"CN=www.iana.org","webview_certificate_issuer":"CN=issuer","webview_committed":true,"webview_visual_state":true,"webview_untrusted_rejected":true,"webview_untrusted_cancelled":true,"webview_untrusted_has_authority_error":true,"webview_untrusted_primary_error":3,"webview_untrusted_error_url":"https://172.17.0.1:43210/reject","webview_dom":{"url":"https://www.iana.org/help/example-domains","title":"Example Domains","heading":"Example Domains","secure":true,"ready":"complete"}}'
         ;; esac
+        case "$MOCK_CASE" in webview_round*)
+          name=$(printf 'round-%03d.json' "$(cat "$MOCK_STATE/round")")
+          if [ "$MOCK_CASE" = webview_round_stale ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; then name=round-001.json; fi
+          raw=${raw%?}',"result_name":"'"$name"'"}'
+          if [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; then
+            case "$MOCK_CASE" in
+              webview_round_public_failure) raw=$(printf '%s\n' "$raw" | sed 's/"public_https":"pass"/"public_https":"fail"/') ;;
+              webview_round_trust_failure) raw=$(printf '%s\n' "$raw" | sed 's/"webview_untrusted_cancelled":true/"webview_untrusted_cancelled":false/') ;;
+            esac
+          fi ;;
+        esac
         case "$MOCK_CASE" in
           public_failure|both_failures) printf '%s\n' "$raw" | sed 's/"public_https":"pass"/"public_https":"fail"/' ;;
           trust_failure) printf '%s\n' "$raw" | sed 's/"untrusted_rejected":true/"untrusted_rejected":false/' ;;
@@ -139,7 +211,9 @@ case "$1" in
         esac ;;
       *'ip -o -4 addr show dev eth0;'*)
         printf '%s\n' '2: eth0 inet 172.17.0.2/16 scope global' 'default via 172.17.0.1 dev eth0'
-        if [ "$MOCK_CASE" = ownership_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' changed; fi ;;
+        if { [ "$MOCK_CASE" = ownership_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; } ||
+            { [ "$MOCK_CASE" = webview_round_oci ] && [ "$(cat "$MOCK_STATE/round")" -ge 2 ]; }; then printf '%s\n' changed; fi ;;
+      *'input keyevent KEYCODE_WAKEUP'|*'wm dismiss-keyguard') exit 0 ;;
       *'dumpsys '*|*'logcat -d '*|*'screencap -p'|*'cat /etc/resolv.conf; ip rule;'*) printf '%s\n' evidence ;;
       *) printf 'unexpected exec: %s\n' "$*" >&2; exit 99 ;;
     esac ;;
@@ -164,13 +238,18 @@ chmod +x "$tmp/bin/"*
 for mode in good private public_failure trust_failure both_failures wrong_uid ownership_changed unexpected_request \
     root_app wrong_owner fixture_failure wrong_sdk install_failure no_result before_failure after_failure \
     server_changed start_failure capture_failure remote existing_container existing_volume existing_network existing_evidence bad_url \
-    webview_good webview_private webview_document_failure webview_trust_failure webview_bad_target webview_bad_title; do
+    webview_good webview_private webview_document_failure webview_trust_failure webview_bad_target webview_bad_title \
+    webview_round_good webview_round_private webview_round_stale webview_round_public_failure webview_round_trust_failure \
+    webview_round_server webview_round_uid webview_round_restart webview_round_oom webview_round_stopped \
+    webview_round_auto_restart webview_round_oci webview_round_stop_failure webview_round_pid_error webview_round_interrupted webview_round_warm; do
   state=$tmp/$mode
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
   if [ "$mode" = existing_evidence ]; then mkdir "$state/evidence"; : >"$state/evidence/preserve"; fi
   network_mode=bridge
-  case "$mode" in private|existing_network|webview_private) network_mode=private ;; esac
+  case "$mode" in private|existing_network|webview_private|webview_round_private) network_mode=private ;; esac
+  rounds=1
+  case "$mode" in webview_round*) rounds=3 ;; esac
   webview=0
   webview_target=https://www.iana.org/help/example-domains
   webview_title='Example Domains'
@@ -185,12 +264,26 @@ for mode in good private public_failure trust_failure both_failures wrong_uid ow
   PATH="$tmp/bin:$PATH" MOCK_CASE="$mode" MOCK_STATE="$state" MOCK_TOOLS="$tmp/bin" MOCK_HELPER="$tmp/helper" \
     ROYD_NETWORK_TLS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_TLS_NETWORK_MODE="$network_mode" \
     ROYD_NETWORK_TLS_WEBVIEW="$webview" ROYD_NETWORK_TLS_WEBVIEW_URL="$webview_target" ROYD_NETWORK_TLS_WEBVIEW_TITLE="$webview_title" \
+    ROYD_NETWORK_TLS_ROUNDS="$rounds" ROYD_NETWORK_TLS_INTERVAL=0 \
     ROYD_NETWORK_TLS_URL="$target" ROYD_NETWORK_TLS_REQUEST_TIMEOUT=2 \
     ROYD_NETWORK_TLS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_TLS_ASSERT_RUNNER="$tmp/bin/assert" \
     ROYD_NETWORK_TLS_WAIT_RUNNER="$tmp/bin/wait" ROYD_NETWORK_TLS_HEALTH_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_TLS_SECURITY_RUNNER="$tmp/bin/pass" \
     "$script_dir/network-tls-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
   case "$mode" in
+    webview_round_good|webview_round_private)
+      [ "$status" -eq 0 ] || { cat "$state/result.log" "$state/docker.log"; exit 1; }
+      grep -Fxq ROYD_NETWORK_TLS_EVIDENCE_FORMAT=3 "$state/evidence/manifest.env"
+      grep -Fxq COMPLETED_ROUNDS=3 "$state/evidence/manifest.env"
+      grep -Fxq ROUND_RESULTS_STATUS=pass "$state/evidence/manifest.env"
+      grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+      [ "$(cat "$state/asserts")" = 2 ]
+      for round in 001 002 003; do
+        grep -Fxq RESULT_STATUS=pass "$state/evidence/rounds/$round/manifest.env"
+        grep -Fxq WEBVIEW_DOCUMENT_STATUS=pass "$state/evidence/rounds/$round/assessment.env"
+        grep -Fxq WEBVIEW_UNTRUSTED_CERT_STATUS=pass "$state/evidence/rounds/$round/assessment.env"
+        grep -Fq -- "--es result_name round-$round.json" "$state/docker.log"
+      done ;;
     good|private|webview_good|webview_private)
       [ "$status" -eq 0 ]
       for field in RESULT RUNTIME OCI_OWNERSHIP OBSERVATION PUBLIC_DNS PUBLIC_HTTPS UNTRUSTED_CERT FRAMEWORK_NETWORK CONTROL_SERVER; do
@@ -211,6 +304,11 @@ for mode in good private public_failure trust_failure both_failures wrong_uid ow
   if [ "$mode" = both_failures ]; then grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env"; fi
   if [ "$mode" = unexpected_request ]; then grep -Fxq CONTROL_SERVER_STATUS=fail "$state/evidence/manifest.env"; fi
   case "$mode" in
+    webview_round*)
+      if [ "$status" -ne 0 ]; then
+        grep -Fxq ROUND_RESULTS_STATUS=fail "$state/evidence/manifest.env"
+        ! grep -Fxq RESULT_STATUS=pass "$state/evidence/rounds/002/manifest.env" 2>/dev/null
+      fi ;;
     webview_good|webview_private)
       grep -Fxq ROYD_NETWORK_TLS_EVIDENCE_FORMAT=2 "$state/evidence/manifest.env"
       grep -Fxq WEBVIEW_DOCUMENT_STATUS=pass "$state/evidence/manifest.env"
@@ -234,5 +332,14 @@ for mode in good private public_failure trust_failure both_failures wrong_uid ow
   esac
   [ ! -e "$state/container" ]; [ ! -e "$state/volume" ]; [ ! -e "$state/network" ]
   ! grep -E '^create .*--(dns|add-host|network host)' "$state/docker.log"
+done
+for setting in 'ROYD_NETWORK_TLS_ROUNDS=0' 'ROYD_NETWORK_TLS_ROUNDS=101' 'ROYD_NETWORK_TLS_ROUNDS=01' \
+    'ROYD_NETWORK_TLS_ROUNDS=x' 'ROYD_NETWORK_TLS_INTERVAL=-1' 'ROYD_NETWORK_TLS_INTERVAL=301' 'ROYD_NETWORK_TLS_INTERVAL=00'; do
+  state=$tmp/invalid-$(printf '%s' "$setting" | tr '=/' '__')
+  mkdir "$state"
+  status=0
+  env "$setting" ROYD_NETWORK_TLS_OUTPUT_DIR="$state/evidence" "$script_dir/network-tls-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
+  [ "$status" -eq 2 ]
+  [ ! -e "$state/evidence" ]
 done
 printf '%s\n' 'Android 15 public DNS and HTTPS contract test passed'
