@@ -33,7 +33,7 @@ running={{.State.Running}}
 exit_code={{.State.ExitCode}}
 oom_killed={{.State.OOMKilled}}
 error={{.State.Error}}
-health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container" > "$output/state.txt"
+health={{with index .State "Health"}}{{.Status}}{{else}}none{{end}}' "$container" > "$output/state.txt"
 docker logs --timestamps "$container" > "$output/container.log" 2>&1
 
 printf 'Captured Docker inspect and full timestamped logs for %s in %s\n' "$container" "$output"

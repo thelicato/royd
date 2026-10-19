@@ -58,6 +58,8 @@ Results are stored under:
 
 The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains detailed stage output. The companion evidence directory persists `container.log` from full timestamped `docker logs`, `container-inspect.json`, and `state.txt` before the qualification container is removed. This makes boot-watchdog and early-init diagnostics reviewable after a failed run.
 
+Docker can omit health state for a never-started container or an image without a health check. The collector records `health=none` and still captures logs/inspect; an empty log is valid only when `docker logs` succeeds. Present `starting`/`unhealthy` states and Docker errors remain visible, and unavailable inspect/log commands still fail capture. Evidence capture is not boot or health qualification: a failed start remains failed. `make runtime-container-evidence-test` uses Go to execute the production template with strict missing-key checks, plus mocked collection failures; the collector itself requires only Docker and the shell.
+
 Qualify several already-imported images with the resumable matrix runner:
 
 ```sh

@@ -2,6 +2,8 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROYD_CONTAINER_EVIDENCE_SCRIPT="$script_dir/container-evidence.sh" \
+  go test "$script_dir/../tests/container-evidence/template_test.go"
 tmp=$(mktemp -d)
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT HUP INT TERM
@@ -43,24 +45,45 @@ chmod +x "$tmp/bin/docker"
 PATH="$tmp/bin:$PATH" "$script_dir/container-evidence.sh" mock-royd "$tmp/evidence" > "$tmp/output"
 grep -Fq '"Id":"abc123"' "$tmp/evidence/container-inspect.json"
 grep -Fq 'status=exited' "$tmp/evidence/state.txt"
+grep -Fxq 'health=unhealthy' "$tmp/evidence/state.txt"
 grep -Fq 'boot-watchdog: timeout after 120s' "$tmp/evidence/container.log"
 grep -Fq 'Captured Docker inspect and full timestamped logs' "$tmp/output"
 
 cat > "$tmp/bin/docker" <<'MOCK'
 #!/bin/sh
+set -eu
 case "$1" in
   inspect)
-    if [ "${2:-}" = --format ]; then printf '%s\n' 'status=running'; else printf '%s\n' '[{}]'; fi
+    [ "$MOCK_FAILURE" != missing ] || exit 1
+    if [ "$MOCK_FAILURE" = inspect ]; then
+      [ ! -e "$MOCK_COUNTER" ] || exit 1
+      : >"$MOCK_COUNTER"
+    fi
+    if [ "${2:-}" = --format ]; then
+      [ "$MOCK_FAILURE" != state ] || exit 1
+      printf '%s\n' 'status=created' 'health=none'
+    else
+      printf '%s\n' '[{"State":{"Status":"created"}}]'
+    fi
     exit 0
     ;;
-  logs) exit 1 ;;
+  logs) [ "$MOCK_FAILURE" = empty-logs ] ;;
   *) exit 1 ;;
 esac
 MOCK
 chmod +x "$tmp/bin/docker"
-if PATH="$tmp/bin:$PATH" "$script_dir/container-evidence.sh" mock-royd "$tmp/failing" >/dev/null 2>&1; then
-  printf '%s\n' 'error: container evidence unexpectedly accepted unavailable Docker logs' >&2
-  exit 1
-fi
+for failure in missing inspect state logs; do
+  if PATH="$tmp/bin:$PATH" MOCK_FAILURE="$failure" MOCK_COUNTER="$tmp/$failure.count" \
+      "$script_dir/container-evidence.sh" mock-royd "$tmp/$failure" >"$tmp/$failure.log" 2>&1; then
+    printf 'error: container evidence unexpectedly accepted unavailable %s\n' "$failure" >&2
+    exit 1
+  fi
+  ! grep -Fq 'Captured Docker inspect and full timestamped logs' "$tmp/$failure.log"
+done
+PATH="$tmp/bin:$PATH" MOCK_FAILURE=empty-logs \
+  "$script_dir/container-evidence.sh" mock-royd "$tmp/empty" >"$tmp/empty.log"
+grep -Fxq 'health=none' "$tmp/empty/state.txt"
+test -f "$tmp/empty/container.log"
+test ! -s "$tmp/empty/container.log"
 
 printf '%s\n' 'Container evidence test passed'
