@@ -104,7 +104,8 @@ The repository now captures a versioned kernel/Kconfig evidence file in every re
 - [x] Require generated memory evidence to record the exact image/profile policy, display configuration, and named workload before figures are published.
 - [x] Add independent Android 15 low-memory and performance resource profiles selected before boot without rebuilding the image.
 - [x] Define a preliminary Android 15 external-comparison gate distinct from release acceptance and wider-version validation.
-- [ ] Add a product-neutral measurement harness, independently qualify a matching comparator and retain repeated same-host comparison results.
+- [x] Add a product-neutral single-trial measurement harness with explicit phase boundaries, owned disposable resources and retained failure evidence.
+- [ ] Independently qualify a matching comparator and retain repeated same-host comparison results using the common measurement procedure.
 
 ## 7. Privilege reduction
 

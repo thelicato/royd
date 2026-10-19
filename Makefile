@@ -66,6 +66,14 @@ runtime-container-evidence-test:
 runtime-display-capture-contract-test:
 	./runtime/scripts/android15-display-capture-contract-test.sh
 
+.PHONY: runtime-measure-tool runtime-measure-contract-test
+runtime-measure-tool:
+	mkdir -p .work/tools
+	go build -o .work/tools/runtime-measure ./runtime/tests/runtime-measure/measure.go
+
+runtime-measure-contract-test:
+	go test ./runtime/tests/runtime-measure/measure.go ./runtime/tests/runtime-measure/measure_test.go
+
 .PHONY: runtime-app-lifecycle-contract-test
 runtime-app-lifecycle-contract-test:
 	./runtime/scripts/app-lifecycle-contract-test.sh

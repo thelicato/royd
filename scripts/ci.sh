@@ -90,6 +90,7 @@ run ./android/scripts/package-contract-test.sh
 run ./runtime/scripts/image-contract-test.sh
 run ./runtime/scripts/resource-profile-test.sh
 run ./runtime/scripts/resource-profile-benchmark-test.sh
+run go test ./runtime/tests/runtime-measure/measure.go ./runtime/tests/runtime-measure/measure_test.go
 run ./runtime/scripts/scrcpy-stability-contract-test.sh
 run ./runtime/scripts/memory-provenance-test.sh
 run ./runtime/scripts/entrypoint-contract-test.sh
