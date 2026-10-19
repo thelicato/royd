@@ -9,8 +9,9 @@ url=${ROYD_NETWORK_TLS_URL:-https://www.google.com/generate_204}
 http_status=${ROYD_NETWORK_TLS_HTTP_STATUS:-204}
 mode=${ROYD_NETWORK_TLS_NETWORK_MODE:-bridge}
 webview=${ROYD_NETWORK_TLS_WEBVIEW:-0}
-webview_url=${ROYD_NETWORK_TLS_WEBVIEW_URL:-https://example.com/}
-webview_title=${ROYD_NETWORK_TLS_WEBVIEW_TITLE:-Example Domain}
+# Use IANA's documentation page, not its best-effort example-domain service.
+webview_url=${ROYD_NETWORK_TLS_WEBVIEW_URL:-https://www.iana.org/help/example-domains}
+webview_title=${ROYD_NETWORK_TLS_WEBVIEW_TITLE:-Example Domains}
 evidence_format=1
 scope=ordinary-app-public-dns-https
 default_timeout=60

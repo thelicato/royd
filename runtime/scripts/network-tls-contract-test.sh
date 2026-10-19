@@ -127,13 +127,13 @@ case "$1" in
       *'cat /data/user/'*)
         raw='{"uid":10054,"done":true,"url":"https://www.google.com/generate_204","untrusted_url":"https://172.17.0.1:43210/reject","active_network":"100","active_interface":"eth0","configured_dns":["127.0.0.11"],"default_callback_available":1,"dns_answers":["142.250.1.1"],"public_https":"pass","http_status":204,"cipher_suite":"TLS_AES_256_GCM_SHA384","peer_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","peer_subject":"CN=www.google.com","peer_issuer":"CN=issuer","body_bytes":0,"body_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","untrusted_rejected":true,"untrusted_causes":["javax.net.ssl.SSLHandshakeException","java.security.cert.CertPathValidatorException"]}'
         case "$MOCK_CASE" in webview*)
-          raw=${raw%?}',"webview_url":"https://example.com/","webview_untrusted_url":"https://172.17.0.1:43210/reject","webview_provider_package":"com.android.webview","webview_provider_version":"test","webview_user_agent":"Android; wv)","webview_certificate_subject":"CN=example.com","webview_certificate_issuer":"CN=issuer","webview_committed":true,"webview_visual_state":true,"webview_untrusted_rejected":true,"webview_untrusted_cancelled":true,"webview_untrusted_has_authority_error":true,"webview_untrusted_primary_error":3,"webview_untrusted_error_url":"https://172.17.0.1:43210/reject","webview_dom":{"url":"https://example.com/","title":"Example Domain","heading":"Example Domain","secure":true,"ready":"complete"}}'
+          raw=${raw%?}',"webview_url":"https://www.iana.org/help/example-domains","webview_untrusted_url":"https://172.17.0.1:43210/reject","webview_provider_package":"com.android.webview","webview_provider_version":"test","webview_user_agent":"Android; wv)","webview_certificate_subject":"CN=www.iana.org","webview_certificate_issuer":"CN=issuer","webview_committed":true,"webview_visual_state":true,"webview_untrusted_rejected":true,"webview_untrusted_cancelled":true,"webview_untrusted_has_authority_error":true,"webview_untrusted_primary_error":3,"webview_untrusted_error_url":"https://172.17.0.1:43210/reject","webview_dom":{"url":"https://www.iana.org/help/example-domains","title":"Example Domains","heading":"Example Domains","secure":true,"ready":"complete"}}'
         ;; esac
         case "$MOCK_CASE" in
           public_failure|both_failures) printf '%s\n' "$raw" | sed 's/"public_https":"pass"/"public_https":"fail"/' ;;
           trust_failure) printf '%s\n' "$raw" | sed 's/"untrusted_rejected":true/"untrusted_rejected":false/' ;;
           wrong_uid) printf '%s\n' "$raw" | sed 's/10054/10055/' ;;
-          webview_document_failure) printf '%s\n' "$raw" | sed 's/"heading":"Example Domain"/"heading":"Wrong"/' ;;
+          webview_document_failure) printf '%s\n' "$raw" | sed 's/"heading":"Example Domains"/"heading":"Wrong"/' ;;
           webview_trust_failure) printf '%s\n' "$raw" | sed 's/"webview_untrusted_cancelled":true/"webview_untrusted_cancelled":false/' ;;
           *) printf '%s\n' "$raw" ;;
         esac ;;
@@ -172,8 +172,10 @@ for mode in good private public_failure trust_failure both_failures wrong_uid ow
   network_mode=bridge
   case "$mode" in private|existing_network|webview_private) network_mode=private ;; esac
   webview=0
-  webview_target=https://example.com/
-  webview_title='Example Domain'
+  webview_target=https://www.iana.org/help/example-domains
+  webview_title='Example Domains'
+  # Empty overrides exercise the actual defaults in both successful DNS modes.
+  case "$mode" in webview_good|webview_private) webview_target=; webview_title= ;; esac
   case "$mode" in webview*) webview=1 ;; esac
   if [ "$mode" = webview_bad_target ]; then webview_target=http://example.com/; fi
   if [ "$mode" = webview_bad_title ]; then webview_title='bad=title'; fi
@@ -213,8 +215,9 @@ for mode in good private public_failure trust_failure both_failures wrong_uid ow
       grep -Fxq ROYD_NETWORK_TLS_EVIDENCE_FORMAT=2 "$state/evidence/manifest.env"
       grep -Fxq WEBVIEW_DOCUMENT_STATUS=pass "$state/evidence/manifest.env"
       grep -Fxq WEBVIEW_UNTRUSTED_CERT_STATUS=pass "$state/evidence/manifest.env"
-      grep -Fxq 'WEBVIEW_URL=https://example.com/' "$state/evidence/manifest.env"
-      grep -Fq -- '--es webview_url https://example.com/' "$state/docker.log" ;;
+      grep -Fxq 'WEBVIEW_URL=https://www.iana.org/help/example-domains' "$state/evidence/manifest.env"
+      grep -Fxq 'WEBVIEW_EXPECTED_TITLE=Example Domains' "$state/evidence/manifest.env"
+      grep -Fq -- '--es webview_url https://www.iana.org/help/example-domains' "$state/docker.log" ;;
     webview_document_failure|webview_trust_failure)
       [ "$(cat "$state/asserts")" = 2 ]
       grep -Fxq RUNTIME_STATUS=pass "$state/evidence/manifest.env"

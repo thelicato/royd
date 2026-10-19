@@ -215,6 +215,17 @@ func TestWebViewAssessment(t *testing.T) {
 			}
 		}
 	}
+	// The original public target changed its markup. Retain strict document
+	// identity rather than accepting a title-only page with no expected h1.
+	oWithoutHeading := positiveWeb(t)
+	oWithoutHeading["webview_dom"].(map[string]any)["heading"] = ""
+	rawWithoutHeading, _ := json.Marshal(oWithoutHeading)
+	statusesWithoutHeading, passWithoutHeading := assessWebView(rawWithoutHeading, target, untrusted, 204, 10054,
+		"https://example.com/", "Example Domain")
+	if passWithoutHeading || !strings.Contains(statusesWithoutHeading, "WEBVIEW_DOCUMENT_STATUS=fail\n") ||
+		!strings.Contains(statusesWithoutHeading, "WEBVIEW_UNTRUSTED_CERT_STATUS=pass\n") {
+		t.Fatal("accepted changed document or lost independent certificate rejection", statusesWithoutHeading)
+	}
 	for _, title := range []string{"", "title\ninjected=value", "title\r", strings.Repeat("x", 121), "<script>"} {
 		if webTarget("https://example.com/", title) {
 			t.Fatalf("accepted title %q", title)
