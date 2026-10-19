@@ -98,6 +98,7 @@ run ./runtime/scripts/container-evidence-test.sh
 run ./runtime/scripts/kernel-evidence-test.sh
 run ./runtime/scripts/rootless-probe-test.sh
 run ./runtime/scripts/gpu-contract-test.sh
+run ./runtime/scripts/android15-display-capture-contract-test.sh
 run ./runtime/scripts/assert-runtime-contract-test.sh
 run ./runtime/scripts/app-lifecycle-contract-test.sh
 run ./runtime/scripts/restart-contract-test.sh

@@ -17,6 +17,7 @@ case "$1" in
     shift
     container=$1
     shift
+    if [ "$1" = timeout ] && [ "$2" = 120 ] && [ "$3" = sh ]; then shift 2; fi
     if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = connectivity ]; then
       if [ "${MOCK_NO_DEFAULT_NETWORK:-0}" = 1 ]; then printf '%s\n' 'Active default network: none';
       else printf '%s\n' 'Active default network: 100'; fi
@@ -322,6 +323,15 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "${MOCK_CAPTURE_SCAN_ERROR:-0}" = 1 ]; then
+      printf '%s\n' 'ModernMediaScanner: Trouble scanning /storage/emulated/0/Movies/royd-runtime-video-test.ABC123.mp4'
+    fi
+    if [ "${MOCK_LEGACY_CAPTURE_SCAN_ERROR:-0}" = 1 ]; then
+      printf '%s\n' 'ModernMediaScanner: Requested path /data/local/tmp/royd-runtime-video-test.mp4 does not appear under media roots'
+    fi
+    if [ "${MOCK_UNRELATED_MEDIA_WARNING:-0}" = 1 ]; then
+      printf '%s\n' 'ModernMediaScanner: Failed to visit /oem/media: NoSuchFileException'
+    fi
     if [ "${MOCK_WRITABLE_HOST_CLOCK:-0}" != 1 ]; then printf '%s\n' 'SystemClockTime: ROYD: host wall clock is read-only'; fi
     if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
@@ -696,7 +706,18 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_CAPTURE=1 \
   printf '%s\n' 'error: runtime assertion accepted an empty Android 15 display capture' >&2
   exit 1
 fi
-grep -Fq 'Android 15 graphical capture produced no H.264 frames' "$tmp/error"
+grep -Fq 'Android 15 graphical capture/MediaStore validation failed' "$tmp/error"
+
+for mode in MOCK_CAPTURE_SCAN_ERROR MOCK_LEGACY_CAPTURE_SCAN_ERROR; do
+  if env PATH="$tmp:$PATH" MOCK_SDK=35 "$mode=1" \
+      "$script_dir/assert-runtime.sh" capture-scan-failure >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted display-capture scanner failures' >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 display capture emitted media-scanner failures' "$tmp/error"
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_UNRELATED_MEDIA_WARNING=1 \
+  "$script_dir/assert-runtime.sh" unrelated-media-warning >"$tmp/unrelated-media" 2>&1
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_INVALID_PRESENT_FENCE=1 \
     "$script_dir/assert-runtime.sh" invalid-present-fence >"$tmp/error" 2>&1; then

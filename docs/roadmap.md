@@ -55,6 +55,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
 - [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.
 - [x] Retain Docker logs, inspect and state evidence when a container never starts and has no health state, without relaxing qualification gates.
+- [x] Make the Android 15 graphical capture check honour MediaStore indexing and exact-owned cleanup instead of generating private-path scan failures.
 - [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.
 - [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 

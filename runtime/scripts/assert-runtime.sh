@@ -717,18 +717,17 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
   fi
 
   capture_width=$(( (display_width + 7) / 8 * 8 ))
-  docker exec "$container" sh -c '
-    capture=/data/local/tmp/royd-runtime-video-test.mp4
-    trap '\''rm -f "$capture"'\'' EXIT INT TERM
-    rm -f "$capture"
-    cmd power wakeup
-    sleep 1
-    screenrecord --display-id 0 --size "${1}x${2}" --time-limit 2 "$capture" >/dev/null 2>&1
-    test -s "$capture"
-  ' sh "$capture_width" "$display_height" || {
-    printf 'error: Android 15 graphical capture produced no H.264 frames in %s\n' "$container" >&2
+  capture_script=$(cat "$script_dir/android15-display-capture.sh")
+  test -n "$capture_script"
+  docker exec "$container" timeout 120 sh -c "$capture_script" sh "$capture_width" "$display_height" || {
+    printf 'error: Android 15 graphical capture/MediaStore validation failed in %s\n' "$container" >&2
     exit 1
   }
+  if docker logs "$container" 2>&1 | grep -Eq \
+      '(Trouble scanning|Failed to visit|Requested path) /(data/local/tmp/royd-runtime-video-test\.mp4|storage/emulated/0/Movies/royd-runtime-video-test\.[[:alnum:].-]+\.mp4)'; then
+    printf 'error: Android 15 display capture emitted media-scanner failures in %s\n' "$container" >&2
+    exit 1
+  fi
   if docker logs "$container" 2>&1 | grep -Fq 'Invalid present fence'; then
     printf 'error: Android 15 SurfaceFlinger received an invalid present fence in %s\n' \
       "$container" >&2

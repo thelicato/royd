@@ -62,6 +62,10 @@ runtime-boot-diagnostics-test:
 runtime-container-evidence-test:
 	./runtime/scripts/container-evidence-test.sh
 
+.PHONY: runtime-display-capture-contract-test
+runtime-display-capture-contract-test:
+	./runtime/scripts/android15-display-capture-contract-test.sh
+
 .PHONY: runtime-app-lifecycle-contract-test
 runtime-app-lifecycle-contract-test:
 	./runtime/scripts/app-lifecycle-contract-test.sh
