@@ -105,6 +105,7 @@ The repository now captures a versioned kernel/Kconfig evidence file in every re
 - [x] Add independent Android 15 low-memory and performance resource profiles selected before boot without rebuilding the image.
 - [x] Define a preliminary Android 15 external-comparison gate distinct from release acceptance and wider-version validation.
 - [x] Add a product-neutral single-trial measurement harness with explicit phase boundaries, owned disposable resources and retained failure evidence.
+- [x] Inspect a pinned Android 15 comparator without executing it, recording installed provenance and host-global side effects that block unreviewed shared-host execution.
 - [ ] Independently qualify a matching comparator and retain repeated same-host comparison results using the common measurement procedure.
 
 ## 7. Privilege reduction
