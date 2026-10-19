@@ -140,16 +140,23 @@ public final class TlsProbe extends Activity {
             } finally {
                 try { cm.unregisterNetworkCallback(callback); } catch (Exception ignored) { }
             }
-            Log.i("RoydTlsProbe", result.toString());
-            try {
-                try (FileOutputStream file = openFileOutput("result.tmp", MODE_PRIVATE)) {
-                    file.write(result.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
-                if (!new File(getFilesDir(), "result.tmp").renameTo(new File(getFilesDir(), "result.json"))) {
-                    throw new java.io.IOException("could not publish complete result");
-                }
-            } catch (Exception error) { Log.e("RoydTlsProbe", "could not persist result", error); }
-            runOnUiThread(() -> text.setText(result.toString()));
+            String webview = getIntent().getStringExtra("webview_url");
+            if (webview == null) publish(result, text);
+            else runOnUiThread(() -> new WebViewSession(this, webview,
+                    getIntent().getStringExtra("untrusted"), result, () -> publish(result, null)).start());
         }, "royd-tls-probe").start();
+    }
+
+    private void publish(JSONObject result, TextView text) {
+        Log.i("RoydTlsProbe", result.toString());
+        try {
+            try (FileOutputStream file = openFileOutput("result.tmp", MODE_PRIVATE)) {
+                file.write(result.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            if (!new File(getFilesDir(), "result.tmp").renameTo(new File(getFilesDir(), "result.json"))) {
+                throw new java.io.IOException("could not publish complete result");
+            }
+        } catch (Exception error) { Log.e("RoydTlsProbe", "could not persist result", error); }
+        if (text != null) runOnUiThread(() -> text.setText(result.toString()));
     }
 }

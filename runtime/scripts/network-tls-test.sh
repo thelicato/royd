@@ -8,7 +8,14 @@ output=${ROYD_NETWORK_TLS_OUTPUT_DIR:-$root/.work/network-tls-$(date -u +%Y%m%dT
 url=${ROYD_NETWORK_TLS_URL:-https://www.google.com/generate_204}
 http_status=${ROYD_NETWORK_TLS_HTTP_STATUS:-204}
 mode=${ROYD_NETWORK_TLS_NETWORK_MODE:-bridge}
-request_timeout=${ROYD_NETWORK_TLS_REQUEST_TIMEOUT:-60}
+webview=${ROYD_NETWORK_TLS_WEBVIEW:-0}
+webview_url=${ROYD_NETWORK_TLS_WEBVIEW_URL:-https://example.com/}
+webview_title=${ROYD_NETWORK_TLS_WEBVIEW_TITLE:-Example Domain}
+evidence_format=1
+scope=ordinary-app-public-dns-https
+default_timeout=60
+if [ "$webview" = 1 ]; then evidence_format=2; scope=ordinary-app-public-dns-https-webview; default_timeout=90; fi
+request_timeout=${ROYD_NETWORK_TLS_REQUEST_TIMEOUT:-$default_timeout}
 build_runner=${ROYD_NETWORK_TLS_BUILD_RUNNER:-$script_dir/network-tls-build.sh}
 assert_runner=${ROYD_NETWORK_TLS_ASSERT_RUNNER:-$script_dir/assert-runtime.sh}
 container=royd-network-tls-$$
@@ -27,6 +34,7 @@ started=$(date -u +%FT%TZ)
 case "$output" in ''|/|.|..) exit 2 ;; esac
 case "$http_status" in 2[0-9][0-9]) ;; *) exit 2 ;; esac
 case "$mode" in bridge|private) ;; *) exit 2 ;; esac
+case "$webview" in 0|1) ;; *) exit 2 ;; esac
 case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -46,8 +54,9 @@ finish() {
   fi
   [ "$status" -eq 0 ] || result=fail
   cat >"$output/manifest.env" <<MANIFEST
-ROYD_NETWORK_TLS_EVIDENCE_FORMAT=1
-NETWORK_SCOPE=ordinary-app-public-dns-https
+ROYD_NETWORK_TLS_EVIDENCE_FORMAT=$evidence_format
+NETWORK_SCOPE=$scope
+WEBVIEW_ENABLED=$webview
 NETWORK_MODE=$mode
 RESULT_STATUS=$result
 RUNTIME_STATUS=$runtime
@@ -60,8 +69,11 @@ EXPECTED_HTTP_STATUS=$http_status
 STARTED_AT=$started
 FINISHED_AT=$(date -u +%FT%TZ)
 MANIFEST
+  if [ "$webview" = 1 ] && [ -f "$output/target.env" ]; then
+    sed -n '/^WEBVIEW_\(URL\|EXPECTED_TITLE\)=/p' "$output/target.env" >>"$output/manifest.env"
+  fi
   if [ -f "$output/assessment.env" ]; then
-    sed -n '/^\(OBSERVATION\|PUBLIC_DNS\|PUBLIC_HTTPS\|UNTRUSTED_CERT\|FRAMEWORK_NETWORK\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
+    sed -n '/^\(OBSERVATION\|PUBLIC_DNS\|PUBLIC_HTTPS\|UNTRUSTED_CERT\|FRAMEWORK_NETWORK\|WEBVIEW_DOCUMENT\|WEBVIEW_UNTRUSTED_CERT\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
   fi
   if [ "$container_owned" = 1 ]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
   if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >/dev/null 2>&1 || true; fi
@@ -72,7 +84,9 @@ trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
 "$build_runner" "$output/build" >"$output/build.log" 2>&1
-"$output/build/tls-fixture" -check-url "$url" >"$output/target.env"
+set --
+if [ "$webview" = 1 ]; then set -- -webview-url "$webview_url" -webview-title "$webview_title"; fi
+"$output/build/tls-fixture" -check-url "$url" "$@" >"$output/target.env"
 image_id=$(docker image inspect --format '{{.Id}}' "$image")
 if [ "$mode" = private ]; then
   network=$container-net
@@ -122,8 +136,9 @@ case "$system_before" in ''|*[!0-9]*) exit 1 ;; esac
 docker cp "$output/build/probe.apk" "$container:/data/local/tmp/royd-tls-probe.apk"
 docker exec "$container" timeout 30 pm install -t /data/local/tmp/royd-tls-probe.apk >"$output/install.log" 2>&1
 grep -Fxq Success "$output/install.log"
-docker exec "$container" timeout 30 am start -W -n org.royd.tlsprobe/.TlsProbe \
-  --es url "$url" --es untrusted "$untrusted" >"$output/launch.log" 2>&1
+set -- --es url "$url" --es untrusted "$untrusted"
+if [ "$webview" = 1 ]; then set -- "$@" --es webview_url "$webview_url"; fi
+docker exec "$container" timeout 30 am start -W -n org.royd.tlsprobe/.TlsProbe "$@" >"$output/launch.log" 2>&1
 grep -Fxq 'Status: ok' "$output/launch.log"
 grep -Fxq 'Activity: org.royd.tlsprobe/.TlsProbe' "$output/launch.log"
 result_file=/data/user/0/org.royd.tlsprobe/files/result.json
@@ -142,7 +157,9 @@ printf 'APP_PID=%s\nAPP_UID=%s\nSYSTEM_SERVER=%s\n' "$app_pid" "$app_uid" "$syst
 sleep 2
 docker exec "$container" logcat -d -s RoydTlsProbe:I '*:S' >"$output/application.log" 2>&1
 docker exec "$container" screencap -p >"$output/application.png"
-for service in connectivity dnsresolver netd; do
+services='connectivity dnsresolver netd'
+if [ "$webview" = 1 ]; then services="$services webviewupdate"; fi
+for service in $services; do
   docker exec "$container" timeout 15 dumpsys "$service" >"$output/$service.log" 2>&1
 done
 docker exec "$container" timeout 15 dumpsys package org.royd.tlsprobe >"$output/package.log" 2>&1
@@ -155,8 +172,10 @@ snapshot_oci >"$output/oci-after.log"
 ownership=pass
 cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
+set --
+if [ "$webview" = 1 ]; then set -- -webview-url "$webview_url" -webview-title "$webview_title"; fi
 "$output/build/tls-fixture" -result "$output/observation.json" -url "$url" -untrusted "$untrusted" \
-  -status "$http_status" -uid "$app_uid" >"$output/assessment.env" || assessment=$?
+  -status "$http_status" -uid "$app_uid" "$@" >"$output/assessment.env" || assessment=$?
 control=pass
 if ! kill -0 "$fixture_pid" 2>/dev/null || grep -Fq UNTRUSTED_HTTP_REQUEST=unexpected "$output/tls-server.log"; then control=fail; fi
 if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ] || [ "$ownership" != pass ] || [ "$control" != pass ]; then exit 1; fi

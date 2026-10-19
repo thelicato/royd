@@ -95,6 +95,10 @@ runtime-network-dns-contract-test:
 	./runtime/scripts/network-dns-contract-test.sh
 
 .PHONY: runtime-network-tls-test runtime-network-tls-contract-test
+.PHONY: runtime-network-webview-tls-test
+runtime-network-webview-tls-test:
+	ROYD_NETWORK_TLS_WEBVIEW=1 ./runtime/scripts/network-tls-test.sh
+
 runtime-network-tls-test:
 	./runtime/scripts/network-tls-test.sh
 

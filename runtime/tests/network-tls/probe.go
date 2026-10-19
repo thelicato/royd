@@ -121,6 +121,58 @@ func assess(raw []byte, target, untrusted string, expectedStatus, expectedUID in
 		status(dns), status(https), status(rejected), status(framework)), dns && https && rejected && framework
 }
 
+type webObservation struct {
+	URL          string `json:"webview_url"`
+	Untrusted    string `json:"webview_untrusted_url"`
+	Provider     string `json:"webview_provider_package"`
+	Version      string `json:"webview_provider_version"`
+	Agent        string `json:"webview_user_agent"`
+	Subject      string `json:"webview_certificate_subject"`
+	Issuer       string `json:"webview_certificate_issuer"`
+	Committed    bool   `json:"webview_committed"`
+	Visual       bool   `json:"webview_visual_state"`
+	Error        string `json:"webview_error"`
+	ControlError string `json:"webview_control_error"`
+	PublicSSL    string `json:"webview_public_ssl_error"`
+	Rejected     bool   `json:"webview_untrusted_rejected"`
+	Cancelled    bool   `json:"webview_untrusted_cancelled"`
+	Authority    bool   `json:"webview_untrusted_has_authority_error"`
+	Primary      int    `json:"webview_untrusted_primary_error"`
+	ErrorURL     string `json:"webview_untrusted_error_url"`
+	DOM          struct {
+		URL     string `json:"url"`
+		Title   string `json:"title"`
+		Heading string `json:"heading"`
+		Secure  bool   `json:"secure"`
+		Ready   string `json:"ready"`
+	} `json:"webview_dom"`
+}
+
+func webTarget(raw, title string) bool {
+	_, err := publicURL(raw)
+	return err == nil && regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 .,():_-]{0,119}$`).MatchString(title)
+}
+
+func assessWebView(raw []byte, target, untrusted string, expectedStatus, expectedUID int, page, title string) (string, bool) {
+	text, native := assess(raw, target, untrusted, expectedStatus, expectedUID)
+	var o webObservation
+	valid := json.Unmarshal(raw, &o) == nil && webTarget(page, title) && o.URL == page && o.Untrusted == untrusted &&
+		o.Provider != "" && o.Version != "" && strings.Contains(o.Agent, "; wv)") && strings.Contains(o.Agent, "Android")
+	document := valid && o.Error == "" && o.PublicSSL == "" && o.Committed && o.Visual && o.Subject != "" && o.Issuer != "" &&
+		o.DOM.URL == page && o.DOM.Title == title && o.DOM.Heading == title && o.DOM.Secure && o.DOM.Ready == "complete"
+	// Android SslError.SSL_UNTRUSTED is 3. A transport error or generic TLS
+	// handshake failure is not evidence of a certificate-authority rejection.
+	rejected := valid && o.ControlError == "" && o.Rejected && o.Cancelled && o.Authority && o.Primary == 3 && o.ErrorURL == untrusted
+	status := func(pass bool) string {
+		if pass {
+			return "pass"
+		}
+		return "fail"
+	}
+	return text + fmt.Sprintf("WEBVIEW_DOCUMENT_STATUS=%s\nWEBVIEW_UNTRUSTED_CERT_STATUS=%s\n", status(document), status(rejected)),
+		native && document && rejected
+}
+
 // Ephemeral self-signed negative control. Its key never leaves process memory.
 func certificate(ip net.IP) (tls.Certificate, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -149,13 +201,22 @@ func main() {
 	untrusted := flag.String("untrusted", "", "expected negative-control URL")
 	expectedStatus := flag.Int("status", 204, "expected public HTTP status")
 	expectedUID := flag.Int("uid", 0, "observed ordinary application UID")
+	webview := flag.String("webview-url", "", "optional public WebView HTTPS page")
+	title := flag.String("webview-title", "", "expected WebView document title and h1")
 	flag.Parse()
+	if (*webview != "" || *title != "") && !webTarget(*webview, *title) {
+		log.Fatal("valid public WebView URL and bounded plain title required together")
+	}
 	if *check != "" {
 		u, err := publicURL(*check)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("PUBLIC_HOST=" + u.Hostname())
+		if *webview != "" {
+			fmt.Println("WEBVIEW_URL=" + *webview)
+			fmt.Println("WEBVIEW_EXPECTED_TITLE=" + *title)
+		}
 		return
 	}
 	if *result != "" {
@@ -164,6 +225,9 @@ func main() {
 			log.Fatal(err)
 		}
 		text, pass := assess(raw, *target, *untrusted, *expectedStatus, *expectedUID)
+		if *webview != "" {
+			text, pass = assessWebView(raw, *target, *untrusted, *expectedStatus, *expectedUID, *webview, *title)
+		}
 		fmt.Print(text)
 		if !pass {
 			os.Exit(1)

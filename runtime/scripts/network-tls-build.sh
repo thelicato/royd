@@ -13,7 +13,7 @@ done
 mkdir "$out"
 out=$(CDPATH= cd -- "$out" && pwd)
 mkdir "$out/classes" "$out/dex"
-"$jdk/bin/javac" --release 17 -classpath "$sdk" -d "$out/classes" "$root/runtime/tests/network-tls/TlsProbe.java"
+"$jdk/bin/javac" --release 17 -classpath "$sdk" -d "$out/classes" "$root"/runtime/tests/network-tls/*.java
 PATH="$jdk/bin:$PATH" "$tree/out/host/linux-x86/bin/d8" --min-api 35 --lib "$sdk" --output "$out/dex" "$out"/classes/org/royd/tlsprobe/*.class
 "$tree/out/host/linux-x86/bin/aapt2" link -I "$sdk" --manifest "$root/runtime/tests/network-tls/AndroidManifest.xml" -o "$out/unsigned.apk"
 (cd "$out/dex" && zip -q "$out/unsigned.apk" classes.dex)

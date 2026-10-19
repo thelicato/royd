@@ -144,3 +144,91 @@ func TestNegativeCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func positiveWeb(t *testing.T) map[string]any {
+	t.Helper()
+	raw, _ := json.Marshal(positive())
+	var o map[string]any
+	if err := json.Unmarshal(raw, &o); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range map[string]any{
+		"webview_url": "https://example.com/", "webview_untrusted_url": untrusted,
+		"webview_provider_package": "com.android.webview", "webview_provider_version": "test-version",
+		"webview_user_agent":          "Mozilla/5.0 (Linux; Android 15; test; wv) AppleWebKit/537.36",
+		"webview_certificate_subject": "CN=example.com", "webview_certificate_issuer": "CN=issuer",
+		"webview_committed": true, "webview_visual_state": true,
+		"webview_untrusted_rejected": true, "webview_untrusted_cancelled": true,
+		"webview_untrusted_has_authority_error": true, "webview_untrusted_primary_error": 3,
+		"webview_untrusted_error_url": untrusted,
+		"webview_dom":                 map[string]any{"url": "https://example.com/", "title": "Example Domain", "heading": "Example Domain", "secure": true, "ready": "complete"},
+	} {
+		o[key] = value
+	}
+	return o
+}
+
+func TestWebViewAssessment(t *testing.T) {
+	check := func(o map[string]any) bool {
+		raw, _ := json.Marshal(o)
+		_, pass := assessWebView(raw, target, untrusted, 204, 10054, "https://example.com/", "Example Domain")
+		return pass
+	}
+	if !check(positiveWeb(t)) {
+		t.Fatal("rejected complete combined evidence")
+	}
+	for key, value := range map[string]any{
+		"done": false, "uid": 0, "public_https": "fail", "untrusted_rejected": false,
+		"webview_url": "https://other.example/", "webview_untrusted_url": target,
+		"webview_provider_package": "", "webview_provider_version": "", "webview_user_agent": "not a WebView",
+		"webview_certificate_subject": "", "webview_certificate_issuer": "",
+		"webview_committed": false, "webview_visual_state": false,
+		"webview_error": "timeout", "webview_public_ssl_error": "bad certificate",
+		"webview_control_error":      "transport failure",
+		"webview_untrusted_rejected": false, "webview_untrusted_cancelled": false,
+		"webview_untrusted_has_authority_error": false, "webview_untrusted_primary_error": 2,
+		"webview_untrusted_error_url": target,
+	} {
+		t.Run(key, func(t *testing.T) {
+			o := positiveWeb(t)
+			o[key] = value
+			if check(o) {
+				t.Fatal("accepted invalid evidence")
+			}
+		})
+	}
+	for key, value := range map[string]any{"url": target, "title": "Wrong", "heading": "Wrong", "secure": false, "ready": "loading"} {
+		t.Run("dom-"+key, func(t *testing.T) {
+			o := positiveWeb(t)
+			o["webview_dom"].(map[string]any)[key] = value
+			if check(o) {
+				t.Fatal("accepted invalid DOM")
+			}
+		})
+	}
+	for key := range positiveWeb(t) {
+		if strings.HasPrefix(key, "webview_") {
+			o := positiveWeb(t)
+			delete(o, key)
+			if check(o) {
+				t.Fatalf("accepted missing %s", key)
+			}
+		}
+	}
+	for _, title := range []string{"", "title\ninjected=value", "title\r", strings.Repeat("x", 121), "<script>"} {
+		if webTarget("https://example.com/", title) {
+			t.Fatalf("accepted title %q", title)
+		}
+	}
+	if webTarget("http://example.com/", "Example Domain") {
+		t.Fatal("accepted HTTP WebView target")
+	}
+	o := positiveWeb(t)
+	o["webview_control_error"] = "transport failure"
+	raw, _ := json.Marshal(o)
+	statuses, pass := assessWebView(raw, target, untrusted, 204, 10054, "https://example.com/", "Example Domain")
+	if pass || !strings.Contains(statuses, "WEBVIEW_DOCUMENT_STATUS=pass\n") ||
+		!strings.Contains(statuses, "WEBVIEW_UNTRUSTED_CERT_STATUS=fail\n") {
+		t.Fatal("lost independent document evidence after control failure", statuses)
+	}
+}
