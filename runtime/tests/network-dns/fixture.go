@@ -55,6 +55,8 @@ func answer(query []byte, address net.IP) []byte {
 
 type observation struct {
 	UID           int      `json:"uid"`
+	PID           int      `json:"pid"`
+	URL           string   `json:"url"`
 	Done          bool     `json:"done"`
 	Direct        string   `json:"direct_udp_dns"`
 	HTTP          string   `json:"literal_http"`
@@ -152,11 +154,20 @@ func main() {
 	expected := flag.String("expected", "", "expected literal IPv4 answer")
 	resolver := flag.String("resolver", "", "expected configured resolver, defaults to answer address")
 	recovery := flag.String("recovery", "", "directory containing baseline/lost/recovered JSON observations")
+	policy := flag.String("policy", "", "directory containing two-UID policy observations and fixture evidence")
 	before := flag.String("url", "", "expected baseline nonce URL")
 	after := flag.String("recovery-url", "", "expected fresh recovery nonce URL")
 	uid := flag.Int("uid", 0, "observed ordinary app UID")
 	pid := flag.Int("pid", 0, "observed unchanged app PID")
 	flag.Parse()
+	if *policy != "" {
+		text, pass := assessPolicyDirectory(*policy, net.ParseIP(*expected), net.ParseIP(*resolver), *before)
+		fmt.Print(text)
+		if !pass {
+			os.Exit(1)
+		}
+		return
+	}
 	if *recovery != "" {
 		var phases [3]recoveryPhase
 		for i, name := range []string{"baseline", "lost", "recovered"} {

@@ -23,7 +23,7 @@ func probeHandler(nonce string, events io.Writer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-		fmt.Fprintf(events, "request method=%q path=%q remote=%q user_agent=%q\n", r.Method, r.URL.Path, r.RemoteAddr, r.UserAgent())
+		fmt.Fprintf(events, "request method=%q path=%q query=%q remote=%q user_agent=%q\n", r.Method, r.URL.Path, r.URL.RawQuery, r.RemoteAddr, r.UserAgent())
 		w.Header().Set("Cache-Control", "no-store")
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)

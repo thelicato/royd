@@ -21,5 +21,12 @@ PATH="$jdk/bin:$PATH" "$tree/out/host/linux-x86/bin/d8" --min-api 35 --lib "$sdk
 "$jdk/bin/java" -Djava.library.path="$tree/out/host/linux-x86/lib64" -jar "$tree/out/host/linux-x86/framework/signapk.jar" \
   "$tree/build/make/target/product/security/testkey.x509.pem" "$tree/build/make/target/product/security/testkey.pk8" \
   "$out/unsigned.apk" "$out/probe.apk"
-go build -o "$out/dns-fixture" "$root/runtime/tests/network-dns/fixture.go"
+if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
+  "$tree/out/host/linux-x86/bin/aapt2" link -I "$sdk" --manifest "$root/runtime/tests/network-dns/PolicyControlManifest.xml" -o "$out/unsigned-control.apk"
+  (cd "$out/dex" && zip -q "$out/unsigned-control.apk" classes.dex)
+  "$jdk/bin/java" -Djava.library.path="$tree/out/host/linux-x86/lib64" -jar "$tree/out/host/linux-x86/framework/signapk.jar" \
+    "$tree/build/make/target/product/security/testkey.x509.pem" "$tree/build/make/target/product/security/testkey.pk8" \
+    "$out/unsigned-control.apk" "$out/control.apk"
+fi
+go build -o "$out/dns-fixture" "$root/runtime/tests/network-dns/fixture.go" "$root/runtime/tests/network-dns/policy.go"
 go build -o "$out/http-fixture" "$root/runtime/tests/network-http/server.go"

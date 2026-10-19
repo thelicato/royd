@@ -8,9 +8,11 @@ container=royd-network-dns-$$
 volume=$container-data
 network_mode=${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}
 recovery=${ROYD_NETWORK_DNS_RECOVERY:-0}
+policy=${ROYD_NETWORK_DNS_POLICY:-0}
 format=2
 scope=app-system-dns-framework
 if [ "$recovery" = 1 ]; then format=3; scope=continuous-app-ipv4-network-recovery; fi
+if [ "$policy" = 1 ]; then format=4; scope=ordinary-uid-oem-deny3-policy; fi
 network=bridge
 network_owned=0
 build_runner=${ROYD_NETWORK_DNS_BUILD_RUNNER:-$script_dir/network-dns-build.sh}
@@ -30,6 +32,7 @@ started=$(date -u +%FT%TZ)
 case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
 case "$network_mode" in bridge|private) ;; *) exit 2 ;; esac
 case "$recovery" in 0|1) ;; *) exit 2 ;; esac
+case "$policy:$recovery" in 0:0|0:1|1:0) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -69,6 +72,7 @@ MANIFEST
     # Only bounded fixture-produced status fields belong in the manifest.
     sed -n '/^OBSERVATION_STATUS=\(pass\|fail\)$/p; /^TRANSPORT_CONTROL_STATUS=\(pass\|fail\)$/p; /^SYSTEM_DNS_STATUS=\(pass\|fail\)$/p; /^FRAMEWORK_NETWORK_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
     sed -n '/^APP_PROCESS_STATUS=\(pass\|fail\)$/p; /^BASELINE_NETWORK_STATUS=\(pass\|fail\)$/p; /^NETWORK_LOSS_STATUS=\(pass\|fail\)$/p; /^NETWORK_RECOVERY_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
+    sed -n '/^POLICY_\(OBSERVATION\|DENIAL\|CONTROL\|RESTORATION\|MAP\|SERVER\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
   fi
   if [ "$container_owned" = 1 ]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
   if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >/dev/null 2>&1 || true; fi
@@ -88,7 +92,7 @@ fi
 gateway=$(docker network inspect "$network" --format '{{(index .IPAM.Config 0).Gateway}}')
 expected_resolver=$gateway
 if [ "$network_mode" = private ]; then expected_resolver=127.0.0.11; fi
-"$build_runner" "$output/build" >"$output/build.log" 2>&1
+ROYD_NETWORK_DNS_POLICY=$policy "$build_runner" "$output/build" >"$output/build.log" 2>&1
 "$output/build/dns-fixture" -listen "$gateway:53" >"$output/dns-server.log" 2>&1 &
 dns_pid=$!
 "$output/build/http-fixture" -listen "$gateway:0" >"$output/http-server.log" 2>&1 &
@@ -146,7 +150,9 @@ docker cp "$output/build/probe.apk" "$container:/data/local/tmp/royd-network-pro
 docker exec "$container" timeout 30 pm install -t /data/local/tmp/royd-network-probe.apk >"$output/install.log" 2>&1
 grep -Fxq Success "$output/install.log"
 workload=fail
-if [ "$recovery" = 1 ]; then
+if [ "$policy" = 1 ]; then
+  "$script_dir/network-policy-workload.sh" "$container" "$output" "$gateway" "$url" >"$output/workload.log" 2>&1 && workload=pass
+elif [ "$recovery" = 1 ]; then
   "$script_dir/network-recovery-workload.sh" "$container" "$output" "$gateway" "$url" "$recovery_url" >"$output/workload.log" 2>&1 && workload=pass
 else
 docker exec "$container" timeout 30 am start -W -n org.royd.networkprobe/.NetworkProbe \
@@ -182,7 +188,7 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
-if [ "$recovery" = 1 ]; then
+if [ "$recovery" = 1 ] || [ "$policy" = 1 ]; then
   docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container" >"$output/runtime-after.txt"
   cmp -s "$output/runtime-before.txt" "$output/runtime-after.txt" || runtime=fail
 fi
@@ -190,7 +196,10 @@ snapshot_oci >"$output/oci-after.log"
 ownership=pass
 cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
-if [ "$recovery" = 1 ]; then
+if [ "$policy" = 1 ]; then
+  "$output/build/dns-fixture" -policy "$output" -expected "$gateway" -resolver "$expected_resolver" -url "$url" \
+    >"$output/assessment.env" 2>"$output/assessment.log" || assessment=$?
+elif [ "$recovery" = 1 ]; then
   app_uid=$(sed -n 's/^APP_UID=//p' "$output/application.env" 2>/dev/null || true)
   app_pid=$(sed -n 's/^APP_PID=//p' "$output/application.env" 2>/dev/null || true)
   "$output/build/dns-fixture" -recovery "$output" -expected "$gateway" -resolver "$expected_resolver" \

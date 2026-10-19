@@ -104,6 +104,10 @@ runtime-network-http-contract-test:
 runtime-network-recovery-test:
 	ROYD_NETWORK_DNS_RECOVERY=1 ./runtime/scripts/network-dns-test.sh
 
+.PHONY: runtime-network-policy-test
+runtime-network-policy-test:
+	ROYD_NETWORK_DNS_POLICY=1 ./runtime/scripts/network-dns-test.sh
+
 runtime-network-dns-test:
 	./runtime/scripts/network-dns-test.sh
 

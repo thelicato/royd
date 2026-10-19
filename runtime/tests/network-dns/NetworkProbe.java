@@ -45,6 +45,8 @@ public final class NetworkProbe extends Activity {
                 String dns = getIntent().getStringExtra("dns");
                 String url = getIntent().getStringExtra("url");
                 result.put("uid", Process.myUid());
+                result.put("pid", Process.myPid());
+                result.put("url", url);
                 result.put("active_network", String.valueOf(cm.getActiveNetwork()));
                 result.put("network_count", cm.getAllNetworks().length);
                 Network active = cm.getActiveNetwork();
@@ -89,6 +91,8 @@ public final class NetworkProbe extends Activity {
                 try {
                     HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
                     connection.setConnectTimeout(3000); connection.setReadTimeout(3000);
+                    connection.setUseCaches(false); connection.setInstanceFollowRedirects(false);
+                    connection.setRequestProperty("Connection", "close");
                     try (InputStream input = connection.getInputStream()) {
                         String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
                         String nonce = new URL(url).getPath().substring(new URL(url).getPath().lastIndexOf('/') + 1);
@@ -108,6 +112,8 @@ public final class NetworkProbe extends Activity {
                     URL named = new URL(literal.getProtocol(), host, literal.getPort(), literal.getFile());
                     HttpURLConnection connection = (HttpURLConnection) named.openConnection();
                     connection.setConnectTimeout(3000); connection.setReadTimeout(3000);
+                    connection.setUseCaches(false); connection.setInstanceFollowRedirects(false);
+                    connection.setRequestProperty("Connection", "close");
                     try (InputStream input = connection.getInputStream()) {
                         String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
                         String nonce = literal.getPath().substring(literal.getPath().lastIndexOf('/') + 1);

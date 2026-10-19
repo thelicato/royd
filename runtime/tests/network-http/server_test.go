@@ -63,3 +63,13 @@ func TestShellCannotPrimeProof(t *testing.T) {
 		t.Fatal("a shell request must not prime an application proof")
 	}
 }
+
+func TestPolicyQueryEvidence(t *testing.T) {
+	var events bytes.Buffer
+	handler := probeHandler("nonce", &events)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest("GET", "/page/nonce?policy=blocked-control", nil))
+	if response.Code != 200 || !strings.Contains(response.Body.String(), "nonce") || !strings.Contains(events.String(), `query="policy=blocked-control"`) {
+		t.Fatal("the unchanged nonce page must retain its phase query in request evidence")
+	}
+}

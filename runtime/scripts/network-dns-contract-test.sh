@@ -2,23 +2,24 @@
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-go test "$root/runtime/tests/network-dns/fixture.go" "$root/runtime/tests/network-dns/fixture_test.go"
+go test "$root/runtime/tests/network-dns/fixture.go" "$root/runtime/tests/network-dns/policy.go" "$root/runtime/tests/network-dns/fixture_test.go" "$root/runtime/tests/network-dns/policy_test.go"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir "$tmp/bin"
-go build -o "$tmp/assess" "$root/runtime/tests/network-dns/fixture.go"
+go build -o "$tmp/assess" "$root/runtime/tests/network-dns/fixture.go" "$root/runtime/tests/network-dns/policy.go"
 cat >"$tmp/bin/build" <<'MOCK'
 #!/bin/sh
 set -eu
 mkdir "$1"
 : >"$1/probe.apk"
+: >"$1/control.apk"
 cp "$MOCK_TOOLS/dns" "$1/dns-fixture"
 cp "$MOCK_TOOLS/http" "$1/http-fixture"
 MOCK
 cat >"$tmp/bin/dns" <<'MOCK'
 #!/bin/sh
 set -eu
-if [ "$1" = -result ] || [ "$1" = -recovery ]; then exec "$MOCK_ASSESS" "$@"; fi
+if [ "$1" = -result ] || [ "$1" = -recovery ] || [ "$1" = -policy ]; then exec "$MOCK_ASSESS" "$@"; fi
 [ "$MOCK_CASE" != fixture_failure ] || exit 1
 printf '%s\n' DNS_READY=1
 while :; do sleep 0.05; done
@@ -56,7 +57,7 @@ case "$1" in
     if [ "${2:-}" = --format ]; then
       case "$3" in
         *org.royd.test.owner*)
-          [ "$MOCK_CASE" != recovery_unowned ] || exit 1
+          case "$MOCK_CASE" in recovery_unowned|policy_unowned) exit 1 ;; esac
           printf 'network-dns %s\n' "$4" ;;
         *RestartCount*)
           if [ "$MOCK_CASE" = recovery_restarted ] && [ -e "$MOCK_STATE/down" ]; then
@@ -82,21 +83,61 @@ case "$1" in
   cp) exit 0 ;;
   exec)
     case "$*" in
+      *'cmd connectivity set-package-networking-enabled false '*)
+        : >"$MOCK_STATE/policy-changed"
+        [ "$MOCK_CASE" != policy_set_failure ]
+        : >"$MOCK_STATE/deny" ;;
+      *'cmd connectivity set-package-networking-enabled true '*)
+        : >"$MOCK_STATE/policy-restored"
+        rm -f "$MOCK_STATE/deny"
+        [ "$MOCK_CASE" != policy_restore_failure ] ;;
+      *'cmd connectivity set-chain3-enabled true')
+        : >"$MOCK_STATE/chain"
+        if [ "$MOCK_CASE" = policy_interrupt ]; then kill -TERM "$PPID"; fi ;;
+      *'cmd connectivity set-chain3-enabled false') rm -f "$MOCK_STATE/chain" ;;
+      *'cmd connectivity get-chain3-enabled')
+        if [ -e "$MOCK_STATE/chain" ] || [ "$MOCK_CASE" = policy_preexisting ]; then printf '%s\n' chain:enabled; else printf '%s\n' chain:disabled; fi ;;
+      *'cmd connectivity get-package-networking-enabled '*)
+        package=${4:-}
+        for word in "$@"; do package=$word; done
+        rule=allow
+        if [ "$package" = org.royd.networkprobe ] && [ -e "$MOCK_STATE/deny" ]; then rule=deny; fi
+        printf '%s:%s\n' "$package" "$rule" ;;
+      *'dumpsys connectivity trafficcontroller')
+        printf '%s\n' 'TrafficController' 'sUidOwnerMap:'
+        if [ -e "$MOCK_STATE/chain" ]; then printf '%s\n' 'current ownerMatch configuration: 2048 OEM_DENY_3_MATCH' '10054 OEM_DENY_3_MATCH'
+        else printf '%s\n' 'current ownerMatch configuration: 0'; fi ;;
+      *'am force-stop --user 0 '*) rm -f "$MOCK_STATE/running" ;;
+      *'rm -f /data/user/'*) : ;;
+      *'cat /proc/'*'/cgroup') printf '%s\n' 0::/royd/uid_test/pid_test ;;
       *'getprop ro.build.version.sdk')
         if [ "$MOCK_CASE" = wrong_sdk ]; then printf '%s\n' 34; else printf '%s\n' 35; fi ;;
       *'pidof system_server')
         if [ "$MOCK_CASE" = server_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' 501; else printf '%s\n' 500; fi ;;
       *'pidof org.royd.networkprobe')
+        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
+          [ "$MOCK_CASE" != policy_pid_error ] || exit 125
+          [ -e "$MOCK_STATE/running" ] || exit 1
+        fi
         if [ "$MOCK_CASE" = recovery_process_changed ] && [ -e "$MOCK_STATE/down" ]; then printf '%s\n' 901; else printf '%s\n' 900; fi ;;
+      *'pidof org.royd.networkcontrol') [ -e "$MOCK_STATE/running" ]; printf '%s\n' 901 ;;
+      *'stat -c %u /proc/901') printf '%s\n' 10055 ;;
       *'stat -c %u /proc/900')
         if [ "$MOCK_CASE" = root_app ]; then printf '%s\n' 0; else printf '%s\n' 10054; fi ;;
       *'stat -c %u /data/user/'*)
+        case "$*" in *org.royd.networkcontrol*) printf '%s\n' 10055; exit 0 ;; esac
         if [ "$MOCK_CASE" = wrong_owner ]; then printf '%s\n' 10055; else printf '%s\n' 10054; fi ;;
       *'pm install -t '*) [ "$MOCK_CASE" != install_failure ]; printf '%s\n' Success ;;
       *'am start -W '*)
+        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
+          : >"$MOCK_STATE/running"
+          printf '%s\n' "$*" | sed -n 's/.*policy=//p' >"$MOCK_STATE/phase"
+        fi
         printf '%s\n' 'Status: ok'
         if [ "$MOCK_CASE" = wrong_activity ]; then printf '%s\n' 'Activity: other/.Activity'
         elif [ "${ROYD_NETWORK_DNS_RECOVERY:-0}" = 1 ]; then printf '%s\n' 'Activity: org.royd.networkprobe/.RecoveryProbe'
+        elif [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ] && case "$*" in *org.royd.networkcontrol/*) true ;; *) false ;; esac; then
+          printf '%s\n' 'Activity: org.royd.networkcontrol/org.royd.networkprobe.NetworkProbe'
         else printf '%s\n' 'Activity: org.royd.networkprobe/.NetworkProbe'; fi ;;
       *'test -s '*)
         [ "$MOCK_CASE" != no_result ]
@@ -113,6 +154,26 @@ case "$1" in
             printf '%s\n' '{"phase":"recovered","uid":10054,"pid":900,"elapsed_ms":3000,"done":true,"active_network":"101","active_interface":"eth0","configured_dns":["'"$resolver"'"],"url":"http://172.17.0.1:43211/page/recovery-nonce","host":"recovery.royd-probe.test","system_dns_addresses":["172.17.0.1"],"literal_http":"pass","hostname_http":"'"$named"'","events":["available:100","lost:100","available:101"]}' ;;
         esac ;;
       *'cat /data/user/'*)
+        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
+          name=$(cat "$MOCK_STATE/phase")
+          uid=10054; pid=900
+          case "$name" in *-control) uid=10055; pid=901 ;; esac
+          resolver=172.17.0.1
+          [ "${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}" != private ] || resolver=127.0.0.11
+          direct=pass; http=pass; named=pass; active=100
+          if [ "$name" = blocked-target ]; then
+            direct='java.io.IOException: sendto failed: EPERM'
+            http='java.net.SocketTimeoutException: connect'
+            named='java.net.UnknownHostException: denied'
+            active=null
+            if [ "$MOCK_CASE" = policy_leak ]; then http=pass; fi
+          else
+            printf 'request method="GET" path="/page/nonce" query="policy=%s" remote="test"\nrequest method="GET" path="/page/nonce" query="policy=%s" remote="test"\n' "$name" "$name" >>"$ROYD_NETWORK_DNS_OUTPUT_DIR/http-server.log"
+            if [ "$MOCK_CASE:$name" = policy_control_failure:blocked-control ]; then http=failed; fi
+          fi
+          printf '%s\n' '{"uid":'"$uid"',"pid":'"$pid"',"url":"http://172.17.0.1:43210/page/nonce?policy='"$name"'","done":true,"direct_udp_dns":"'"$direct"'","literal_http":"'"$http"'","hostname_http":"'"$named"'","active_interface":"eth0","configured_dns":["'"$resolver"'"],"active_network":"'"$active"'","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
+          exit 0
+        fi
         if [ "$MOCK_CASE" = dns_gap ] || [ "$MOCK_CASE" = both_gaps ]; then
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"null","network_count":0,"default_callback_available":0,"system_dns_addresses":[]}'
         elif [ "$MOCK_CASE" = embedded ]; then
@@ -150,6 +211,7 @@ printf '%s\n' "$count" >"$MOCK_STATE/asserts"
 [ "$MOCK_CASE:$count" != after_failure:2 ]
 [ "$MOCK_CASE:$count" != both_gaps:2 ]
 [ "$MOCK_CASE:$count" != recovery_post_failure:2 ]
+[ "$MOCK_CASE:$count" != policy_post_failure:2 ]
 MOCK
 cat >"$tmp/bin/pass" <<'MOCK'
 #!/bin/sh
@@ -161,7 +223,9 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     remote_context existing_container existing_volume existing_evidence \
     recovery_good recovery_embedded recovery_dns_failure recovery_process_changed recovery_restarted \
     recovery_no_loss recovery_down_failure recovery_restore_failure recovery_unowned recovery_interrupt \
-    recovery_post_failure recovery_ownership_changed; do
+    recovery_post_failure recovery_ownership_changed \
+    policy_good policy_embedded policy_leak policy_control_failure policy_set_failure policy_restore_failure \
+    policy_interrupt policy_pid_error policy_preexisting policy_post_failure policy_unowned; do
   state="$tmp/$mode"
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
@@ -169,17 +233,29 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
   status=0
   network_mode=bridge
   recovery=0
+  policy=0
   case "$mode" in recovery_*) recovery=1 ;; esac
-  if [ "$mode" = embedded ] || [ "$mode" = recovery_embedded ]; then network_mode=private; fi
+  case "$mode" in policy_*) policy=1 ;; esac
+  if [ "$mode" = embedded ] || [ "$mode" = recovery_embedded ] || [ "$mode" = policy_embedded ]; then network_mode=private; fi
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_TOOLS="$tmp/bin" MOCK_ASSESS="$tmp/assess" \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_REQUEST_TIMEOUT=2 \
     ROYD_NETWORK_DNS_NETWORK_MODE="$network_mode" \
     ROYD_NETWORK_DNS_RECOVERY="$recovery" \
+    ROYD_NETWORK_DNS_POLICY="$policy" \
     ROYD_NETWORK_DNS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_DNS_WAIT_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_HEALTH_RUNNER="$tmp/bin/pass" ROYD_NETWORK_DNS_SECURITY_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
-  if [ "$mode" = recovery_good ] || [ "$mode" = recovery_embedded ]; then
+  if [ "$mode" = policy_good ] || [ "$mode" = policy_embedded ]; then
+    [ "$status" -eq 0 ]
+    grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=4 "$state/evidence/manifest.env"
+    for field in OBSERVATION DENIAL CONTROL RESTORATION MAP SERVER; do
+      grep -Fxq "POLICY_${field}_STATUS=pass" "$state/evidence/manifest.env"
+    done
+    [ -e "$state/policy-restored" ]
+    [ "$(cat "$state/asserts")" = 2 ]
+  elif [ "$mode" = recovery_good ] || [ "$mode" = recovery_embedded ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=3 "$state/evidence/manifest.env"
@@ -239,9 +315,32 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
         grep -Fxq OCI_OWNERSHIP_STATUS=fail "$state/evidence/manifest.env" ;;
       recovery_*) grep -Fxq WORKLOAD_STATUS=fail "$state/evidence/manifest.env" ;;
     esac
+    case "$mode" in
+      policy_*)
+        [ "$(cat "$state/asserts")" = 2 ]
+        grep -Fxq 'full container log' "$state/evidence/container/container.log"
+        if [ -e "$state/policy-changed" ]; then [ -e "$state/policy-restored" ]; fi
+        case "$mode" in
+          policy_leak) grep -Fxq POLICY_DENIAL_STATUS=fail "$state/evidence/manifest.env" ;;
+          policy_control_failure) grep -Fxq POLICY_CONTROL_STATUS=fail "$state/evidence/manifest.env" ;;
+          policy_post_failure) grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
+          *) grep -Fxq WORKLOAD_STATUS=fail "$state/evidence/manifest.env" ;;
+        esac ;;
+    esac
   fi
   [ ! -e "$state/container" ]
   [ ! -e "$state/volume" ]
   [ ! -e "$state/network" ]
+done
+for settings in 2:0 1:1 bogus:0; do
+  state="$tmp/invalid-$settings"
+  mkdir "$state"
+  status=0
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
+    ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_POLICY="${settings%:*}" ROYD_NETWORK_DNS_RECOVERY="${settings#*:}" \
+    "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
+  [ "$status" -eq 2 ]
+  [ ! -e "$state/evidence" ]
+  [ ! -e "$state/docker.log" ]
 done
 printf '%s\n' 'Android 15 application DNS and network-state contract test passed'
