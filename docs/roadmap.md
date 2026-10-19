@@ -56,7 +56,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.
 - [x] Retain Docker logs, inspect and state evidence when a container never starts and has no health state, without relaxing qualification gates.
 - [x] Make the Android 15 graphical capture check honour MediaStore indexing and exact-owned cleanup instead of generating private-path scan failures.
-- [ ] Verify normal `adb logcat` behaviour alongside container log forwarding on real booting images.
+- [x] Verify normal `adb logcat` alongside container log forwarding on the local Android 15 baseline with retained simultaneous live-marker evidence.
 - [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
 
 ## 5. Reproducible runtime examples
@@ -68,6 +68,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
 - [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
 - [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
+- [x] Retain a ten-minute local Android 15 Settings/scroll/Home stream with full pre/post checks and supplementary process/readiness/health observations.
 - [x] Add bounded Android 15 memory-controller delegation recovery for transient early external exec processes, retaining domain-controller constraints and explicit persistent-failure diagnostics.
 - [ ] Validate broader early-exec timing and host/runtime combinations; indefinite root-cgroup occupants remain unsupported by bounded recovery.
 - [x] Add multiple-instance Compose and smoke-test workflows.
@@ -102,6 +103,8 @@ The repository now captures a versioned kernel/Kconfig evidence file in every re
 - [x] Expand the minimal package policy conservatively with version-family rules, a protected core package guard, and immutable policy identity.
 - [x] Require generated memory evidence to record the exact image/profile policy, display configuration, and named workload before figures are published.
 - [x] Add independent Android 15 low-memory and performance resource profiles selected before boot without rebuilding the image.
+- [x] Define a preliminary Android 15 external-comparison gate distinct from release acceptance and wider-version validation.
+- [ ] Add a product-neutral measurement harness, independently qualify a matching comparator and retain repeated same-host comparison results.
 
 ## 7. Privilege reduction
 

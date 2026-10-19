@@ -90,6 +90,22 @@ Performance comparisons against another Android container runtime must control t
 
 The current Android 15 software profile is a portable compatibility baseline. It must not be described as matching a competing runtime until an identical-host comparison demonstrates that result. Software and host-GPU results belong in separate comparison groups. A high-resource royd profile must also be compared with the low-memory profile so increased responsiveness is not mistaken for an uncontrolled memory regression.
 
+### Preliminary Android 15 comparison gate
+
+A preliminary single-host comparison does not require completing the other Android versions, qualifying reduced privileges or eliminating every warning. It requires a frozen, functioning Android 15 baseline and an independently qualified comparator. It is not release acceptance or a support claim. Keep the external comparator entirely outside royd's build, image and normal runtime dependencies.
+
+Before measuring:
+
+1. Pin both image digests and record Android build/security-patch identities, x86_64 ABIs, installed application versions and actual renderer/driver versions. An available registry manifest alone does not establish bootability or configuration parity. An Android 15 image is not necessarily the same AOSP revision. Review privileged host-global side effects before launching an external image; never share its Android data volume with royd or silently change host prerequisites.
+2. Require passing baseline runtime, ordinary-UID native/WebView DNS/HTTPS and certificate-rejection evidence, plus a longer Settings/scroll/Home stream with full pre/post checks. Validate equivalent user-visible functionality independently on the comparator; royd-specific properties and service names are not comparator requirements. Retain unresolved diagnostics and explain their observed impact rather than requiring an empty log.
+3. Match host, renderer, effective display size/density/frame rate, CPU allocation, memory/swap limits, fresh-data policy, scrcpy version/codec/bit rate and named workload. Verify the effective configuration, not just launch arguments. Different software renderers are not a renderer-controlled comparison; resolve that mismatch before publishing a controlled graphics ranking. Do not switch royd to an unqualified GPU backend to manufacture parity.
+4. Use a common measurement procedure that does not depend on royd's product-specific assertions. Retain raw boot-to-Home, cold application launch, frame-timing, cgroup CPU and peak/settled memory observations and workload failures. A real-time recording's size, average frame rate and completion time do not measure unconstrained encoder throughput or interactive input latency. Mark unmeasured metrics explicitly.
+5. Alternate the two images for at least five fresh-data repetitions each, running one measured instance at a time. Report medians and ranges, retain failed repetitions and distinguish fresh Android data from cold host page cache. Never clear host caches or change host networking, clocks or kernel settings as a hidden preparation step.
+
+The first comparison should use the current low-memory baseline only. Performance-profile speed claims remain deferred; adding that profile later requires its own controlled comparison and memory accounting. Broader applications, long network/restart soaks, clean-build/reference-host review and other architectures remain separate work, not reasons to indefinitely delay an explicitly preliminary result.
+
+The resource-profile runner above is not a cross-runtime harness: its boot-to-Home interval includes royd-specific runtime assertions before the Home launch, and its launch/provenance paths assume a royd image. Do not reuse those timings as neutral comparative boot measurements. A common measurement harness and independent comparator qualification are still required before the first paired result.
+
 
 ## Android image profile comparison
 
