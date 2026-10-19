@@ -81,7 +81,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add and locally qualify ordinary-UID public IPv4 DNS/HTTPS with platform trust, self-signed certificate rejection, Docker/embedded DNS and retained pre/post runtime evidence.
 - [x] Add ordinary-UID WebView HTTPS document/DOM and untrusted-certificate qualification alongside native TLS controls, with retained independent runtime and OCI evidence.
 - [x] Run the WebView HTTPS qualification on the baseline image in Docker bridge mode and retain passing real-runtime evidence.
-- [ ] Repeat WebView HTTPS qualification with embedded DNS after restoring the host TCP/UDP match support required by Docker's resolver rules, and retain passing real-runtime evidence.
+- [x] Run WebView HTTPS qualification with Docker embedded DNS and retain passing real-runtime evidence.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.

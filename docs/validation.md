@@ -131,7 +131,7 @@ A separate off-screen WebView loads the same ephemeral matching-IP negative cont
 
 These modes do not qualify IPv6, VPN/proxy/private-DNS configurations, general application/browser compatibility, long soaks or every public CA/hostname failure mode. Dedicated trusted-chain hostname-mismatch and expired-certificate matrices remain open; no certificate is installed or trusted by either mode.
 
-Check host Docker diagnostics when embedded DNS fails before considering an Android change. Missing host TCP/UDP match support can prevent Docker's resolver DNAT/SNAT setup and loopback-only ADB publication, especially with module autoloading disabled. Retain the daemon's rule-setup error alongside app/resolver evidence, repair the host prerequisite separately and repeat in a fresh evidence directory. Do not bypass this by changing Android DNS policy, publishing ADB on all interfaces or marking the failed network mode as qualified.
+Check host Docker diagnostics when embedded DNS fails before considering an Android change. Missing host TCP/UDP match support or DNAT/SNAT targets can prevent Docker's resolver setup and loopback-only ADB publication, especially with module autoloading disabled. On modular kernels, check the matching `xt_tcpudp` and `xt_nat` providers; built-in support needs no module load. Retain the daemon's rule-setup error alongside app/resolver evidence, repair the host prerequisite separately and repeat in a fresh evidence directory. royd must not load host modules or enable global autoloading. Do not bypass this by changing Android DNS policy, publishing ADB on all interfaces or marking the failed network mode as qualified.
 
 ## Read-only host wall clock
 
