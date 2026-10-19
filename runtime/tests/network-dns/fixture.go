@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 )
 
-// A deliberately non-recursive, single-name UDP fixture, not a production resolver.
+// A deliberately non-recursive, two-name UDP fixture, not a production resolver.
 func answer(query []byte, address net.IP) []byte {
 	if len(query) < 17 || query[2]&0xfe != 0 || binary.BigEndian.Uint16(query[4:6]) != 1 || address.To4() == nil {
 		return nil
@@ -39,7 +42,8 @@ func answer(query []byte, address net.IP) []byte {
 	for i := 6; i < 12; i++ {
 		response[i] = 0
 	}
-	if !strings.EqualFold(strings.Join(labels, "."), "royd-probe.test") || qclass != 1 {
+	name := strings.Join(labels, ".")
+	if (!strings.EqualFold(name, "royd-probe.test") && !strings.EqualFold(name, "recovery.royd-probe.test")) || qclass != 1 {
 		response[3] = 3 // NXDOMAIN, never forward arbitrary queries.
 	} else if qtype == 1 {
 		response[7] = 1
@@ -92,12 +96,82 @@ func assessResolver(raw []byte, expected, resolver net.IP) (string, bool) {
 	return fmt.Sprintf("OBSERVATION_STATUS=pass\nTRANSPORT_CONTROL_STATUS=%s\nSYSTEM_DNS_STATUS=%s\nFRAMEWORK_NETWORK_STATUS=%s\nTLS_STATUS=not-tested\n", status(control), status(dns), status(framework)), control && dns && framework
 }
 
+type recoveryPhase struct {
+	Phase        string   `json:"phase"`
+	UID          int      `json:"uid"`
+	PID          int      `json:"pid"`
+	Elapsed      int64    `json:"elapsed_ms"`
+	Done         bool     `json:"done"`
+	Active       string   `json:"active_network"`
+	Interface    string   `json:"active_interface"`
+	Resolvers    []string `json:"configured_dns"`
+	URL          string   `json:"url"`
+	Host         string   `json:"host"`
+	DNS          []string `json:"system_dns_addresses"`
+	Literal      string   `json:"literal_http"`
+	LiteralError string   `json:"literal_error"`
+	Named        string   `json:"hostname_http"`
+	Events       []string `json:"events"`
+}
+
+func assessRecovery(phases [3]recoveryPhase, expected, resolver net.IP, before, after string, uid, pid int) (string, bool) {
+	status := func(ok bool) string {
+		if ok {
+			return "pass"
+		}
+		return "fail"
+	}
+	b, l, r := phases[0], phases[1], phases[2]
+	validURL := func(raw string) bool {
+		u, err := url.Parse(raw)
+		if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return false
+		}
+		port, err := strconv.Atoi(u.Port())
+		return err == nil && port > 0 && port <= 65535 && expected != nil && expected.IsPrivate() && expected.Equal(net.ParseIP(u.Hostname())) && strings.HasPrefix(u.Path, "/page/")
+	}
+	identity := uid >= 10000 && pid > 0 && validURL(before) && validURL(after) && before != after
+	for i, p := range phases {
+		identity = identity && p.UID == uid && p.PID == pid && p.Done && p.Phase == [3]string{"baseline", "lost", "recovered"}[i] && p.Elapsed > 0
+	}
+	identity = identity && b.Elapsed < l.Elapsed && l.Elapsed < r.Elapsed
+	positive := func(p recoveryPhase, host, target string) bool {
+		id, err := strconv.ParseUint(p.Active, 10, 32)
+		return err == nil && id > 0 && p.Interface == "eth0" && len(p.Resolvers) == 1 && resolver != nil && resolver.Equal(net.ParseIP(p.Resolvers[0])) &&
+			len(p.DNS) == 1 && expected.Equal(net.ParseIP(p.DNS[0])) && p.Host == host && p.URL == target && p.Literal == "pass" && p.Named == "pass"
+	}
+	baseline := positive(b, "royd-probe.test", before) && reflect.DeepEqual(b.Events, []string{"available:" + b.Active})
+	loss := l.Active == "null" && l.Interface == "" && len(l.Resolvers) == 0 && l.URL == before && l.Literal == "failed" && l.LiteralError != "" && reflect.DeepEqual(l.Events, []string{"available:" + b.Active, "lost:" + b.Active})
+	recovery := positive(r, "recovery.royd-probe.test", after) && r.Active != b.Active && reflect.DeepEqual(r.Events, []string{"available:" + b.Active, "lost:" + b.Active, "available:" + r.Active})
+	return fmt.Sprintf("APP_PROCESS_STATUS=%s\nBASELINE_NETWORK_STATUS=%s\nNETWORK_LOSS_STATUS=%s\nNETWORK_RECOVERY_STATUS=%s\nTLS_STATUS=not-tested\n", status(identity), status(baseline), status(loss), status(recovery)), identity && baseline && loss && recovery
+}
+
 func main() {
 	listen := flag.String("listen", "", "specific private Docker bridge IPv4 address, port 53")
 	resultFile := flag.String("result", "", "assess an application JSON result without a listener")
 	expected := flag.String("expected", "", "expected literal IPv4 answer")
 	resolver := flag.String("resolver", "", "expected configured resolver, defaults to answer address")
+	recovery := flag.String("recovery", "", "directory containing baseline/lost/recovered JSON observations")
+	before := flag.String("url", "", "expected baseline nonce URL")
+	after := flag.String("recovery-url", "", "expected fresh recovery nonce URL")
+	uid := flag.Int("uid", 0, "observed ordinary app UID")
+	pid := flag.Int("pid", 0, "observed unchanged app PID")
 	flag.Parse()
+	if *recovery != "" {
+		var phases [3]recoveryPhase
+		for i, name := range []string{"baseline", "lost", "recovered"} {
+			raw, err := os.ReadFile(filepath.Join(*recovery, name+".json"))
+			if err != nil || json.Unmarshal(raw, &phases[i]) != nil {
+				log.Fatal("missing or malformed recovery observation: ", name)
+			}
+		}
+		text, pass := assessRecovery(phases, net.ParseIP(*expected), net.ParseIP(*resolver), *before, *after, *uid, *pid)
+		fmt.Print(text)
+		if !pass {
+			os.Exit(1)
+		}
+		return
+	}
 	if *resultFile != "" {
 		raw, err := os.ReadFile(*resultFile)
 		if err != nil {

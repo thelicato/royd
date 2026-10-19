@@ -7,6 +7,10 @@ output=${ROYD_NETWORK_DNS_OUTPUT_DIR:-$root/.work/network-dns-$(date -u +%Y%m%dT
 container=royd-network-dns-$$
 volume=$container-data
 network_mode=${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}
+recovery=${ROYD_NETWORK_DNS_RECOVERY:-0}
+format=2
+scope=app-system-dns-framework
+if [ "$recovery" = 1 ]; then format=3; scope=continuous-app-ipv4-network-recovery; fi
 network=bridge
 network_owned=0
 build_runner=${ROYD_NETWORK_DNS_BUILD_RUNNER:-$script_dir/network-dns-build.sh}
@@ -14,15 +18,18 @@ assert_runner=${ROYD_NETWORK_DNS_ASSERT_RUNNER:-$script_dir/assert-runtime.sh}
 request_timeout=${ROYD_NETWORK_DNS_REQUEST_TIMEOUT:-30}
 dns_pid=
 http_pid=
+recovery_http_pid=
 container_owned=0
 volume_owned=0
 image_id=unknown
 result=fail
 runtime=not-tested
 ownership=not-tested
+workload=not-tested
 started=$(date -u +%FT%TZ)
 case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
 case "$network_mode" in bridge|private) ;; *) exit 2 ;; esac
+case "$recovery" in 0|1) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -37,7 +44,7 @@ output=$(CDPATH= cd -- "$output" && pwd)
 finish() {
   status=$?
   trap - EXIT HUP INT TERM
-  for pid in "$dns_pid" "$http_pid"; do
+  for pid in "$dns_pid" "$http_pid" "$recovery_http_pid"; do
     if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; wait "$pid" || true; fi
   done
   if [ "$container_owned" = 1 ]; then
@@ -45,12 +52,13 @@ finish() {
   fi
   [ "$status" -eq 0 ] || result=fail
   cat >"$output/manifest.env" <<MANIFEST
-ROYD_NETWORK_DNS_EVIDENCE_FORMAT=2
-NETWORK_SCOPE=app-system-dns-framework
+ROYD_NETWORK_DNS_EVIDENCE_FORMAT=$format
+NETWORK_SCOPE=$scope
 NETWORK_MODE=$network_mode
 RESULT_STATUS=$result
 RUNTIME_STATUS=$runtime
 OCI_OWNERSHIP_STATUS=$ownership
+WORKLOAD_STATUS=$workload
 IMAGE=$image
 IMAGE_ID=$image_id
 TLS_STATUS=not-tested
@@ -60,6 +68,7 @@ MANIFEST
   if [ -f "$output/assessment.env" ]; then
     # Only bounded fixture-produced status fields belong in the manifest.
     sed -n '/^OBSERVATION_STATUS=\(pass\|fail\)$/p; /^TRANSPORT_CONTROL_STATUS=\(pass\|fail\)$/p; /^SYSTEM_DNS_STATUS=\(pass\|fail\)$/p; /^FRAMEWORK_NETWORK_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
+    sed -n '/^APP_PROCESS_STATUS=\(pass\|fail\)$/p; /^BASELINE_NETWORK_STATUS=\(pass\|fail\)$/p; /^NETWORK_LOSS_STATUS=\(pass\|fail\)$/p; /^NETWORK_RECOVERY_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
   fi
   if [ "$container_owned" = 1 ]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
   if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >/dev/null 2>&1 || true; fi
@@ -90,6 +99,18 @@ until grep -Fxq DNS_READY=1 "$output/dns-server.log" && grep -q '^URL=' "$output
   attempt=$((attempt + 1)); [ "$attempt" -lt 10 ]; sleep 1
 done
 url=$(sed -n 's/^URL=//p' "$output/http-server.log")
+recovery_url=
+if [ "$recovery" = 1 ]; then
+  "$output/build/http-fixture" -listen "$gateway:0" >"$output/recovery-http-server.log" 2>&1 &
+  recovery_http_pid=$!
+  attempt=0
+  until grep -q '^URL=' "$output/recovery-http-server.log"; do
+    kill -0 "$recovery_http_pid"
+    attempt=$((attempt + 1)); [ "$attempt" -lt 10 ]; sleep 1
+  done
+  recovery_url=$(sed -n 's/^URL=//p' "$output/recovery-http-server.log")
+  [ "$url" != "$recovery_url" ]
+fi
 docker volume create "$volume" >"$output/volume.log"
 volume_owned=1
 security_args=$("$script_dir/security-args.sh" privileged)
@@ -98,10 +119,12 @@ profile_args=$(ROYD_RESOURCE_PROFILE=low-memory "$script_dir/profile.sh" default
 # Word splitting is intentional for repository-generated arguments.
 # shellcheck disable=SC2086
 docker create $security_args $container_args --network "$network" --dns "$gateway" --name "$container" \
+  --label org.royd.test=network-dns --label "org.royd.test.owner=$container" \
   -v "$volume:/data" "$image_id" $profile_args >"$output/create.log"
 container_owned=1
 docker start "$container" >>"$output/create.log"
-"${ROYD_NETWORK_DNS_WAIT_RUNNER:-$script_dir/wait-for-boot.sh}" "$container" "${ROYD_BOOT_TIMEOUT:-180}" >"$output/boot.log" 2>&1
+ROYD_BOOT_WAIT_MARKER='ROYD: using delegated cgroup v2 subtree' \
+  "${ROYD_NETWORK_DNS_WAIT_RUNNER:-$script_dir/wait-for-boot.sh}" "$container" "${ROYD_BOOT_TIMEOUT:-180}" >"$output/boot.log" 2>&1
 "${ROYD_NETWORK_DNS_HEALTH_RUNNER:-$script_dir/wait-for-health.sh}" "$container" "${ROYD_HEALTH_TIMEOUT:-240}" >"$output/health.log" 2>&1
 "${ROYD_NETWORK_DNS_SECURITY_RUNNER:-$script_dir/assert-security.sh}" "$container" privileged >"$output/security.log" 2>&1
 [ "$(docker exec "$container" getprop ro.build.version.sdk)" = 35 ]
@@ -122,6 +145,10 @@ case "$system_before" in ''|*[!0-9]*) exit 1 ;; esac
 docker cp "$output/build/probe.apk" "$container:/data/local/tmp/royd-network-probe.apk"
 docker exec "$container" timeout 30 pm install -t /data/local/tmp/royd-network-probe.apk >"$output/install.log" 2>&1
 grep -Fxq Success "$output/install.log"
+workload=fail
+if [ "$recovery" = 1 ]; then
+  "$script_dir/network-recovery-workload.sh" "$container" "$output" "$gateway" "$url" "$recovery_url" >"$output/workload.log" 2>&1 && workload=pass
+else
 docker exec "$container" timeout 30 am start -W -n org.royd.networkprobe/.NetworkProbe \
   --es host royd-probe.test --es dns "$gateway" --es url "$url" >"$output/launch.log" 2>&1
 grep -Fxq 'Status: ok' "$output/launch.log"
@@ -143,6 +170,8 @@ printf 'APP_PID=%s\nAPP_UID=%s\nSYSTEM_SERVER=%s\nURL=%s\n' "$app_pid" "$app_uid
 sleep 2
 docker exec "$container" logcat -d -s RoydNetworkProbe:I '*:S' >"$output/application.log" 2>&1
 docker exec "$container" screencap -p >"$output/application.png"
+workload=pass
+fi
 for service in connectivity dnsresolver netd; do
   docker exec "$container" timeout 15 dumpsys "$service" >"$output/$service.log" 2>&1
 done
@@ -153,11 +182,22 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
+if [ "$recovery" = 1 ]; then
+  docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container" >"$output/runtime-after.txt"
+  cmp -s "$output/runtime-before.txt" "$output/runtime-after.txt" || runtime=fail
+fi
 snapshot_oci >"$output/oci-after.log"
 ownership=pass
 cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
-"$output/build/dns-fixture" -result "$output/observation.json" -expected "$gateway" -resolver "$expected_resolver" >"$output/assessment.env" || assessment=$?
-if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ] || [ "$ownership" != pass ]; then exit 1; fi
+if [ "$recovery" = 1 ]; then
+  app_uid=$(sed -n 's/^APP_UID=//p' "$output/application.env" 2>/dev/null || true)
+  app_pid=$(sed -n 's/^APP_PID=//p' "$output/application.env" 2>/dev/null || true)
+  "$output/build/dns-fixture" -recovery "$output" -expected "$gateway" -resolver "$expected_resolver" \
+    -url "$url" -recovery-url "$recovery_url" -uid "${app_uid:-0}" -pid "${app_pid:-0}" >"$output/assessment.env" 2>"$output/assessment.log" || assessment=$?
+else
+  "$output/build/dns-fixture" -result "$output/observation.json" -expected "$gateway" -resolver "$expected_resolver" >"$output/assessment.env" || assessment=$?
+fi
+if [ "$assessment" -ne 0 ] || [ "$runtime" != pass ] || [ "$ownership" != pass ] || [ "$workload" != pass ]; then exit 1; fi
 result=pass
 printf 'Android 15 application DNS and network-state test passed: %s\n' "$output"

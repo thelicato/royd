@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"net"
 	"strings"
 	"testing"
@@ -30,11 +31,17 @@ func TestAnswers(t *testing.T) {
 	if got := answer(question("ROYD-PROBE.TEST", 1), ip); got[7] != 1 {
 		t.Fatal("DNS names are case-insensitive")
 	}
+	if got := answer(question("recovery.royd-probe.test", 1), ip); got[7] != 1 {
+		t.Fatal("recovery must resolve its separate, previously unused name")
+	}
 	if got := answer(question("royd-probe.test", 28), ip); len(got) != len(query) || got[7] != 0 || got[3] != 0 {
 		t.Fatal("AAAA must return NODATA, not a fabricated address")
 	}
 	if got := answer(question("other.test", 1), ip); got[3] != 3 || got[7] != 0 {
 		t.Fatal("unknown names must not be forwarded")
+	}
+	if got := answer(question("other.royd-probe.test", 1), ip); got[3] != 3 || got[7] != 0 {
+		t.Fatal("the recovery name must not enable arbitrary subdomains")
 	}
 	for length := 0; length < len(query); length++ {
 		if answer(query[:length], ip) != nil {
@@ -47,6 +54,75 @@ func TestAnswers(t *testing.T) {
 		if answer(bad, ip) != nil {
 			t.Fatalf("accepted malformed query at %d", offset)
 		}
+	}
+}
+
+func TestRecoveryAssessment(t *testing.T) {
+	before, after := "http://172.17.0.1:43210/page/first", "http://172.17.0.1:43211/page/second"
+	good := [3]recoveryPhase{
+		{Phase: "baseline", UID: 10054, PID: 900, Elapsed: 1000, Done: true, Active: "100", Interface: "eth0", Resolvers: []string{"172.17.0.1"}, URL: before, Host: "royd-probe.test", DNS: []string{"172.17.0.1"}, Literal: "pass", Named: "pass", Events: []string{"available:100"}},
+		{Phase: "lost", UID: 10054, PID: 900, Elapsed: 2000, Done: true, Active: "null", URL: before, Literal: "failed", LiteralError: "java.net.ConnectException", Events: []string{"available:100", "lost:100"}},
+		{Phase: "recovered", UID: 10054, PID: 900, Elapsed: 3000, Done: true, Active: "101", Interface: "eth0", Resolvers: []string{"172.17.0.1"}, URL: after, Host: "recovery.royd-probe.test", DNS: []string{"172.17.0.1"}, Literal: "pass", Named: "pass", Events: []string{"available:100", "lost:100", "available:101"}},
+	}
+	check := func(p [3]recoveryPhase, resolver string) bool {
+		_, pass := assessRecovery(p, net.ParseIP("172.17.0.1"), net.ParseIP(resolver), before, after, 10054, 900)
+		return pass
+	}
+	if !check(good, "172.17.0.1") {
+		t.Fatal("rejected complete same-process recovery")
+	}
+	cases := map[string]func(*[3]recoveryPhase){
+		"root":                  func(p *[3]recoveryPhase) { p[0].UID = 0 },
+		"changed-uid":           func(p *[3]recoveryPhase) { p[2].UID++ },
+		"changed-pid":           func(p *[3]recoveryPhase) { p[1].PID++ },
+		"wrong-phase":           func(p *[3]recoveryPhase) { p[2].Phase = "baseline" },
+		"incomplete":            func(p *[3]recoveryPhase) { p[1].Done = false },
+		"unordered":             func(p *[3]recoveryPhase) { p[2].Elapsed = p[0].Elapsed },
+		"baseline-dns":          func(p *[3]recoveryPhase) { p[0].DNS = nil },
+		"recovery-dns":          func(p *[3]recoveryPhase) { p[2].DNS = []string{"172.17.0.9"} },
+		"cached-name":           func(p *[3]recoveryPhase) { p[2].Host = p[0].Host },
+		"stale-nonce":           func(p *[3]recoveryPhase) { p[2].URL = before },
+		"wrong-resolver":        func(p *[3]recoveryPhase) { p[2].Resolvers = []string{"172.17.0.2"} },
+		"wrong-interface":       func(p *[3]recoveryPhase) { p[2].Interface = "eth1" },
+		"no-baseline-callback":  func(p *[3]recoveryPhase) { p[0].Events = nil },
+		"no-loss-callback":      func(p *[3]recoveryPhase) { p[1].Events = []string{"available:100"} },
+		"no-recovery-callback":  func(p *[3]recoveryPhase) { p[2].Events = p[1].Events },
+		"callback-order":        func(p *[3]recoveryPhase) { p[2].Events = []string{"lost:100", "available:100", "available:101"} },
+		"loss-network-remains":  func(p *[3]recoveryPhase) { p[1].Active = "100" },
+		"loss-resolver-remains": func(p *[3]recoveryPhase) { p[1].Resolvers = []string{"172.17.0.1"} },
+		"loss-http-succeeds":    func(p *[3]recoveryPhase) { p[1].Literal = "pass" },
+		"loss-error-missing":    func(p *[3]recoveryPhase) { p[1].LiteralError = "" },
+		"same-network-id":       func(p *[3]recoveryPhase) { p[2].Active = "100" },
+		"recovery-http":         func(p *[3]recoveryPhase) { p[2].Literal = "failed" },
+		"recovery-named-http":   func(p *[3]recoveryPhase) { p[2].Named = "failed" },
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			var p [3]recoveryPhase
+			raw, _ := json.Marshal(good)
+			if err := json.Unmarshal(raw, &p); err != nil {
+				t.Fatal(err)
+			}
+			change(&p)
+			if check(p, "172.17.0.1") {
+				t.Fatal("accepted invalid recovery")
+			}
+		})
+	}
+	for i := range good {
+		good[i].Resolvers = nil
+		if i != 1 {
+			good[i].Resolvers = []string{"127.0.0.11"}
+		}
+	}
+	if !check(good, "127.0.0.11") {
+		t.Fatal("rejected Docker embedded resolver")
+	}
+	if check(good, "172.17.0.1") {
+		t.Fatal("accepted mismatched resolver")
+	}
+	if _, pass := assessRecovery(good, net.ParseIP("172.17.0.1"), net.ParseIP("127.0.0.11"), before, before, 10054, 900); pass {
+		t.Fatal("accepted reused nonce URL")
 	}
 }
 

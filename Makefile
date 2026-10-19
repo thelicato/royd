@@ -100,6 +100,10 @@ runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
 .PHONY: runtime-network-dns-test runtime-network-dns-contract-test
+.PHONY: runtime-network-recovery-test
+runtime-network-recovery-test:
+	ROYD_NETWORK_DNS_RECOVERY=1 ./runtime/scripts/network-dns-test.sh
+
 runtime-network-dns-test:
 	./runtime/scripts/network-dns-test.sh
 
