@@ -165,6 +165,10 @@ if [ "$sdk" = 35 ]; then
     exit 1
   fi
   metered_ifindex=$(docker exec "$container" cat /sys/class/net/eth0/ifindex)
+  if ! docker logs "$container" 2>&1 | grep -Fq 'ROYD: enforcing OCI Data Saver through cgroup BPF'; then
+    printf 'error: Android 15 OCI Data Saver backend is missing in %s\n' "$container" >&2
+    exit 1
+  fi
   case "$metered_ifindex" in
     ''|*[!0-9]*|0|1)
       printf 'error: Android 15 OCI metered interface index is invalid in %s\n' "$container" >&2

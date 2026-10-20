@@ -109,6 +109,7 @@ SRC
 
     /**
 SRC
+      cat "$ROYD_SYNC_FREEZER_FIXTURES/datasaver-ConnectivityService.java" >>packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
     fi
     if [ ! -f frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp ]; then
       cat > frameworks/native/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp <<'SRC'
@@ -3238,6 +3239,9 @@ test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
 grep -Fq 'mContext, mBpfNetMaps::setRoydMeteredInterface);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
 grep -Fq 'initRoydMeteredDeny();' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'public boolean usesRoydMeteredPolicy()' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'Cannot change OCI Data Saver policy' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
+grep -Fq 'bool* enabled = bpf_data_saver_enabled_map_lookup_elem(&key);' "$tmp/src/packages/modules/Connectivity/bpf/progs/netd.c"
 grep -Fq 'if (royd_metered_uid_blocked(skb->ifindex, uid)) return DROP;' "$tmp/src/packages/modules/Connectivity/bpf/progs/netd.c"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"

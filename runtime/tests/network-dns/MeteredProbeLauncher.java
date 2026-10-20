@@ -13,6 +13,7 @@ public final class MeteredProbeLauncher extends Activity {
         Intent service = new Intent(this, MeteredProbeService.class);
         service.putExtras(getIntent());
         startService(service);
-        finishAndRemoveTask();
+        // The explicit foreground control keeps a real activity resumed, not a foreground service.
+        if (!getIntent().getBooleanExtra("foreground", false)) finishAndRemoveTask();
     }
 }

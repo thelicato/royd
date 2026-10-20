@@ -257,3 +257,122 @@ func TestMeteredAssessment(t *testing.T) {
 		t.Fatal("shared UID is not an independent metered control")
 	}
 }
+
+func TestDataSaverAssessment(t *testing.T) {
+	const target = "http://172.17.0.1:43210/page/nonce"
+	fixture := func(t *testing.T, resolver string) string {
+		dir := t.TempDir()
+		write := func(name, text string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, name := range []string{"metered-initial-policy.log", "metered-restored-policy.log"} {
+			write(name, "Restrict background blacklisted UIDs: none\n")
+		}
+		for _, name := range []string{"saver-initial-allowlist.log", "saver-restored-allowlist.log"} {
+			write(name, "Restrict background whitelisted UIDs: none\n")
+		}
+		write("saver-restored.log", "Restrict background status: disabled\n")
+		server := ""
+		for _, phase := range []string{"baseline", "blocked", "exempt", "revoked", "foreground", "restored"} {
+			enabled := phase != "baseline" && phase != "restored"
+			state, allow := "disabled", "none"
+			if enabled {
+				state, allow = "enabled", "10097"
+			}
+			if phase == "exempt" {
+				allow = "10096 10097"
+			}
+			write("saver-state-"+phase+".log", "Restrict background status: "+state+"\n")
+			write("saver-allowlist-"+phase+".log", "Restrict background whitelisted UIDs: "+allow+"\n")
+			write("metered-policy-"+phase+".log", "Restrict background blacklisted UIDs: none\n")
+			for i, role := range []string{"target", "control"} {
+				name := phase + "-" + role
+				uid, pid := 10096+i, 3000+i
+				foreground := phase == "foreground" && role == "target"
+				r := observation{UID: uid, PID: pid, URL: target + "?metered=" + name, Done: true, Direct: "pass", HTTP: "pass", NamedHTTP: "pass", Active: "100", Networks: 1, Callback: 1, DNS: []string{"172.17.0.1"}, Interface: "eth0", ConfiguredDNS: []string{resolver}, Metered: true, Importance: 300, ImportanceAfter: 300}
+				row, uidState := "BACKGROUND_MATCH", "10 (SERVICE)"
+				if foreground {
+					r.Importance = 100
+					r.ImportanceAfter = 100
+					uidState = "2 (TOP)"
+					row = ""
+				}
+				if enabled && (role == "control" || phase == "exempt" || foreground) {
+					row += " HAPPY_BOX_MATCH"
+				}
+				blocked := (phase == "blocked" || phase == "revoked") && role == "target"
+				if blocked {
+					r.Direct = "java.io.IOException: sendto failed: EPERM"
+					r.HTTP = "java.net.SocketTimeoutException: connect"
+					r.NamedHTTP = "java.net.UnknownHostException: denied"
+					r.Active = "null"
+				} else {
+					line := fmt.Sprintf("request method=%q path=%q query=%q remote=%q\n", "GET", "/page/nonce", "metered="+name, "172.17.0.2:40000")
+					server += line + line
+				}
+				raw, _ := json.Marshal(r)
+				write(name+".json", string(raw))
+				write(name+".identity", fmt.Sprintf("%d %d\n", pid, uid))
+				write("ready-"+name+".json", fmt.Sprintf(`{"uid":%d,"pid":%d}`, uid, pid))
+				write("uid-state-"+name+".log", uidState+"\n")
+				write("uid-state-after-"+name+".log", uidState+"\n")
+				write("netpolicy-"+name+".log", "Metered ifaces: {eth0}\n")
+				write("bpf-"+name+".log", fmt.Sprintf("current ownerMatch configuration: 4096 BACKGROUND_MATCH\nsUidOwnerMap:\n%d %s\nsUidPermissionMap:\nsDataSaverEnabledMap: %t\n", uid, row, enabled))
+			}
+		}
+		write("http-server.log", server)
+		return dir
+	}
+	check := func(dir, resolver string) bool {
+		_, pass := assessMeteredPolicyDirectory(dir, net.ParseIP("172.17.0.1"), net.ParseIP(resolver), target, true)
+		return pass
+	}
+	for _, resolver := range []string{"172.17.0.1", "127.0.0.11"} {
+		if !check(fixture(t, resolver), resolver) {
+			t.Fatal("rejected complete Data Saver evidence")
+		}
+	}
+	for _, tc := range []struct{ name, file, from, to string }{
+		{"rollback", "saver-state-blocked.log", "enabled", "disabled"},
+		{"map-not-enabled", "bpf-blocked-target.log", "sDataSaverEnabledMap: true", "sDataSaverEnabledMap: false"},
+		{"udp-leak", "blocked-target.json", "java.io.IOException: sendto failed: EPERM", "pass"},
+		{"revoked-leak", "revoked-target.json", "java.io.IOException: sendto failed: EPERM", "pass"},
+		{"http-leak", "blocked-target.json", "java.net.SocketTimeoutException: connect", "pass"},
+		{"server-saw-denied", "http-server.log", "metered=baseline-target", "metered=blocked-target"},
+		{"lost-control", "blocked-control.json", `"literal_http":"pass"`, `"literal_http":"failed"`},
+		{"lost-user-exemption", "exempt-target.json", `"literal_http":"pass"`, `"literal_http":"failed"`},
+		{"lost-foreground", "foreground-target.json", `"literal_http":"pass"`, `"literal_http":"failed"`},
+		{"fake-foreground", "foreground-target.json", `"importance":100`, `"importance":300`},
+		{"stale-foreground", "uid-state-after-foreground-target.log", "2 (TOP)", "10 (SERVICE)"},
+		{"penalty-confound", "bpf-blocked-target.log", "BACKGROUND_MATCH\nsUidPermissionMap:", "BACKGROUND_MATCH PENALTY_BOX_USER_MATCH\nsUidPermissionMap:"},
+		{"unexempted-control", "bpf-blocked-control.log", " HAPPY_BOX_MATCH", ""},
+		{"not-revoked", "saver-allowlist-revoked.log", "10097", "10096 10097"},
+		{"unrestored-mode", "saver-restored.log", "disabled", "enabled"},
+		{"unrestored-exemption", "saver-restored-allowlist.log", "none", "10097"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := fixture(t, "172.17.0.1")
+			path := filepath.Join(dir, tc.file)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed := strings.Replace(string(raw), tc.from, tc.to, 1)
+			if changed == string(raw) {
+				t.Fatal("mutation missed target")
+			}
+			if err := os.WriteFile(path, []byte(changed), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if check(dir, "172.17.0.1") {
+				t.Fatal("accepted invalid Data Saver evidence")
+			}
+		})
+	}
+	if check(t.TempDir(), "172.17.0.1") {
+		t.Fatal("accepted missing evidence")
+	}
+}

@@ -118,6 +118,10 @@ runtime-network-datasaver-activation-test:
 runtime-network-metered-test:
 	ROYD_NETWORK_DNS_METERED=1 ./runtime/scripts/network-dns-test.sh
 
+.PHONY: runtime-network-datasaver-test
+runtime-network-datasaver-test:
+	ROYD_NETWORK_DNS_SAVER_POLICY=1 ./runtime/scripts/network-dns-test.sh
+
 runtime-network-dns-test:
 	./runtime/scripts/network-dns-test.sh
 
@@ -526,6 +530,10 @@ android15-netpolicy-wifi-container-test:
 
 android15-metered-deny-container-test:
 	./android/scripts/android15-metered-deny-container-test.sh
+
+.PHONY: android15-data-saver-container-test
+android15-data-saver-container-test:
+	./android/scripts/android15-data-saver-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

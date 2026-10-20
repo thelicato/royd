@@ -95,6 +95,10 @@ func assessPolicyDirectory(dir string, expected, resolver net.IP, target string)
 
 // Metered policy needs actual packet denial, independently of logical network visibility.
 func assessMeteredDirectory(dir string, expected, resolver net.IP, target string) (string, bool) {
+	return assessMeteredPolicyDirectory(dir, expected, resolver, target, false)
+}
+
+func assessMeteredPolicyDirectory(dir string, expected, resolver net.IP, target string, saver bool) (string, bool) {
 	read := func(name string) string { raw, _ := os.ReadFile(filepath.Join(dir, name)); return string(raw) }
 	u, err := url.Parse(target)
 	if u == nil {
@@ -106,7 +110,11 @@ func assessMeteredDirectory(dir string, expected, resolver net.IP, target string
 	uids := make(map[string]int)
 	server := read("http-server.log")
 	var originalConfig string
-	for _, phase := range []string{"baseline", "blocked", "restored"} {
+	phases := []string{"baseline", "blocked", "restored"}
+	if saver {
+		phases = []string{"baseline", "blocked", "exempt", "revoked", "foreground", "restored"}
+	}
+	for _, phase := range phases {
 		for _, role := range []string{"target", "control"} {
 			name := phase + "-" + role
 			var result observation
@@ -118,11 +126,16 @@ func assessMeteredDirectory(dir string, expected, resolver net.IP, target string
 				uids[role] = uid
 			}
 			identity = identity && parsed && uid == uids[role]
-			background = background && parsed && result.Importance == 300 && result.ImportanceAfter == 300 && strings.TrimSpace(read("uid-state-"+name+".log")) == "10 (SERVICE)" && strings.TrimSpace(read("uid-state-after-"+name+".log")) == "10 (SERVICE)"
-			blocked := phase == "blocked" && role == "target"
+			foreground := saver && phase == "foreground" && role == "target"
+			importance, uidState := 300, "10 (SERVICE)"
+			if foreground {
+				importance, uidState = 100, "2 (TOP)"
+			}
+			background = background && parsed && result.Importance == importance && result.ImportanceAfter == importance && strings.TrimSpace(read("uid-state-"+name+".log")) == uidState && strings.TrimSpace(read("uid-state-after-"+name+".log")) == uidState
+			blocked := (phase == "blocked" || (saver && phase == "revoked")) && role == "target"
 			requests := strings.Count(server, fmt.Sprintf("request method=%q path=%q query=%q ", "GET", u.Path, "metered="+name))
 			if blocked {
-				denial = parsed && strings.HasPrefix(result.Direct, "java.io.IOException: sendto failed: EPERM") && strings.HasPrefix(result.HTTP, "java.net.") && result.Active == "null"
+				denial = denial && parsed && strings.HasPrefix(result.Direct, "java.io.IOException: sendto failed: EPERM") && strings.HasPrefix(result.HTTP, "java.net.") && result.Active == "null"
 				serverOK = serverOK && requests == 0
 			} else {
 				_, pass := assessResolver([]byte(read(name+".json")), expected, resolver)
@@ -136,7 +149,7 @@ func assessMeteredDirectory(dir string, expected, resolver net.IP, target string
 			}
 			policy := strings.Fields(strings.TrimPrefix(strings.TrimSpace(read("metered-policy-"+phase+".log")), "Restrict background blacklisted UIDs: "))
 			want := "none"
-			if phase == "blocked" {
+			if phase == "blocked" && !saver {
 				want = strconv.Itoa(uids["target"])
 			}
 			maps = maps && len(policy) == 1 && policy[0] == want
@@ -151,7 +164,8 @@ func assessMeteredDirectory(dir string, expected, resolver net.IP, target string
 				ownerRows = strings.SplitN(owners[1], "sUidPermissionMap:", 2)[0]
 			}
 			row := regexp.MustCompile(`(?m)^\s*` + strconv.Itoa(uid) + `\s+([^\n]+)$`).FindStringSubmatch(ownerRows)
-			maps = maps && len(config) == 2 && originalConfig != "" && config[1] == originalConfig && len(row) == 2 && strings.Contains(bpf, "sUidOwnerMap:") && !strings.Contains(bpf, "Failed to") && regexp.MustCompile(`(?m)^\s*sDataSaverEnabledMap: false$`).MatchString(bpf) && strings.Contains(read("netpolicy-"+name+".log"), "Metered ifaces: {eth0}")
+			enabled := saver && phase != "baseline" && phase != "restored"
+			maps = maps && len(config) == 2 && originalConfig != "" && config[1] == originalConfig && len(row) == 2 && strings.Contains(bpf, "sUidOwnerMap:") && !strings.Contains(bpf, "Failed to") && regexp.MustCompile(`(?m)^\s*sDataSaverEnabledMap: `+strconv.FormatBool(enabled)+`$`).MatchString(bpf) && strings.Contains(read("netpolicy-"+name+".log"), "Metered ifaces: {eth0}")
 			if len(config) == 2 {
 				bits, err := strconv.ParseUint(config[1], 10, 32)
 				maps = maps && err == nil && bits&4096 != 0
@@ -166,17 +180,45 @@ func assessMeteredDirectory(dir string, expected, resolver net.IP, target string
 					}
 					return false
 				}
-				maps = maps && has("BACKGROUND_MATCH") && !has("HAPPY_BOX_MATCH") && !has("PENALTY_BOX_ADMIN_MATCH") && has("PENALTY_BOX_USER_MATCH") == blocked
+				happy := enabled && (role == "control" || phase == "exempt" || foreground)
+				maps = maps && (foreground || has("BACKGROUND_MATCH")) && has("HAPPY_BOX_MATCH") == happy && !has("PENALTY_BOX_ADMIN_MATCH") && has("PENALTY_BOX_USER_MATCH") == (blocked && !saver)
+			}
+			if saver {
+				state := "disabled"
+				if enabled {
+					state = "enabled"
+				}
+				maps = maps && strings.TrimSpace(read("saver-state-"+phase+".log")) == "Restrict background status: "+state
+				allowRaw := strings.TrimSpace(read("saver-allowlist-" + phase + ".log"))
+				maps = maps && strings.HasPrefix(allowRaw, "Restrict background whitelisted UIDs: ")
+				allow := strings.Fields(strings.TrimPrefix(allowRaw, "Restrict background whitelisted UIDs: "))
+				contains := func(id int) bool {
+					for _, value := range allow {
+						if value == strconv.Itoa(id) {
+							return true
+						}
+					}
+					return false
+				}
+				// Only a real user exemption or the observed foreground state may bypass Data Saver.
+				maps = maps && contains(uids["target"]) == (phase == "exempt") && contains(uids["control"]) == enabled
 			}
 		}
 	}
 	identity = identity && uids["target"] != uids["control"]
 	restoration = restoration && strings.TrimSpace(read("metered-initial-policy.log")) == "Restrict background blacklisted UIDs: none" && strings.TrimSpace(read("metered-restored-policy.log")) == "Restrict background blacklisted UIDs: none"
+	if saver {
+		restoration = restoration && read("saver-initial-allowlist.log") != "" && read("saver-initial-allowlist.log") == read("saver-restored-allowlist.log") && strings.TrimSpace(read("saver-restored.log")) == "Restrict background status: disabled"
+	}
 	status := func(ok bool) string {
 		if ok {
 			return "pass"
 		}
 		return "fail"
 	}
-	return fmt.Sprintf("METERED_OBSERVATION_STATUS=%s\nMETERED_BACKGROUND_STATUS=%s\nMETERED_DENIAL_STATUS=%s\nMETERED_CONTROL_STATUS=%s\nMETERED_RESTORATION_STATUS=%s\nMETERED_MAP_STATUS=%s\nMETERED_SERVER_STATUS=%s\n", status(identity), status(background), status(denial), status(control), status(restoration), status(maps), status(serverOK)), identity && background && denial && control && restoration && maps && serverOK
+	prefix, process := "METERED", "BACKGROUND"
+	if saver {
+		prefix, process = "SAVER", "PROCESS_STATE"
+	}
+	return fmt.Sprintf("%[1]s_OBSERVATION_STATUS=%[3]s\n%[1]s_%[2]s_STATUS=%[4]s\n%[1]s_DENIAL_STATUS=%[5]s\n%[1]s_CONTROL_STATUS=%[6]s\n%[1]s_RESTORATION_STATUS=%[7]s\n%[1]s_MAP_STATUS=%[8]s\n%[1]s_SERVER_STATUS=%[9]s\n", prefix, process, status(identity), status(background), status(denial), status(control), status(restoration), status(maps), status(serverOK)), identity && background && denial && control && restoration && maps && serverOK
 }

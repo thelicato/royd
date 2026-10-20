@@ -11,12 +11,14 @@ recovery=${ROYD_NETWORK_DNS_RECOVERY:-0}
 policy=${ROYD_NETWORK_DNS_POLICY:-0}
 datasaver=${ROYD_NETWORK_DNS_DATASAVER:-0}
 metered=${ROYD_NETWORK_DNS_METERED:-0}
+saver_policy=${ROYD_NETWORK_DNS_SAVER_POLICY:-0}
 format=2
 scope=app-system-dns-framework
 if [ "$recovery" = 1 ]; then format=3; scope=continuous-app-ipv4-network-recovery; fi
 if [ "$policy" = 1 ]; then format=4; scope=ordinary-uid-oem-deny3-policy; fi
 if [ "$datasaver" = 1 ]; then format=5; scope=datasaver-activation-and-restored-app-controls; fi
 if [ "$metered" = 1 ]; then format=6; scope=ordinary-background-uid-metered-policy; fi
+if [ "$saver_policy" = 1 ]; then format=7; scope=data-saver-background-exemption-and-foreground-packets; fi
 network=bridge
 network_owned=0
 build_runner=${ROYD_NETWORK_DNS_BUILD_RUNNER:-$script_dir/network-dns-build.sh}
@@ -39,6 +41,7 @@ case "$recovery" in 0|1) ;; *) exit 2 ;; esac
 case "$policy:$recovery" in 0:0|0:1|1:0) ;; *) exit 2 ;; esac
 case "$datasaver:$policy:$recovery" in 0:0:0|0:0:1|0:1:0|1:0:0) ;; *) exit 2 ;; esac
 case "$metered:$datasaver:$policy:$recovery" in 0:0:0:0|0:0:0:1|0:0:1:0|0:1:0:0|1:0:0:0) ;; *) exit 2 ;; esac
+case "$saver_policy:$metered:$datasaver:$policy:$recovery" in 0:0:0:0:0|0:0:0:0:1|0:0:0:1:0|0:0:1:0:0|0:1:0:0:0|1:0:0:0:0) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -80,6 +83,7 @@ MANIFEST
     sed -n '/^APP_PROCESS_STATUS=\(pass\|fail\)$/p; /^BASELINE_NETWORK_STATUS=\(pass\|fail\)$/p; /^NETWORK_LOSS_STATUS=\(pass\|fail\)$/p; /^NETWORK_RECOVERY_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
     sed -n '/^POLICY_\(OBSERVATION\|DENIAL\|CONTROL\|RESTORATION\|MAP\|SERVER\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
     sed -n '/^METERED_\(OBSERVATION\|BACKGROUND\|DENIAL\|CONTROL\|RESTORATION\|MAP\|SERVER\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
+    sed -n '/^SAVER_\(OBSERVATION\|PROCESS_STATE\|DENIAL\|CONTROL\|RESTORATION\|MAP\|SERVER\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
   fi
   if [ -f "$output/datasaver-assessment.env" ]; then
     sed -n '/^DATASAVER_\(COMMAND\|ACTIVATION\|RESTORATION\|APP_CONTROL\)_STATUS=\(pass\|fail\|not-tested\)$/p; /^DATASAVER_ENFORCEMENT_STATUS=not-tested$/p' "$output/datasaver-assessment.env" >>"$output/manifest.env"
@@ -102,7 +106,7 @@ fi
 gateway=$(docker network inspect "$network" --format '{{(index .IPAM.Config 0).Gateway}}')
 expected_resolver=$gateway
 if [ "$network_mode" = private ]; then expected_resolver=127.0.0.11; fi
-ROYD_NETWORK_DNS_POLICY=$((policy | metered)) "$build_runner" "$output/build" >"$output/build.log" 2>&1
+ROYD_NETWORK_DNS_POLICY=$((policy | metered | saver_policy)) "$build_runner" "$output/build" >"$output/build.log" 2>&1
 "$output/build/dns-fixture" -listen "$gateway:53" >"$output/dns-server.log" 2>&1 &
 dns_pid=$!
 "$output/build/http-fixture" -listen "$gateway:0" >"$output/http-server.log" 2>&1 &
@@ -160,7 +164,7 @@ docker cp "$output/build/probe.apk" "$container:/data/local/tmp/royd-network-pro
 docker exec "$container" timeout 30 pm install -t /data/local/tmp/royd-network-probe.apk >"$output/install.log" 2>&1
 grep -Fxq Success "$output/install.log"
 workload=fail
-if [ "$metered" = 1 ]; then
+if [ "$metered" = 1 ] || [ "$saver_policy" = 1 ]; then
   "$script_dir/network-metered-workload.sh" "$container" "$output" "$gateway" "$url" >"$output/workload.log" 2>&1 && workload=pass
 elif [ "$policy" = 1 ]; then
   "$script_dir/network-policy-workload.sh" "$container" "$output" "$gateway" "$url" >"$output/workload.log" 2>&1 && workload=pass
@@ -204,7 +208,7 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
-if [ "$recovery" = 1 ] || [ "$policy" = 1 ] || [ "$datasaver" = 1 ] || [ "$metered" = 1 ]; then
+if [ "$recovery" = 1 ] || [ "$policy" = 1 ] || [ "$datasaver" = 1 ] || [ "$metered" = 1 ] || [ "$saver_policy" = 1 ]; then
   docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container" >"$output/runtime-after.txt"
   cmp -s "$output/runtime-before.txt" "$output/runtime-after.txt" || runtime=fail
 fi
@@ -212,7 +216,10 @@ snapshot_oci >"$output/oci-after.log"
 ownership=pass
 cmp -s "$output/oci-before.log" "$output/oci-after.log" || ownership=fail
 assessment=0
-if [ "$metered" = 1 ]; then
+if [ "$saver_policy" = 1 ]; then
+  "$output/build/dns-fixture" -saver "$output" -expected "$gateway" -resolver "$expected_resolver" -url "$url" \
+    >"$output/assessment.env" 2>"$output/assessment.log" || assessment=$?
+elif [ "$metered" = 1 ]; then
   "$output/build/dns-fixture" -metered "$output" -expected "$gateway" -resolver "$expected_resolver" -url "$url" \
     >"$output/assessment.env" 2>"$output/assessment.log" || assessment=$?
 elif [ "$policy" = 1 ]; then

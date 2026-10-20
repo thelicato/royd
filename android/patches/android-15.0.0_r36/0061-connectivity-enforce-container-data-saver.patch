@@ -1,0 +1,76 @@
+diff --git a/packages/modules/Connectivity/bpf/progs/netd.c b/packages/modules/Connectivity/bpf/progs/netd.c
+--- a/packages/modules/Connectivity/bpf/progs/netd.c
++++ b/packages/modules/Connectivity/bpf/progs/netd.c
+@@ -404,7 +404,13 @@
+     UidOwnerValue* entry = bpf_uid_owner_map_lookup_elem(&uid);
+     // Match the stock penalty-before-happy-box ordering. Foreground/exemption
+     // decisions remain owned by NetworkPolicyManager's existing UID-rule updates.
+-    return entry && (entry->rule & (PENALTY_BOX_USER_MATCH | PENALTY_BOX_ADMIN_MATCH));
++    uint32_t rule = entry ? entry->rule : 0;
++    if (rule & (PENALTY_BOX_USER_MATCH | PENALTY_BOX_ADMIN_MATCH)) return true;
++    if (rule & HAPPY_BOX_MATCH) return false;
++    // The existing Data Saver map now controls packets, not just API visibility.
++    // This is reached only when the private gated interface selector is active.
++    bool* enabled = bpf_data_saver_enabled_map_lookup_elem(&key);
++    return enabled && *enabled;
+ }
+
+ static __always_inline inline int bpf_owner_match(struct __sk_buff* skb, uint32_t uid,
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+@@ -139,8 +139,14 @@
+             throw new IllegalStateException("Cannot initialise OCI metered deny enforcement", error);
+         }
+         Log.i(TAG, "ROYD: enforcing OCI metered UID deny policy through cgroup BPF");
++        Log.i(TAG, "ROYD: enforcing OCI Data Saver through cgroup BPF");
+     }
+
++    /** Initialisation is gated and fatal on failure; zero is never a ready selector. */
++    public boolean usesRoydMeteredPolicy() {
++        return sRoydMeteredIfaceMap != null;
++    }
++
+     /** Called only by the gated read-only OCI publisher before offering its metered network. */
+     public void setRoydMeteredInterface(int ifindex) {
+         if (sRoydMeteredIfaceMap == null || ifindex < 0 || ifindex == 1) {
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+@@ -14240,13 +14240,18 @@
+     public void setDataSaverEnabled(final boolean enable) {
+         enforceNetworkStackOrSettingsPermission();
+-        try {
+-            final boolean ret = mNetd.bandwidthEnableDataSaver(enable);
+-            if (!ret) {
+-                throw new IllegalStateException("Error when changing iptables: " + enable);
++        final boolean roydMeteredPolicy = mBpfNetMaps.usesRoydMeteredPolicy();
++        // This private backend enforces packets on the conservatively metered OCI interface.
++        // Do not make its activation depend on the independent legacy iptables backend.
++        if (!roydMeteredPolicy) {
++            try {
++                final boolean ret = mNetd.bandwidthEnableDataSaver(enable);
++                if (!ret) {
++                    throw new IllegalStateException("Error when changing iptables: " + enable);
++                }
++            } catch (RemoteException e) {
++                // Lack of permission or binder errors.
++                throw new IllegalStateException(e);
+             }
+-        } catch (RemoteException e) {
+-            // Lack of permission or binder errors.
+-            throw new IllegalStateException(e);
+         }
+
+         synchronized (mBlockedStatusTrackingUids) {
+@@ -14255,6 +14260,10 @@
+             try {
+                 mBpfNetMaps.setDataSaverEnabled(enable);
+             } catch (ServiceSpecificException | UnsupportedOperationException e) {
++                if (roydMeteredPolicy) {
++                    // NMS must not acknowledge a state which the packet map failed to install.
++                    throw new IllegalStateException("Cannot change OCI Data Saver policy", e);
++                }
+                 Log.e(TAG, "Failed to set data saver " + enable + " : " + e);
+                 return;
+             }

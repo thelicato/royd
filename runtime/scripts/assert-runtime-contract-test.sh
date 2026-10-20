@@ -344,6 +344,9 @@ case "$1" in
     if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
     if [ "${MOCK_NO_METERED_BACKEND:-0}" != 1 ]; then
       printf '%s\n' 'BpfNetMaps: ROYD: enforcing OCI metered UID deny policy through cgroup BPF'
+      if [ "${MOCK_MISSING_SAVER:-0}" != 1 ]; then
+        printf '%s\n' 'BpfNetMaps: ROYD: enforcing OCI Data Saver through cgroup BPF'
+      fi
     fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1232,6 +1235,11 @@ if MOCK_NO_METERED_BACKEND=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-r
   exit 1
 fi
 grep -Fq 'Android 15 OCI metered deny backend is missing' "$tmp/error"
+if MOCK_MISSING_SAVER=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent Data Saver backend' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 OCI Data Saver backend is missing' "$tmp/error"
 for value in 0 1 missing; do
   if MOCK_METERED_IFINDEX=$value MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
     printf '%s\n' 'error: runtime assertion accepted an invalid metered interface' >&2

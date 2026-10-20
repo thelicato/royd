@@ -159,11 +159,20 @@ func main() {
 	recovery := flag.String("recovery", "", "directory containing baseline/lost/recovered JSON observations")
 	policy := flag.String("policy", "", "directory containing two-UID policy observations and fixture evidence")
 	metered := flag.String("metered", "", "directory containing background metered-policy observations")
+	saver := flag.String("saver", "", "directory containing Data Saver packet/exemption observations")
 	before := flag.String("url", "", "expected baseline nonce URL")
 	after := flag.String("recovery-url", "", "expected fresh recovery nonce URL")
 	uid := flag.Int("uid", 0, "observed ordinary app UID")
 	pid := flag.Int("pid", 0, "observed unchanged app PID")
 	flag.Parse()
+	if *saver != "" {
+		text, pass := assessMeteredPolicyDirectory(*saver, net.ParseIP(*expected), net.ParseIP(*resolver), *before, true)
+		fmt.Print(text)
+		if !pass {
+			os.Exit(1)
+		}
+		return
+	}
 	if *metered != "" {
 		text, pass := assessMeteredDirectory(*metered, net.ParseIP(*expected), net.ParseIP(*resolver), *before)
 		fmt.Print(text)

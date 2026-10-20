@@ -77,9 +77,12 @@ public final class MeteredProbeService extends Service {
                 result.put("uid", Process.myUid()); result.put("pid", Process.myPid());
                 result.put("url", url.toString());
                 publish("ready", result);
+                int expectedImportance = intent.getBooleanExtra("foreground", false)
+                        ? ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                        : ActivityManager.RunningAppProcessInfo.IMPORTANCE_SERVICE;
                 long deadline = SystemClock.elapsedRealtime() + 45000;
                 while (!new File(getFilesDir(), "probe.trigger").exists()
-                        || importance() != ActivityManager.RunningAppProcessInfo.IMPORTANCE_SERVICE) {
+                        || importance() != expectedImportance) {
                     if (SystemClock.elapsedRealtime() >= deadline) throw new java.io.IOException("background probe gate timed out");
                     Thread.sleep(100);
                 }
