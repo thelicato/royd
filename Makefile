@@ -108,6 +108,10 @@ runtime-network-recovery-test:
 runtime-network-policy-test:
 	ROYD_NETWORK_DNS_POLICY=1 ./runtime/scripts/network-dns-test.sh
 
+.PHONY: runtime-network-datasaver-activation-test
+runtime-network-datasaver-activation-test:
+	ROYD_NETWORK_DNS_DATASAVER=1 ./runtime/scripts/network-dns-test.sh
+
 runtime-network-dns-test:
 	./runtime/scripts/network-dns-test.sh
 

@@ -9,10 +9,12 @@ volume=$container-data
 network_mode=${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}
 recovery=${ROYD_NETWORK_DNS_RECOVERY:-0}
 policy=${ROYD_NETWORK_DNS_POLICY:-0}
+datasaver=${ROYD_NETWORK_DNS_DATASAVER:-0}
 format=2
 scope=app-system-dns-framework
 if [ "$recovery" = 1 ]; then format=3; scope=continuous-app-ipv4-network-recovery; fi
 if [ "$policy" = 1 ]; then format=4; scope=ordinary-uid-oem-deny3-policy; fi
+if [ "$datasaver" = 1 ]; then format=5; scope=datasaver-activation-and-restored-app-controls; fi
 network=bridge
 network_owned=0
 build_runner=${ROYD_NETWORK_DNS_BUILD_RUNNER:-$script_dir/network-dns-build.sh}
@@ -33,6 +35,7 @@ case "$request_timeout" in ''|*[!0-9]*|0) exit 2 ;; esac
 case "$network_mode" in bridge|private) ;; *) exit 2 ;; esac
 case "$recovery" in 0|1) ;; *) exit 2 ;; esac
 case "$policy:$recovery" in 0:0|0:1|1:0) ;; *) exit 2 ;; esac
+case "$datasaver:$policy:$recovery" in 0:0:0|0:0:1|0:1:0|1:0:0) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -73,6 +76,9 @@ MANIFEST
     sed -n '/^OBSERVATION_STATUS=\(pass\|fail\)$/p; /^TRANSPORT_CONTROL_STATUS=\(pass\|fail\)$/p; /^SYSTEM_DNS_STATUS=\(pass\|fail\)$/p; /^FRAMEWORK_NETWORK_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
     sed -n '/^APP_PROCESS_STATUS=\(pass\|fail\)$/p; /^BASELINE_NETWORK_STATUS=\(pass\|fail\)$/p; /^NETWORK_LOSS_STATUS=\(pass\|fail\)$/p; /^NETWORK_RECOVERY_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
     sed -n '/^POLICY_\(OBSERVATION\|DENIAL\|CONTROL\|RESTORATION\|MAP\|SERVER\)_STATUS=\(pass\|fail\)$/p' "$output/assessment.env" >>"$output/manifest.env"
+  fi
+  if [ -f "$output/datasaver-assessment.env" ]; then
+    sed -n '/^DATASAVER_\(COMMAND\|ACTIVATION\|RESTORATION\|APP_CONTROL\)_STATUS=\(pass\|fail\|not-tested\)$/p; /^DATASAVER_ENFORCEMENT_STATUS=not-tested$/p' "$output/datasaver-assessment.env" >>"$output/manifest.env"
   fi
   if [ "$container_owned" = 1 ]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
   if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >/dev/null 2>&1 || true; fi
@@ -178,6 +184,10 @@ docker exec "$container" logcat -d -s RoydNetworkProbe:I '*:S' >"$output/applica
 docker exec "$container" screencap -p >"$output/application.png"
 workload=pass
 fi
+if [ "$datasaver" = 1 ]; then
+  workload=fail
+  "$script_dir/network-datasaver-workload.sh" "$container" "$output" "$gateway" "$expected_resolver" "$url" "$app_uid" >"$output/datasaver-workload.log" 2>&1 && workload=pass
+fi
 for service in connectivity dnsresolver netd; do
   docker exec "$container" timeout 15 dumpsys "$service" >"$output/$service.log" 2>&1
 done
@@ -188,7 +198,7 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
-if [ "$recovery" = 1 ] || [ "$policy" = 1 ]; then
+if [ "$recovery" = 1 ] || [ "$policy" = 1 ] || [ "$datasaver" = 1 ]; then
   docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container" >"$output/runtime-after.txt"
   cmp -s "$output/runtime-before.txt" "$output/runtime-after.txt" || runtime=fail
 fi

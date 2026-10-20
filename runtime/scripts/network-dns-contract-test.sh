@@ -60,7 +60,8 @@ case "$1" in
           case "$MOCK_CASE" in recovery_unowned|policy_unowned) exit 1 ;; esac
           printf 'network-dns %s\n' "$4" ;;
         *RestartCount*)
-          if [ "$MOCK_CASE" = recovery_restarted ] && [ -e "$MOCK_STATE/down" ]; then
+          if { [ "$MOCK_CASE" = recovery_restarted ] && [ -e "$MOCK_STATE/down" ]; } \
+              || { [ "$MOCK_CASE" = datasaver_restarted ] && [ -e "$MOCK_STATE/datasaver-requested" ]; }; then
             printf '%064d start true 1 false\n' 1
           else printf '%064d start true 0 false\n' 1; fi ;;
         *) printf '%s\n' '172.17.0.2/16 172.17.0.1' ;;
@@ -83,6 +84,19 @@ case "$1" in
   cp) exit 0 ;;
   exec)
     case "$*" in
+      *'cmd netpolicy set restrict-background true')
+        : >"$MOCK_STATE/datasaver-requested"
+        [ "$MOCK_CASE" != datasaver_command_failure ]
+        case "$MOCK_CASE" in datasaver_rollback|datasaver_embedded_rollback) ;; *) : >"$MOCK_STATE/datasaver" ;; esac
+        if [ "$MOCK_CASE" = datasaver_interrupt ]; then kill -TERM "$PPID"; fi ;;
+      *'cmd netpolicy set restrict-background false')
+        : >"$MOCK_STATE/datasaver-restored"
+        [ "$MOCK_CASE" != datasaver_restore_failure ]
+        rm -f "$MOCK_STATE/datasaver" ;;
+      *'cmd netpolicy get restrict-background')
+        if [ -e "$MOCK_STATE/datasaver" ] || [ "$MOCK_CASE" = datasaver_preexisting ]; then
+          printf '%s\n' 'Restrict background status: enabled'
+        else printf '%s\n' 'Restrict background status: disabled'; fi ;;
       *'cmd connectivity set-package-networking-enabled false '*)
         : >"$MOCK_STATE/policy-changed"
         [ "$MOCK_CASE" != policy_set_failure ]
@@ -105,6 +119,10 @@ case "$1" in
         printf '%s:%s\n' "$package" "$rule" ;;
       *'dumpsys connectivity trafficcontroller')
         printf '%s\n' 'TrafficController' 'sUidOwnerMap:'
+        if [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ]; then
+          if { [ -e "$MOCK_STATE/datasaver" ] && [ "$MOCK_CASE" != datasaver_map_mismatch ]; } || [ "$MOCK_CASE" = datasaver_preexisting_map ]; then printf '%s\n' 'sDataSaverEnabledMap: true'
+          else printf '%s\n' 'sDataSaverEnabledMap: false'; fi
+        fi
         if [ -e "$MOCK_STATE/chain" ]; then printf '%s\n' 'current ownerMatch configuration: 2048 OEM_DENY_3_MATCH' '10054 OEM_DENY_3_MATCH'
         else printf '%s\n' 'current ownerMatch configuration: 0'; fi ;;
       *'am force-stop --user 0 '*) rm -f "$MOCK_STATE/running" ;;
@@ -115,20 +133,23 @@ case "$1" in
       *'pidof system_server')
         if [ "$MOCK_CASE" = server_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' 501; else printf '%s\n' 500; fi ;;
       *'pidof org.royd.networkprobe')
-        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
+        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ] || [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ]; then
           [ "$MOCK_CASE" != policy_pid_error ] || exit 125
+          if [ "$MOCK_CASE" = datasaver_pid_error ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then exit 125; fi
           [ -e "$MOCK_STATE/running" ] || exit 1
         fi
         if [ "$MOCK_CASE" = recovery_process_changed ] && [ -e "$MOCK_STATE/down" ]; then printf '%s\n' 901; else printf '%s\n' 900; fi ;;
       *'pidof org.royd.networkcontrol') [ -e "$MOCK_STATE/running" ]; printf '%s\n' 901 ;;
       *'stat -c %u /proc/901') printf '%s\n' 10055 ;;
       *'stat -c %u /proc/900')
+        if [ "$MOCK_CASE" = datasaver_uid_changed ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then printf '%s\n' 10056; exit 0; fi
         if [ "$MOCK_CASE" = root_app ]; then printf '%s\n' 0; else printf '%s\n' 10054; fi ;;
       *'stat -c %u /data/user/'*)
         case "$*" in *org.royd.networkcontrol*) printf '%s\n' 10055; exit 0 ;; esac
         if [ "$MOCK_CASE" = wrong_owner ]; then printf '%s\n' 10055; else printf '%s\n' 10054; fi ;;
       *'pm install -t '*) [ "$MOCK_CASE" != install_failure ]; printf '%s\n' Success ;;
       *'am start -W '*)
+        if [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ]; then : >"$MOCK_STATE/running"; fi
         if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
           : >"$MOCK_STATE/running"
           printf '%s\n' "$*" | sed -n 's/.*policy=//p' >"$MOCK_STATE/phase"
@@ -154,6 +175,15 @@ case "$1" in
             printf '%s\n' '{"phase":"recovered","uid":10054,"pid":900,"elapsed_ms":3000,"done":true,"active_network":"101","active_interface":"eth0","configured_dns":["'"$resolver"'"],"url":"http://172.17.0.1:43211/page/recovery-nonce","host":"recovery.royd-probe.test","system_dns_addresses":["172.17.0.1"],"literal_http":"pass","hostname_http":"'"$named"'","events":["available:100","lost:100","available:101"]}' ;;
         esac ;;
       *'cat /data/user/'*)
+        if [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then
+          printf '%s\n' 'request method="GET" path="/page/nonce" query="datasaver=restored" remote="test"' 'request method="GET" path="/page/nonce" query="datasaver=restored" remote="test"' >>"$ROYD_NETWORK_DNS_OUTPUT_DIR/http-server.log"
+          named=pass
+          [ "$MOCK_CASE" != datasaver_app_failure ] || named=failed
+          resolver=172.17.0.1
+          [ "${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}" != private ] || resolver=127.0.0.11
+          printf '%s\n' '{"uid":10054,"pid":900,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"'"$named"'","active_interface":"eth0","configured_dns":["'"$resolver"'"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
+          exit 0
+        fi
         if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ]; then
           name=$(cat "$MOCK_STATE/phase")
           uid=10054; pid=900
@@ -176,7 +206,7 @@ case "$1" in
         fi
         if [ "$MOCK_CASE" = dns_gap ] || [ "$MOCK_CASE" = both_gaps ]; then
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","active_network":"null","network_count":0,"default_callback_available":0,"system_dns_addresses":[]}'
-        elif [ "$MOCK_CASE" = embedded ]; then
+        elif [ "$MOCK_CASE" = embedded ] || [ "${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}" = private ]; then
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["127.0.0.11"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
         else
           printf '%s\n' '{"uid":10054,"done":true,"direct_udp_dns":"pass","literal_http":"pass","hostname_http":"pass","active_interface":"eth0","configured_dns":["172.17.0.1"],"active_network":"100","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"]}'
@@ -212,6 +242,7 @@ printf '%s\n' "$count" >"$MOCK_STATE/asserts"
 [ "$MOCK_CASE:$count" != both_gaps:2 ]
 [ "$MOCK_CASE:$count" != recovery_post_failure:2 ]
 [ "$MOCK_CASE:$count" != policy_post_failure:2 ]
+[ "$MOCK_CASE:$count" != datasaver_post_failure:2 ]
 MOCK
 cat >"$tmp/bin/pass" <<'MOCK'
 #!/bin/sh
@@ -225,7 +256,10 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     recovery_no_loss recovery_down_failure recovery_restore_failure recovery_unowned recovery_interrupt \
     recovery_post_failure recovery_ownership_changed \
     policy_good policy_embedded policy_leak policy_control_failure policy_set_failure policy_restore_failure \
-    policy_interrupt policy_pid_error policy_preexisting policy_post_failure policy_unowned; do
+    policy_interrupt policy_pid_error policy_preexisting policy_post_failure policy_unowned \
+    datasaver_good datasaver_embedded datasaver_rollback datasaver_embedded_rollback datasaver_command_failure \
+    datasaver_map_mismatch datasaver_restore_failure datasaver_interrupt datasaver_preexisting \
+    datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map; do
   state="$tmp/$mode"
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
@@ -234,19 +268,30 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
   network_mode=bridge
   recovery=0
   policy=0
+  datasaver=0
   case "$mode" in recovery_*) recovery=1 ;; esac
   case "$mode" in policy_*) policy=1 ;; esac
+  case "$mode" in datasaver_*) datasaver=1 ;; esac
   if [ "$mode" = embedded ] || [ "$mode" = recovery_embedded ] || [ "$mode" = policy_embedded ]; then network_mode=private; fi
+  case "$mode" in datasaver_embedded*) network_mode=private ;; esac
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_TOOLS="$tmp/bin" MOCK_ASSESS="$tmp/assess" \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_REQUEST_TIMEOUT=2 \
     ROYD_NETWORK_DNS_NETWORK_MODE="$network_mode" \
     ROYD_NETWORK_DNS_RECOVERY="$recovery" \
     ROYD_NETWORK_DNS_POLICY="$policy" \
+    ROYD_NETWORK_DNS_DATASAVER="$datasaver" \
     ROYD_NETWORK_DNS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_DNS_WAIT_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_HEALTH_RUNNER="$tmp/bin/pass" ROYD_NETWORK_DNS_SECURITY_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
-  if [ "$mode" = policy_good ] || [ "$mode" = policy_embedded ]; then
+  if [ "$mode" = datasaver_good ] || [ "$mode" = datasaver_embedded ]; then
+    [ "$status" -eq 0 ]
+    grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=5 "$state/evidence/manifest.env"
+    for field in COMMAND ACTIVATION RESTORATION APP_CONTROL; do grep -Fxq "DATASAVER_${field}_STATUS=pass" "$state/evidence/manifest.env"; done
+    grep -Fxq DATASAVER_ENFORCEMENT_STATUS=not-tested "$state/evidence/manifest.env"
+    [ "$(cat "$state/asserts")" = 2 ]
+  elif [ "$mode" = policy_good ] || [ "$mode" = policy_embedded ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=4 "$state/evidence/manifest.env"
@@ -327,6 +372,26 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
           *) grep -Fxq WORKLOAD_STATUS=fail "$state/evidence/manifest.env" ;;
         esac ;;
     esac
+    case "$mode" in
+      datasaver_*)
+        [ "$(cat "$state/asserts")" = 2 ]
+        grep -Fxq 'full container log' "$state/evidence/container/container.log"
+        grep -Fxq DATASAVER_ENFORCEMENT_STATUS=not-tested "$state/evidence/manifest.env"
+        case "$mode" in
+          datasaver_preexisting|datasaver_preexisting_map) [ ! -e "$state/datasaver-requested" ] ;;
+          *) [ -e "$state/datasaver-restored" ] ;;
+        esac
+        case "$mode" in
+          datasaver_rollback|datasaver_embedded_rollback|datasaver_map_mismatch)
+            grep -Fxq DATASAVER_COMMAND_STATUS=pass "$state/evidence/manifest.env"
+            grep -Fxq DATASAVER_ACTIVATION_STATUS=fail "$state/evidence/manifest.env"
+            grep -Fxq DATASAVER_RESTORATION_STATUS=pass "$state/evidence/manifest.env"
+            grep -Fxq DATASAVER_APP_CONTROL_STATUS=pass "$state/evidence/manifest.env" ;;
+          datasaver_app_failure) grep -Fxq DATASAVER_APP_CONTROL_STATUS=fail "$state/evidence/manifest.env" ;;
+          datasaver_command_failure) grep -Fxq DATASAVER_COMMAND_STATUS=fail "$state/evidence/manifest.env" ;;
+          datasaver_post_failure|datasaver_restarted) grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
+        esac ;;
+    esac
   fi
   [ ! -e "$state/container" ]
   [ ! -e "$state/volume" ]
@@ -338,6 +403,19 @@ for settings in 2:0 1:1 bogus:0; do
   status=0
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_POLICY="${settings%:*}" ROYD_NETWORK_DNS_RECOVERY="${settings#*:}" \
+    "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
+  [ "$status" -eq 2 ]
+  [ ! -e "$state/evidence" ]
+  [ ! -e "$state/docker.log" ]
+done
+for settings in 2:0:0 1:1:0 1:0:1; do
+  state="$tmp/invalid-datasaver-$settings"
+  mkdir "$state"
+  status=0
+  rest=${settings#*:}
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
+    ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_DATASAVER="${settings%%:*}" \
+    ROYD_NETWORK_DNS_POLICY="${rest%:*}" ROYD_NETWORK_DNS_RECOVERY="${rest#*:}" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
   [ "$status" -eq 2 ]
   [ ! -e "$state/evidence" ]
