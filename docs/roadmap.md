@@ -2,6 +2,16 @@
 
 This roadmap is ordered by implementation dependency rather than release date. A milestone is complete only when its behaviour can be reproduced from this repository.
 
+## Android 15 baseline completion
+
+The active acceptance scope is Android 15 x86_64, standard graphical image, software rendering, the low-memory resource profile and privileged rootful Docker. It is not completion of every item below or a claim of general device compatibility.
+
+1. **Implementation:** enforce real metered/background network denial and resolve global Data Saver's legacy-table dependency. Logical network hiding and successful commands are insufficient. Investigate recurring diagnostics by their affected invariant; do not require an artificially empty error log or suppress unrelated failures.
+2. **Rebuilt-image qualification:** freeze an exact image, then pass fresh boot, app lifecycle, IPv4 DNS/HTTP/native and WebView HTTPS, packet-policy controls, persistence/restarts and timed scrcpy checks. Retain failures and exercise a defined application/network/restart soak. Earlier-image results do not automatically qualify a changed image.
+3. **Build and host acceptance:** record a clean baseline build and reviewed reference-host/kernel evidence, including Binder isolation, OCI configuration and documented limitations. Incremental local builds and lightweight CI alone do not establish support.
+
+Boot, graphical apps, IPv4 application networking, streaming and restart/persistence already have local evidence. Metered packet-policy leakage and failed Data Saver activation were reproduced before patch `0060`; fixing one does not establish the other. Broader application compatibility and final frozen-image acceptance remain open. Other Android versions, arm64, host GPU, alternative profiles and privilege reduction are deferred from this baseline. A preliminary external comparison may proceed after the narrower gate in [benchmarking](benchmarking.md#competitive-performance-comparison), with independent comparator safety and functional qualification; it need not await the wider version matrix.
+
 ## 1. Independent AOSP baseline
 
 - [x] Pin Android 8.0 through 17 AOSP releases, with Android 15 as the default baseline.
@@ -91,6 +101,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add a Data Saver activation gate distinguishing shell-command success from actual policy/BPF state, with retained failures, restoration and independent ordinary-app controls.
 - [x] Scope the netpolicy shell's optional Wi-Fi lookup to available hardware in the explicit container environment, retaining policy commands and strict post-boot diagnostics.
 - [x] Add a two-UID ordinary-background-service metered-denial diagnostic with packet-level controls, independent policy/map evidence and verified restoration.
+- [x] Implement gated cgroup-BPF user/admin metered denial for the OCI publisher's actual interface, retaining stock UID decisions and independent legacy-policy failures.
 - [ ] Investigate and qualify metered/Data Saver and other legacy-table-dependent network policies; a passing cgroup-BPF UID-denial test does not close these capabilities.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.

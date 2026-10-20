@@ -19,8 +19,16 @@ case "$1" in
     shift
     if [ "$1" = timeout ] && [ "$2" = 120 ] && [ "$3" = sh ]; then shift 2; fi
     if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = connectivity ]; then
+      if [ "${5:-}" = trafficcontroller ]; then
+        printf 'sRoydMeteredIfaceMap: %s\n' "${MOCK_METERED_MAP:-42}"
+        exit 0
+      fi
       if [ "${MOCK_NO_DEFAULT_NETWORK:-0}" = 1 ]; then printf '%s\n' 'Active default network: none';
       else printf '%s\n' 'Active default network: 100'; fi
+      exit 0
+    fi
+    if [ "$1" = cat ] && [ "$2" = /sys/class/net/eth0/ifindex ]; then
+      printf '%s\n' "${MOCK_METERED_IFINDEX:-42}"
       exit 0
     fi
     if [ "$1" = pidof ] && [ "$2" = audioserver ]; then
@@ -334,6 +342,9 @@ case "$1" in
     fi
     if [ "${MOCK_WRITABLE_HOST_CLOCK:-0}" != 1 ]; then printf '%s\n' 'SystemClockTime: ROYD: host wall clock is read-only'; fi
     if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
+    if [ "${MOCK_NO_METERED_BACKEND:-0}" != 1 ]; then
+      printf '%s\n' 'BpfNetMaps: ROYD: enforcing OCI metered UID deny policy through cgroup BPF'
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
     fi
@@ -1216,6 +1227,25 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_OCI_NETWORK=1 \
   exit 1
 fi
 grep -Fq 'Android 15 OCI network publication is missing' "$tmp/error"
+if MOCK_NO_METERED_BACKEND=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent metered deny backend' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 OCI metered deny backend is missing' "$tmp/error"
+for value in 0 1 missing; do
+  if MOCK_METERED_IFINDEX=$value MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an invalid metered interface' >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 OCI metered interface index is invalid' "$tmp/error"
+done
+for value in 0 43 4294967295 missing; do
+  if MOCK_METERED_MAP=$value MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a mismatched metered interface map' >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 OCI metered deny interface does not match eth0' "$tmp/error"
+done
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_DEFAULT_NETWORK=1 \
     "$script_dir/assert-runtime.sh" no-default-network >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted absent framework default network' >&2

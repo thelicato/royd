@@ -207,6 +207,8 @@ When a design decision changes, update this file if the decision is important en
 
 The following decisions are currently agreed:
 
+- Android 15 metered deny backend: only with `ROYD_CONTAINER=1` and a SELinux enforcement-interface probe reporting `ENOENT`, initialise a private cgroup-BPF interface selector and enforce the existing user/admin penalty-box bits before generic protocol exceptions. Keep system-UID and loopback exemptions and penalty-before-happy-box precedence. The read-only OCI publisher selects the actual metered `eth0` ifindex before offering its network; unknown configuration conservatively protects every non-loopback interface. Map initialisation failure is fatal to ConnectivityService, update failure withdraws the offer, and runtime checks require the bounded backend marker and actual selector match. Preserve stock handling outside the gate, UID-rule decisions, other firewall rules, OCI provisioning and visible legacy failures. This scoped backend does not activate global Data Saver or implement interface byte quotas, VPNs, unmetered networks or multi-interface policy. Rebuilt-image packet-denial/control/restoration evidence is required, not merely a map or marker.
+
 - Project name: `royd`.
 - Primary runtime: OCI container image.
 - Primary user experience: plain Docker or Docker Compose.

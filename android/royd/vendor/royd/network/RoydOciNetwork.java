@@ -28,6 +28,7 @@ import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 /** Publishes OCI configuration, never provisions or takes ownership of the Linux interface. */
 @RequiresApi(35)
@@ -39,6 +40,7 @@ public final class RoydOciNetwork {
     private final Handler mHandler;
     private final NetworkProvider mProvider;
     private final NetworkCapabilities mCapabilities;
+    private final IntConsumer mMeteredInterface;
     private final NetworkScore mScore = new NetworkScore.Builder().build();
     private final Set<NetworkRequest> mRequests = new HashSet<>();
     private NetworkProvider.NetworkOfferCallback mOffer;
@@ -46,7 +48,7 @@ public final class RoydOciNetwork {
     private NetworkAgent mAgent;
     private String mError;
 
-    public static synchronized void startIfContainer(Context context) {
+    public static synchronized void startIfContainer(Context context, IntConsumer meteredInterface) {
         if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return;
         try {
             Os.stat("/sys/fs/selinux/enforce");
@@ -57,11 +59,12 @@ public final class RoydOciNetwork {
                 return;
             }
         }
-        if (sInstance == null) sInstance = new RoydOciNetwork(context);
+        if (sInstance == null) sInstance = new RoydOciNetwork(context, meteredInterface);
     }
 
-    private RoydOciNetwork(Context context) {
+    private RoydOciNetwork(Context context, IntConsumer meteredInterface) {
         mContext = context;
+        mMeteredInterface = meteredInterface;
         HandlerThread thread = new HandlerThread(TAG);
         thread.start();
         mHandler = new Handler(thread.getLooper());
@@ -110,6 +113,9 @@ public final class RoydOciNetwork {
     private void poll() {
         try {
             LinkProperties next = snapshot();
+            NetworkInterface iface = NetworkInterface.getByName(RoydOciNetworkConfig.INTERFACE);
+            if (iface == null || iface.getIndex() <= 1) throw new IOException("eth0 has no ifindex");
+            updateMeteredInterface(iface.getIndex());
             if (mOffer == null) {
                 mLink = next;
                 offer();
@@ -121,12 +127,26 @@ public final class RoydOciNetwork {
             mError = null;
         } catch (IOException error) {
             withdraw();
+            try {
+                // Unknown configuration stays metered rather than allowing a deny-policy escape.
+                updateMeteredInterface(0);
+            } catch (IOException policyError) {
+                Log.e(TAG, "ROYD: cannot protect unknown OCI metered interface", policyError);
+            }
             if (!error.toString().equals(mError)) {
                 Log.w(TAG, "ROYD: OCI network unavailable: " + error);
                 mError = error.toString();
             }
         } finally {
             mHandler.postDelayed(this::poll, POLL_MS);
+        }
+    }
+
+    private void updateMeteredInterface(int ifindex) throws IOException {
+        try {
+            mMeteredInterface.accept(ifindex);
+        } catch (IllegalStateException error) {
+            throw new IOException("Cannot enforce OCI metered UID deny policy", error);
         }
     }
 

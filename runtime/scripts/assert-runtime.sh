@@ -159,6 +159,22 @@ if [ "$sdk" = 35 ]; then
     exit 1
   fi
   connectivity=$(docker exec "$container" timeout 15 dumpsys connectivity)
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: enforcing OCI metered UID deny policy through cgroup BPF'; then
+    printf 'error: Android 15 OCI metered deny backend is missing in %s\n' "$container" >&2
+    exit 1
+  fi
+  metered_ifindex=$(docker exec "$container" cat /sys/class/net/eth0/ifindex)
+  case "$metered_ifindex" in
+    ''|*[!0-9]*|0|1)
+      printf 'error: Android 15 OCI metered interface index is invalid in %s\n' "$container" >&2
+      exit 1 ;;
+  esac
+  metered_map=$(docker exec "$container" timeout 15 dumpsys connectivity trafficcontroller)
+  if ! printf '%s\n' "$metered_map" | grep -Eq "^[[:space:]]*sRoydMeteredIfaceMap: $metered_ifindex$"; then
+    printf 'error: Android 15 OCI metered deny interface does not match eth0 in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "$connectivity" | grep -Eq '^Active default network: [0-9]+$'; then
     printf 'error: Android 15 has no framework default network in %s\n' "$container" >&2
     exit 1

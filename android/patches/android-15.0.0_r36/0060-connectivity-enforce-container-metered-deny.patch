@@ -1,0 +1,129 @@
+diff --git a/packages/modules/Connectivity/bpf/progs/netd.c b/packages/modules/Connectivity/bpf/progs/netd.c
+--- a/packages/modules/Connectivity/bpf/progs/netd.c
++++ b/packages/modules/Connectivity/bpf/progs/netd.c
+@@ -103,6 +103,10 @@
+ DEFINE_BPF_MAP_RO_NETD(data_saver_enabled_map, ARRAY, uint32_t, bool,
+                        DATA_SAVER_ENABLED_MAP_SIZE)
+
++// Zero preserves stock handling. UINT32_MAX protects all non-loopback interfaces
++// while the gated OCI publisher has not established its current eth0 ifindex.
++DEFINE_BPF_MAP_NO_NETD(royd_metered_iface_map, ARRAY, uint32_t, uint32_t, 1)
++
+ // iptables xt_bpf programs need to be usable by both netd and netutils_wrappers
+ // selinux contexts, because even non-xt_bpf iptables mutations are implemented as
+ // a full table dump, followed by an update in userspace, and then a reload into the kernel,
+@@ -394,7 +398,23 @@
++static __always_inline inline bool royd_metered_uid_blocked(uint32_t ifindex, uint32_t uid) {
++    uint32_t key = 0;
++    uint32_t* metered = bpf_royd_metered_iface_map_lookup_elem(&key);
++    if (!metered || !*metered || ifindex == 1) return false;
++    if (*metered != UINT32_MAX && *metered != ifindex) return false;
++
++    UidOwnerValue* entry = bpf_uid_owner_map_lookup_elem(&uid);
++    // Match the stock penalty-before-happy-box ordering. Foreground/exemption
++    // decisions remain owned by NetworkPolicyManager's existing UID-rule updates.
++    return entry && (entry->rule & (PENALTY_BOX_USER_MATCH | PENALTY_BOX_ADMIN_MATCH));
++}
++
+ static __always_inline inline int bpf_owner_match(struct __sk_buff* skb, uint32_t uid,
+                                                   const struct egress_bool egress,
+                                                   const struct kver_uint kver) {
+     if (is_system_uid(uid)) return PASS;
++
++    // Metered deny must precede the generic protocol exceptions, just as the
++    // independent legacy penalty-box chain does. System UIDs remain exempt.
++    if (royd_metered_uid_blocked(skb->ifindex, uid)) return DROP;
+
+     if (skip_owner_match(skb, egress, kver)) return PASS;
+
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+@@ -114,8 +114,58 @@
+     private final INetd mNetd;
+     private final Dependencies mDeps;
++    private static IBpfMap<S32, U32> sRoydMeteredIfaceMap;
++    private static final S32 ROYD_METERED_KEY = new S32(0);
++    private static final long ROYD_METERED_UNKNOWN = 0xffffffffL;
++
++    private static boolean useRoydMeteredDeny() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (ErrnoException error) {
++            return error.errno == ENOENT;
++        }
++    }
++
++    private static void initRoydMeteredDeny() {
++        if (!useRoydMeteredDeny()) return;
++        try {
++            sRoydMeteredIfaceMap = SingleWriterBpfMap.getSingleton(
++                    "/sys/fs/bpf/netd_shared/map_netd_royd_metered_iface_map",
++                    S32.class, U32.class);
++            // Do not leave a raw-packet escape while the OCI network is unknown.
++            sRoydMeteredIfaceMap.updateEntry(ROYD_METERED_KEY, new U32(ROYD_METERED_UNKNOWN));
++        } catch (ErrnoException error) {
++            throw new IllegalStateException("Cannot initialise OCI metered deny enforcement", error);
++        }
++        Log.i(TAG, "ROYD: enforcing OCI metered UID deny policy through cgroup BPF");
++    }
++
++    /** Called only by the gated read-only OCI publisher before offering its metered network. */
++    public void setRoydMeteredInterface(int ifindex) {
++        if (sRoydMeteredIfaceMap == null || ifindex < 0 || ifindex == 1) {
++            throw new IllegalStateException("Invalid OCI metered deny interface: " + ifindex);
++        }
++        try {
++            sRoydMeteredIfaceMap.updateEntry(ROYD_METERED_KEY,
++                    new U32(ifindex == 0 ? ROYD_METERED_UNKNOWN : ifindex));
++        } catch (ErrnoException error) {
++            throw new IllegalStateException("Cannot update OCI metered deny interface", error);
++        }
++    }
++
++    private void dumpRoydMeteredDeny(IndentingPrintWriter pw) {
++        if (sRoydMeteredIfaceMap == null) return;
++        try {
++            pw.println("sRoydMeteredIfaceMap: "
++                    + sRoydMeteredIfaceMap.getValue(ROYD_METERED_KEY).val);
++        } catch (ErrnoException error) {
++            pw.println("Failed to read OCI metered deny interface: " + error);
++        }
++    }
+     // Use legacy netd for releases before T.
+     private static boolean sInitialized = false;
+
+     // Lock for sConfigurationMap entry for UID_RULES_CONFIGURATION_KEY.
+     // This entry is not accessed by others.
+     // BpfNetMaps acquires this lock while sequence of read, modify, and write.
+@@ -317,7 +367,8 @@
+     private static synchronized void ensureInitialized(final Context context) {
+         if (sInitialized) return;
+         initBpfMaps();
++        initRoydMeteredDeny();
+         sInitialized = true;
+     }
+
+     /**
+@@ -1041,5 +1092,6 @@
+     private void dumpDataSaverConfig(final IndentingPrintWriter pw) {
++        dumpRoydMeteredDeny(pw);
+         try {
+             final short config = sDataSaverEnabledMap.getValue(DATA_SAVER_ENABLED_KEY).val;
+             // Any non-zero value converted from short to boolean is true by convention.
+             pw.println("sDataSaverEnabledMap: " + (config != DATA_SAVER_DISABLED));
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java
+@@ -4132,7 +4132,8 @@
+         startMonitoringDone.block();
+         if (SdkLevel.isAtLeastV()) {
+-            com.android.server.connectivity.RoydOciNetwork.startIfContainer(mContext);
++            com.android.server.connectivity.RoydOciNetwork.startIfContainer(
++                    mContext, mBpfNetMaps::setRoydMeteredInterface);
+         }
+     }
+
+     /**

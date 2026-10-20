@@ -46,6 +46,10 @@ case "$1" in
       frameworks/native/services/gpuservice/gpuwork
     mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
     mkdir -p packages/modules/NetworkStack/src/com/android/server/connectivity
+    mkdir -p packages/modules/Connectivity/bpf/progs
+    if [ ! -f packages/modules/Connectivity/bpf/progs/netd.c ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/metered-netd.c" packages/modules/Connectivity/bpf/progs/netd.c
+    fi
     mkdir -p frameworks/base/services/core/java/com/android/server/net
     if [ ! -f frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java ]; then
       cat >frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java <<'SRC'
@@ -1188,6 +1192,29 @@ public class BpfNetMaps {
     private final Dependencies mDeps;
     // Use legacy netd for releases before T.
     private static boolean sInitialized = false;
+
+    // Lock for sConfigurationMap entry for UID_RULES_CONFIGURATION_KEY.
+    // This entry is not accessed by others.
+    // BpfNetMaps acquires this lock while sequence of read, modify, and write.
+
+    private static synchronized void ensureInitialized(final Context context) {
+        if (sInitialized) return;
+        initBpfMaps();
+        sInitialized = true;
+    }
+
+    /**
+     * Fixture for the pinned Data Saver dump, not a replacement implementation.
+     */
+    private void dumpDataSaverConfig(final IndentingPrintWriter pw) {
+        try {
+            final short config = sDataSaverEnabledMap.getValue(DATA_SAVER_ENABLED_KEY).val;
+            // Any non-zero value converted from short to boolean is true by convention.
+            pw.println("sDataSaverEnabledMap: " + (config != DATA_SAVER_DISABLED));
+        } catch (ErrnoException e) {
+            pw.println("Failed to read data saver configuration: " + e);
+        }
+    }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     public void swapActiveStatsMap() {
@@ -3209,7 +3236,9 @@ grep -Fq 'throw new SecurityException("Can' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/pm/PackageInstallerSession.java"
 test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
-grep -Fq 'RoydOciNetwork.startIfContainer(mContext);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
+grep -Fq 'mContext, mBpfNetMaps::setRoydMeteredInterface);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
+grep -Fq 'initRoydMeteredDeny();' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'if (royd_metered_uid_blocked(skb->ifindex, uid)) return DROP;' "$tmp/src/packages/modules/Connectivity/bpf/progs/netd.c"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"

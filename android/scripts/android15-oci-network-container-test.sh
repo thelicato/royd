@@ -22,12 +22,15 @@ if [ -n "${ROYD_TEST_JAVA_HOME:-}" ]; then
     "$root/android/tests/fixtures/android15/RoydOciNetworkConfigTest.java"
   "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" com.android.server.connectivity.RoydOciNetworkConfigTest
   cat >"$tmp/RoydOciNetwork.java" <<'JAVA'
+import java.util.function.IntConsumer;
+import java.io.IOException;
 class RoydOciNetwork {
     static RoydOciNetwork sInstance;
     static String marker;
     static int errno, probes, starts, warnings;
     static class Context {}
-    RoydOciNetwork(Context context) { starts++; }
+    IntConsumer mMeteredInterface;
+    RoydOciNetwork(Context context, IntConsumer policy) { starts++; mMeteredInterface=policy; }
     static void check(boolean condition) { if (!condition) throw new AssertionError(); }
     static class System {
         static String getenv(String name) { check(name.equals("ROYD_CONTAINER")); return marker; }
@@ -49,18 +52,29 @@ JAVA
   awk '/^    public static synchronized void startIfContainer/ { copy=1 }
     copy { print }
     copy && /^    }/ { exit }' "$source_dir/RoydOciNetwork.java" >>"$tmp/RoydOciNetwork.java"
+  awk '/^    private void updateMeteredInterface/ { copy=1 }
+    copy { print }
+    copy && /^    }/ { exit }' "$source_dir/RoydOciNetwork.java" >>"$tmp/RoydOciNetwork.java"
   cat >>"$tmp/RoydOciNetwork.java" <<'JAVA'
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         for (String value : new String[] {null, "", "0", "true", "1"}) {
             for (int code : new int[] {0, 2, 5, 13}) {
                 marker=value; errno=code; probes=starts=warnings=0; sInstance=null;
-                startIfContainer(new Context()); startIfContainer(new Context());
+                startIfContainer(new Context(), index -> {});
+                startIfContainer(new Context(), index -> {});
                 check(probes == ("1".equals(value) ? 2 : 0));
                 check(starts == ("1".equals(value) && code == 2 ? 1 : 0));
                 check(warnings == ("1".equals(value) && code != 0 && code != 2 ? 2 : 0));
             }
         }
-        java.lang.System.out.println("OCI network ENOENT gate and singleton contracts passed");
+        int[] seen = {-1};
+        RoydOciNetwork publisher = new RoydOciNetwork(new Context(), index -> seen[0]=index);
+        publisher.updateMeteredInterface(42); check(seen[0] == 42);
+        publisher.updateMeteredInterface(0); check(seen[0] == 0);
+        publisher.mMeteredInterface = index -> { throw new IllegalStateException("map failure"); };
+        try { publisher.updateMeteredInterface(42); throw new AssertionError(); }
+        catch (IOException expected) { check(expected.getCause() instanceof IllegalStateException); }
+        java.lang.System.out.println("OCI network gate, singleton and metered callback contracts passed");
     }
 }
 JAVA
