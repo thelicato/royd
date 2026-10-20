@@ -1,0 +1,46 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java
+@@ -21,4 +21,5 @@
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.NetworkPolicyManager;
+ import android.net.wifi.WifiConfiguration;
+@@ -35,10 +36,26 @@
+
+     private final NetworkPolicyManagerService mInterface;
+     private final WifiManager mWifiManager;
++    private final boolean mSkipRoydWifi;
++
++    private static boolean shouldSkipRoydWifi(Context context) {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))
++                || context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)) {
++            return false;
++        }
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
+
+     NetworkPolicyManagerShellCommand(Context context, NetworkPolicyManagerService service) {
+         mInterface = service;
+-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
++        mSkipRoydWifi = shouldSkipRoydWifi(context);
++        mWifiManager = mSkipRoydWifi ? null
++                : (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+     }
+
+     @Override
+@@ -344,4 +361,8 @@
+     private int listWifiNetworks() {
+         final PrintWriter pw = getOutPrintWriter();
++        if (mSkipRoydWifi) {
++            // No Wi-Fi hardware means there are no configured Wi-Fi networks to list.
++            return 0;
++        }
+         final String arg = getNextArg();
+         final int match;

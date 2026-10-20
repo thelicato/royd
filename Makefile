@@ -44,6 +44,7 @@
 .PHONY: android15-oci-network-container-test
 .PHONY: android15-host-clock-container-test
 .PHONY: android15-networkmonitor-wifi-container-test
+.PHONY: android15-netpolicy-wifi-container-test
 .PHONY: android15-mnt-tmpfs-container-test
 .PHONY: android15-audio-activity-manager-container-test
 .PHONY: android15-audio-sensor-privacy-container-test
@@ -514,6 +515,9 @@ android15-host-clock-container-test:
 
 android15-networkmonitor-wifi-container-test:
 	./android/scripts/android15-networkmonitor-wifi-container-test.sh
+
+android15-netpolicy-wifi-container-test:
+	./android/scripts/android15-netpolicy-wifi-container-test.sh
 
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh

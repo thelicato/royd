@@ -89,6 +89,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 - [x] Add reproducible continuous-process ordinary-UID IPv4 link-loss/recovery validation with ordered default-network callbacks, fresh-name DNS and nonce HTTP, retained phase evidence and independent runtime/OCI checks.
 - [x] Add two-UID stock OEM deny-chain qualification with BPF-map evidence, real UDP/HTTP denial, unaffected control traffic and restoration.
 - [x] Add a Data Saver activation gate distinguishing shell-command success from actual policy/BPF state, with retained failures, restoration and independent ordinary-app controls.
+- [x] Scope the netpolicy shell's optional Wi-Fi lookup to available hardware in the explicit container environment, retaining policy commands and strict post-boot diagnostics.
 - [ ] Investigate and qualify metered/Data Saver and other legacy-table-dependent network policies; a passing cgroup-BPF UID-denial test does not close these capabilities.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.

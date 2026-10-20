@@ -46,6 +46,31 @@ case "$1" in
       frameworks/native/services/gpuservice/gpuwork
     mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
     mkdir -p packages/modules/NetworkStack/src/com/android/server/connectivity
+    mkdir -p frameworks/base/services/core/java/com/android/server/net
+    if [ ! -f frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java ]; then
+      cat >frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java <<'SRC'
+
+import android.content.Context;
+import android.net.NetworkPolicyManager;
+import android.net.wifi.WifiConfiguration;
+
+    private final NetworkPolicyManagerService mInterface;
+    private final WifiManager mWifiManager;
+
+    NetworkPolicyManagerShellCommand(Context context, NetworkPolicyManagerService service) {
+        mInterface = service;
+        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+    }
+
+    @Override
+    public int onCommand(String cmd) { return 0; }
+
+    private int listWifiNetworks() {
+        final PrintWriter pw = getOutPrintWriter();
+        final String arg = getNextArg();
+        final int match;
+SRC
+    fi
     if [ ! -f packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/NetworkMonitor.java" packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
     fi
@@ -3186,6 +3211,8 @@ test -f "$tmp/repo/.work/android-manifest-15.lock.xml"
 grep -Fq '":royd-oci-network-sources",' "$tmp/src/packages/modules/Connectivity/service/Android.bp"
 grep -Fq 'RoydOciNetwork.startIfContainer(mContext);' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/ConnectivityService.java"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java"
+grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
+grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"
 
