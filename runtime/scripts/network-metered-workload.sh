@@ -1,0 +1,103 @@
+#!/bin/sh
+# Real background-service traffic, not a foreground Data Saver activation check.
+set -eu
+container=${1:?container required}
+output=${2:?evidence required}
+gateway=${3:?DNS fixture required}
+url=${4:?nonce URL required}
+[ "$(docker inspect --format '{{index .Config.Labels "org.royd.test"}} {{index .Config.Labels "org.royd.test.owner"}}' "$container")" = "network-dns $container" ]
+target_uid=
+restore_needed=0
+denylist() { docker exec "$container" timeout 15 cmd netpolicy list restrict-background-blacklist; }
+restore() {
+  restore_status=0
+  docker exec "$container" timeout 15 cmd netpolicy remove restrict-background-blacklist "$target_uid" || restore_status=1
+  denylist >"$output/metered-restored-policy.log" || restore_status=1
+  grep -Fxq 'Restrict background blacklisted UIDs: none' "$output/metered-restored-policy.log" || restore_status=1
+  return "$restore_status"
+}
+finish() {
+  status=$?
+  trap - EXIT HUP INT TERM
+  if [ "$restore_needed" = 1 ]; then restore >"$output/metered-cleanup.log" 2>&1 || status=1; fi
+  exit "$status"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+snapshot() { docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container"; }
+snapshot >"$output/runtime-before.txt"
+grep -Eq '^[a-f0-9]{64} [^ ]+ true 0 false$' "$output/runtime-before.txt"
+denylist >"$output/metered-initial-policy.log"
+grep -Fxq 'Restrict background blacklisted UIDs: none' "$output/metered-initial-policy.log"
+docker exec "$container" timeout 15 cmd netpolicy get restrict-background >"$output/metered-datasaver.log"
+grep -Fxq 'Restrict background status: disabled' "$output/metered-datasaver.log"
+docker cp "$output/build/control.apk" "$container:/data/local/tmp/royd-network-control.apk"
+docker exec "$container" timeout 30 pm install -t /data/local/tmp/royd-network-control.apk >"$output/control-install.log" 2>&1
+grep -Fxq Success "$output/control-install.log"
+for phase in baseline blocked restored; do
+  case "$phase" in
+    blocked)
+      restore_needed=1
+      docker exec "$container" timeout 15 cmd netpolicy add restrict-background-blacklist "$target_uid" >"$output/metered-deny.log" 2>&1 ;;
+    restored) restore >"$output/metered-restore.log" 2>&1; restore_needed=0 ;;
+  esac
+  denylist >"$output/metered-policy-$phase.log"
+  for role in target control; do
+    package=org.royd.networkprobe
+    if [ "$role" = control ]; then package=org.royd.networkcontrol; fi
+    name=$phase-$role
+    private=/data/user/0/$package/files
+    docker exec "$container" timeout 15 am force-stop --user 0 "$package" >"$output/stop-$name.log" 2>&1
+    status=0
+    docker exec "$container" pidof "$package" >"$output/stopped-$name.txt" || status=$?
+    [ "$status" -eq 1 ] && [ ! -s "$output/stopped-$name.txt" ]
+    # Replace only generated observations belonging to these newly installed test APKs.
+    docker exec "$container" rm -f "$private/ready.json" "$private/result.json" "$private/probe.trigger"
+    docker exec "$container" input keyevent KEYCODE_WAKEUP
+    docker exec "$container" wm dismiss-keyguard
+    docker exec "$container" timeout 30 am start --user 0 -n "$package/org.royd.networkprobe.MeteredProbeLauncher" \
+      --es host royd-probe.test --es dns "$gateway" --es url "$url?metered=$name" >"$output/launch-$name.log" 2>&1
+    if grep -Ei 'error|exception|not allowed|denied' "$output/launch-$name.log"; then exit 1; fi
+    attempt=0
+    until docker exec "$container" timeout 5 test -s "$private/ready.json"; do
+      attempt=$((attempt+1)); [ "$attempt" -lt 30 ]; sleep 1
+    done
+    docker exec "$container" cat "$private/ready.json" >"$output/ready-$name.json"
+    pid=$(docker exec "$container" pidof "$package")
+    case "$pid" in ''|*[!0-9]*) exit 1 ;; esac
+    uid=$(docker exec "$container" stat -c %u "/proc/$pid")
+    case "$uid" in ''|*[!0-9]*) exit 1 ;; esac
+    [ "$uid" -ge 10000 ]
+    if [ "$phase:$role" = baseline:target ]; then target_uid=$uid; fi
+    printf '%s %s\n' "$pid" "$uid" >"$output/$name.identity"
+    attempt=0
+    while :; do
+      docker exec "$container" timeout 15 dumpsys connectivity trafficcontroller >"$output/bpf-$name.log" 2>&1
+      row=$(awk -v uid="$uid" '/sUidOwnerMap:/ {owner=1; next} /sUidPermissionMap:/ {owner=0} owner && $1 == uid {print}' "$output/bpf-$name.log")
+      valid=1
+      printf '%s\n' "$row" | grep -qw BACKGROUND_MATCH || valid=0
+      if printf '%s\n' "$row" | grep -qw HAPPY_BOX_MATCH; then valid=0; fi
+      if [ "$phase:$role" = blocked:target ]; then
+        printf '%s\n' "$row" | grep -qw PENALTY_BOX_USER_MATCH || valid=0
+      elif printf '%s\n' "$row" | grep -qw PENALTY_BOX_USER_MATCH; then valid=0; fi
+      [ "$valid" = 0 ] || break
+      attempt=$((attempt+1)); [ "$attempt" -lt 30 ]; sleep 1
+    done
+    docker exec "$container" timeout 15 am get-uid-state "$uid" >"$output/uid-state-$name.log" 2>&1
+    docker exec "$container" timeout 15 dumpsys netpolicy >"$output/netpolicy-$name.log" 2>&1
+    grep -Eq 'Metered ifaces: \{eth0\}' "$output/netpolicy-$name.log"
+    docker exec "$container" touch "$private/probe.trigger"
+    attempt=0
+    until docker exec "$container" timeout 5 test -s "$private/result.json"; do
+      attempt=$((attempt+1)); [ "$attempt" -lt 45 ]; sleep 1
+    done
+    docker exec "$container" cat "$private/result.json" >"$output/$name.json"
+    [ "$(docker exec "$container" stat -c %u "$private/result.json")" = "$uid" ]
+    [ "$(docker exec "$container" pidof "$package")" = "$pid" ]
+    docker exec "$container" timeout 15 am get-uid-state "$uid" >"$output/uid-state-after-$name.log" 2>&1
+    snapshot >"$output/runtime-$name.txt"
+    cmp "$output/runtime-before.txt" "$output/runtime-$name.txt"
+  done
+done
+docker exec "$container" logcat -d -s RoydMeteredProbe:I '*:S' >"$output/application.log" 2>&1

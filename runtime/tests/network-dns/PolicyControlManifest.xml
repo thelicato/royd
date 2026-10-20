@@ -4,5 +4,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application android:label="royd network control" android:testOnly="true" android:usesCleartextTraffic="true">
         <activity android:name="org.royd.networkprobe.NetworkProbe" android:exported="true" />
+        <activity android:name="org.royd.networkprobe.MeteredProbeLauncher" android:exported="true" />
+        <service android:name="org.royd.networkprobe.MeteredProbeService" android:exported="false" />
     </application>
 </manifest>

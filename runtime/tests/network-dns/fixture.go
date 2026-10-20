@@ -54,19 +54,22 @@ func answer(query []byte, address net.IP) []byte {
 }
 
 type observation struct {
-	UID           int      `json:"uid"`
-	PID           int      `json:"pid"`
-	URL           string   `json:"url"`
-	Done          bool     `json:"done"`
-	Direct        string   `json:"direct_udp_dns"`
-	HTTP          string   `json:"literal_http"`
-	Active        string   `json:"active_network"`
-	Networks      int      `json:"network_count"`
-	Callback      int      `json:"default_callback_available"`
-	DNS           []string `json:"system_dns_addresses"`
-	NamedHTTP     string   `json:"hostname_http"`
-	Interface     string   `json:"active_interface"`
-	ConfiguredDNS []string `json:"configured_dns"`
+	UID             int      `json:"uid"`
+	PID             int      `json:"pid"`
+	URL             string   `json:"url"`
+	Done            bool     `json:"done"`
+	Direct          string   `json:"direct_udp_dns"`
+	HTTP            string   `json:"literal_http"`
+	Active          string   `json:"active_network"`
+	Networks        int      `json:"network_count"`
+	Callback        int      `json:"default_callback_available"`
+	DNS             []string `json:"system_dns_addresses"`
+	NamedHTTP       string   `json:"hostname_http"`
+	Interface       string   `json:"active_interface"`
+	ConfiguredDNS   []string `json:"configured_dns"`
+	Metered         bool     `json:"network_metered"`
+	Importance      int      `json:"importance"`
+	ImportanceAfter int      `json:"importance_after"`
 }
 
 func assess(raw []byte, expected net.IP) (string, bool) {
@@ -155,11 +158,20 @@ func main() {
 	resolver := flag.String("resolver", "", "expected configured resolver, defaults to answer address")
 	recovery := flag.String("recovery", "", "directory containing baseline/lost/recovered JSON observations")
 	policy := flag.String("policy", "", "directory containing two-UID policy observations and fixture evidence")
+	metered := flag.String("metered", "", "directory containing background metered-policy observations")
 	before := flag.String("url", "", "expected baseline nonce URL")
 	after := flag.String("recovery-url", "", "expected fresh recovery nonce URL")
 	uid := flag.Int("uid", 0, "observed ordinary app UID")
 	pid := flag.Int("pid", 0, "observed unchanged app PID")
 	flag.Parse()
+	if *metered != "" {
+		text, pass := assessMeteredDirectory(*metered, net.ParseIP(*expected), net.ParseIP(*resolver), *before)
+		fmt.Print(text)
+		if !pass {
+			os.Exit(1)
+		}
+		return
+	}
 	if *policy != "" {
 		text, pass := assessPolicyDirectory(*policy, net.ParseIP(*expected), net.ParseIP(*resolver), *before)
 		fmt.Print(text)

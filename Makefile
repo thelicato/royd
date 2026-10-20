@@ -113,6 +113,10 @@ runtime-network-policy-test:
 runtime-network-datasaver-activation-test:
 	ROYD_NETWORK_DNS_DATASAVER=1 ./runtime/scripts/network-dns-test.sh
 
+.PHONY: runtime-network-metered-test
+runtime-network-metered-test:
+	ROYD_NETWORK_DNS_METERED=1 ./runtime/scripts/network-dns-test.sh
+
 runtime-network-dns-test:
 	./runtime/scripts/network-dns-test.sh
 

@@ -128,3 +128,132 @@ func TestPolicyAssessment(t *testing.T) {
 		t.Fatal("accepted invalid configuration")
 	}
 }
+
+func TestMeteredAssessment(t *testing.T) {
+	const target = "http://172.17.0.1:43210/page/nonce"
+	fixture := func(t *testing.T, resolver string) string {
+		t.Helper()
+		dir := t.TempDir()
+		write := func(name, text string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write("metered-initial-policy.log", "Restrict background blacklisted UIDs: none\n")
+		write("metered-restored-policy.log", "Restrict background blacklisted UIDs: none\n")
+		server := ""
+		for _, phase := range []string{"baseline", "blocked", "restored"} {
+			list := "none"
+			if phase == "blocked" {
+				list = "10096"
+			}
+			write("metered-policy-"+phase+".log", "Restrict background blacklisted UIDs: "+list+"\n")
+			for i, role := range []string{"target", "control"} {
+				name := phase + "-" + role
+				uid, pid := 10096+i, 3000+i
+				r := observation{UID: uid, PID: pid, URL: target + "?metered=" + name, Done: true, Direct: "pass", HTTP: "pass", NamedHTTP: "pass", Active: "100", Networks: 1, Callback: 1, DNS: []string{"172.17.0.1"}, Interface: "eth0", ConfiguredDNS: []string{resolver}, Metered: true, Importance: 300, ImportanceAfter: 300}
+				row := "BACKGROUND_MATCH"
+				if phase == "blocked" && role == "target" {
+					row += " PENALTY_BOX_USER_MATCH"
+					r.Direct = "java.io.IOException: sendto failed: EPERM"
+					r.HTTP = "java.net.SocketTimeoutException: connect"
+					r.NamedHTTP = "java.net.UnknownHostException: denied"
+					r.Active = "null"
+				} else {
+					line := fmt.Sprintf("request method=%q path=%q query=%q remote=%q\n", "GET", "/page/nonce", "metered="+name, "172.17.0.2:40000")
+					server += line + line
+				}
+				raw, _ := json.Marshal(r)
+				write(name+".json", string(raw))
+				write(name+".identity", fmt.Sprintf("%d %d\n", pid, uid))
+				write("ready-"+name+".json", fmt.Sprintf(`{"uid":%d,"pid":%d}`, uid, pid))
+				write("uid-state-"+name+".log", "10 (SERVICE)\n")
+				write("uid-state-after-"+name+".log", "10 (SERVICE)\n")
+				write("netpolicy-"+name+".log", "Metered ifaces: {eth0}\n")
+				write("bpf-"+name+".log", fmt.Sprintf("current ownerMatch configuration: 4096 BACKGROUND_MATCH\nsUidOwnerMap:\n%d %s\nsUidPermissionMap:\nsDataSaverEnabledMap: false\n", uid, row))
+			}
+		}
+		write("http-server.log", server)
+		return dir
+	}
+	check := func(dir, resolver string) bool {
+		_, pass := assessMeteredDirectory(dir, net.ParseIP("172.17.0.1"), net.ParseIP(resolver), target)
+		return pass
+	}
+	for _, resolver := range []string{"172.17.0.1", "127.0.0.11"} {
+		if !check(fixture(t, resolver), resolver) {
+			t.Fatal("rejected complete background metered evidence")
+		}
+	}
+	cases := []struct{ name, file, from, to string }{
+		{"bad-json", "blocked-target.json", "{", "bad{"},
+		{"root-uid", "baseline-target.json", `"uid":10096`, `"uid":0`},
+		{"pid-drift", "blocked-target.identity", "3000", "3001"},
+		{"ready-pid-drift", "ready-blocked-target.json", "3000", "3001"},
+		{"stale-phase", "blocked-target.json", "blocked-target", "baseline-target"},
+		{"not-done", "blocked-target.json", `"done":true`, `"done":false`},
+		{"foreground", "blocked-target.json", `"importance":300`, `"importance":100`},
+		{"became-foreground", "blocked-target.json", `"importance_after":300`, `"importance_after":100`},
+		{"foreground-uid-state", "uid-state-blocked-target.log", "10 (SERVICE)", "2 (TOP)"},
+		{"cached-uid-state", "uid-state-after-blocked-target.log", "10 (SERVICE)", "16 (CACHED_ACTIVITY)"},
+		{"no-real-udp-denial", "blocked-target.json", "EPERM", "timeout"},
+		{"raw-http-leak", "blocked-target.json", "java.net.SocketTimeoutException: connect", "pass"},
+		{"control-network-failed", "blocked-control.json", `"literal_http":"pass"`, `"literal_http":"failed"`},
+		{"restoration-network-failed", "restored-target.json", `"hostname_http":"pass"`, `"hostname_http":"failed"`},
+		{"unmetered-control", "blocked-control.json", `"network_metered":true`, `"network_metered":false`},
+		{"missing-penalty-bit", "bpf-blocked-target.log", " PENALTY_BOX_USER_MATCH", ""},
+		{"cached-app-gate", "bpf-blocked-target.log", "10096 BACKGROUND_MATCH", "10096"},
+		{"foreground-allow-bit", "bpf-blocked-target.log", "10096 BACKGROUND_MATCH", "10096 BACKGROUND_MATCH HAPPY_BOX_MATCH"},
+		{"admin-policy-confound", "bpf-blocked-target.log", "10096 BACKGROUND_MATCH", "10096 BACKGROUND_MATCH PENALTY_BOX_ADMIN_MATCH"},
+		{"map-read-failure", "bpf-blocked-target.log", "sUidOwnerMap:", "sUidOwnerMap: Failed to read"},
+		{"configuration-drift", "bpf-blocked-target.log", "4096 BACKGROUND_MATCH", "6144 BACKGROUND_MATCH OEM_DENY_3_MATCH"},
+		{"enabled-datasaver", "bpf-blocked-target.log", "sDataSaverEnabledMap: false", "sDataSaverEnabledMap: true"},
+		{"wrong-metered-interface", "netpolicy-blocked-control.log", "eth0", "wlan0"},
+		{"policy-not-set", "metered-policy-blocked.log", "10096", "none"},
+		{"policy-not-restored", "metered-restored-policy.log", "none", "10096"},
+		{"server-saw-blocked", "http-server.log", "metered=baseline-target", "metered=blocked-target"},
+		{"server-missed-control", "http-server.log", "metered=blocked-control", "metered=other"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := fixture(t, "172.17.0.1")
+			path := filepath.Join(dir, tc.file)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed := strings.Replace(string(raw), tc.from, tc.to, 1)
+			if changed == string(raw) {
+				t.Fatal("mutation missed target")
+			}
+			if err := os.WriteFile(path, []byte(changed), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if check(dir, "172.17.0.1") {
+				t.Fatal("accepted invalid metered evidence")
+			}
+		})
+	}
+	if check(t.TempDir(), "172.17.0.1") {
+		t.Fatal("accepted missing evidence")
+	}
+	dir := fixture(t, "172.17.0.1")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(raw), "10097", "10096")), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if check(dir, "172.17.0.1") {
+		t.Fatal("shared UID is not an independent metered control")
+	}
+}

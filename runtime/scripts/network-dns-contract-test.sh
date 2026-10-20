@@ -2,6 +2,11 @@
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+for manifest in AndroidManifest.xml PolicyControlManifest.xml; do
+  [ "$(grep -c '<uses-permission ' "$root/runtime/tests/network-dns/$manifest")" -eq 2 ]
+  ! grep -Eq 'sharedUserId|FOREGROUND_SERVICE|MANAGE_NETWORK|NETWORK_STACK' "$root/runtime/tests/network-dns/$manifest"
+done
+! grep -q startForeground "$root/runtime/tests/network-dns/MeteredProbeService.java"
 go test "$root/runtime/tests/network-dns/fixture.go" "$root/runtime/tests/network-dns/policy.go" "$root/runtime/tests/network-dns/fixture_test.go" "$root/runtime/tests/network-dns/policy_test.go"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -19,7 +24,7 @@ MOCK
 cat >"$tmp/bin/dns" <<'MOCK'
 #!/bin/sh
 set -eu
-if [ "$1" = -result ] || [ "$1" = -recovery ] || [ "$1" = -policy ]; then exec "$MOCK_ASSESS" "$@"; fi
+if [ "$1" = -result ] || [ "$1" = -recovery ] || [ "$1" = -policy ] || [ "$1" = -metered ]; then exec "$MOCK_ASSESS" "$@"; fi
 [ "$MOCK_CASE" != fixture_failure ] || exit 1
 printf '%s\n' DNS_READY=1
 while :; do sleep 0.05; done
@@ -57,7 +62,7 @@ case "$1" in
     if [ "${2:-}" = --format ]; then
       case "$3" in
         *org.royd.test.owner*)
-          case "$MOCK_CASE" in recovery_unowned|policy_unowned) exit 1 ;; esac
+          case "$MOCK_CASE" in recovery_unowned|policy_unowned|metered_unowned) exit 1 ;; esac
           printf 'network-dns %s\n' "$4" ;;
         *RestartCount*)
           if { [ "$MOCK_CASE" = recovery_restarted ] && [ -e "$MOCK_STATE/down" ]; } \
@@ -84,6 +89,26 @@ case "$1" in
   cp) exit 0 ;;
   exec)
     case "$*" in
+      *'cmd netpolicy list restrict-background-blacklist')
+        [ "$MOCK_CASE" != metered_restore_get_failure ] || [ ! -e "$MOCK_STATE/metered-restored" ] || exit 1
+        if [ -e "$MOCK_STATE/metered-deny" ] || [ "$MOCK_CASE" = metered_preexisting ]; then printf '%s\n' 'Restrict background blacklisted UIDs: 10054'
+        else printf '%s\n' 'Restrict background blacklisted UIDs: none'; fi ;;
+      *'cmd netpolicy add restrict-background-blacklist 10054')
+        : >"$MOCK_STATE/metered-changed"
+        : >"$MOCK_STATE/metered-deny"
+        if [ "$MOCK_CASE" = metered_interrupt ]; then kill -TERM "$PPID"; fi
+        [ "$MOCK_CASE" != metered_set_failure ] ;;
+      *'cmd netpolicy remove restrict-background-blacklist 10054')
+        : >"$MOCK_STATE/metered-restored"
+        rm -f "$MOCK_STATE/metered-deny"
+        [ "$MOCK_CASE" != metered_restore_failure ] ;;
+      *'am start --user 0 '*'/org.royd.networkprobe.MeteredProbeLauncher '*)
+        [ "$MOCK_CASE" != metered_service_failure ] || { printf '%s\n' 'Error: service refused'; exit 1; }
+        : >"$MOCK_STATE/running"
+        printf '%s\n' "$*" | sed -n 's/.*metered=//p' >"$MOCK_STATE/metered-phase"
+        printf '%s\n' 'Starting service: Intent { cmp=test }' ;;
+      *'am get-uid-state '*) printf '%s\n' '10 (SERVICE)' ;;
+      *'touch /data/user/'*) : ;;
       *'cmd netpolicy set restrict-background true')
         : >"$MOCK_STATE/datasaver-requested"
         [ "$MOCK_CASE" != datasaver_command_failure ]
@@ -119,6 +144,12 @@ case "$1" in
         printf '%s:%s\n' "$package" "$rule" ;;
       *'dumpsys connectivity trafficcontroller')
         printf '%s\n' 'TrafficController' 'sUidOwnerMap:'
+        if [ "${ROYD_NETWORK_DNS_METERED:-0}" = 1 ]; then
+          row=BACKGROUND_MATCH
+          if [ -e "$MOCK_STATE/metered-deny" ] && [ "$MOCK_CASE" != metered_map_failure ]; then row="$row PENALTY_BOX_USER_MATCH"; fi
+          printf '%s\n' "10054 $row" '10055 BACKGROUND_MATCH' 'sUidPermissionMap:' 'sDataSaverEnabledMap: false' 'current ownerMatch configuration: 4096 BACKGROUND_MATCH'
+          exit 0
+        fi
         if [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ]; then
           if { [ -e "$MOCK_STATE/datasaver" ] && [ "$MOCK_CASE" != datasaver_map_mismatch ]; } || [ "$MOCK_CASE" = datasaver_preexisting_map ]; then printf '%s\n' 'sDataSaverEnabledMap: true'
           else printf '%s\n' 'sDataSaverEnabledMap: false'; fi
@@ -133,8 +164,9 @@ case "$1" in
       *'pidof system_server')
         if [ "$MOCK_CASE" = server_changed ] && [ "$(cat "$MOCK_STATE/asserts")" = 2 ]; then printf '%s\n' 501; else printf '%s\n' 500; fi ;;
       *'pidof org.royd.networkprobe')
-        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ] || [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ]; then
+        if [ "${ROYD_NETWORK_DNS_POLICY:-0}" = 1 ] || [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ] || [ "${ROYD_NETWORK_DNS_METERED:-0}" = 1 ]; then
           [ "$MOCK_CASE" != policy_pid_error ] || exit 125
+          [ "$MOCK_CASE" != metered_pid_error ] || exit 125
           if [ "$MOCK_CASE" = datasaver_pid_error ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then exit 125; fi
           [ -e "$MOCK_STATE/running" ] || exit 1
         fi
@@ -162,6 +194,7 @@ case "$1" in
         else printf '%s\n' 'Activity: org.royd.networkprobe/.NetworkProbe'; fi ;;
       *'test -s '*)
         [ "$MOCK_CASE" != no_result ]
+        [ "$MOCK_CASE" != metered_no_result ]
         case "$*" in *lost.json) [ "$MOCK_CASE" != recovery_no_loss ] ;; esac ;;
       *'cat /data/user/0/org.royd.networkprobe/files/baseline.json'|*'cat /data/user/0/org.royd.networkprobe/files/lost.json'|*'cat /data/user/0/org.royd.networkprobe/files/recovered.json')
         resolver=172.17.0.1
@@ -175,6 +208,26 @@ case "$1" in
             printf '%s\n' '{"phase":"recovered","uid":10054,"pid":900,"elapsed_ms":3000,"done":true,"active_network":"101","active_interface":"eth0","configured_dns":["'"$resolver"'"],"url":"http://172.17.0.1:43211/page/recovery-nonce","host":"recovery.royd-probe.test","system_dns_addresses":["172.17.0.1"],"literal_http":"pass","hostname_http":"'"$named"'","events":["available:100","lost:100","available:101"]}' ;;
         esac ;;
       *'cat /data/user/'*)
+        if [ "${ROYD_NETWORK_DNS_METERED:-0}" = 1 ]; then
+          name=$(cat "$MOCK_STATE/metered-phase")
+          uid=10054; pid=900
+          case "$name" in *-control) uid=10055; pid=901 ;; esac
+          case "$*" in *ready.json) printf '{"uid":%s,"pid":%s}\n' "$uid" "$pid"; exit 0 ;; esac
+          resolver=172.17.0.1
+          [ "${ROYD_NETWORK_DNS_NETWORK_MODE:-bridge}" != private ] || resolver=127.0.0.11
+          direct=pass; http=pass; named=pass; active=100; importance=300
+          if [ "$name" = blocked-target ]; then
+            direct='java.io.IOException: sendto failed: EPERM'; http='java.net.SocketTimeoutException: connect'; named='java.net.UnknownHostException: denied'; active=null
+            if [ "$MOCK_CASE" = metered_leak ]; then direct=pass; http=pass; named=pass; fi
+          fi
+          if [ "$name" != blocked-target ] || [ "$MOCK_CASE" = metered_leak ]; then
+            printf 'request method="GET" path="/page/nonce" query="metered=%s" remote="test"\nrequest method="GET" path="/page/nonce" query="metered=%s" remote="test"\n' "$name" "$name" >>"$ROYD_NETWORK_DNS_OUTPUT_DIR/http-server.log"
+          fi
+          if [ "$MOCK_CASE:$name" = metered_control_failure:blocked-control ]; then http=failed; fi
+          if [ "$MOCK_CASE" = metered_foreground ]; then importance=100; fi
+          printf '%s\n' '{"uid":'"$uid"',"pid":'"$pid"',"url":"http://172.17.0.1:43210/page/nonce?metered='"$name"'","done":true,"direct_udp_dns":"'"$direct"'","literal_http":"'"$http"'","hostname_http":"'"$named"'","active_interface":"eth0","configured_dns":["'"$resolver"'"],"active_network":"'"$active"'","network_count":1,"default_callback_available":1,"system_dns_addresses":["172.17.0.1"],"network_metered":true,"importance":'"$importance"',"importance_after":'"$importance"'}'
+          exit 0
+        fi
         if [ "${ROYD_NETWORK_DNS_DATASAVER:-0}" = 1 ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then
           printf '%s\n' 'request method="GET" path="/page/nonce" query="datasaver=restored" remote="test"' 'request method="GET" path="/page/nonce" query="datasaver=restored" remote="test"' >>"$ROYD_NETWORK_DNS_OUTPUT_DIR/http-server.log"
           named=pass
@@ -225,6 +278,7 @@ case "$1" in
         [ "$MOCK_CASE" != recovery_restore_failure ] ;;
       *'input keyevent KEYCODE_WAKEUP'|*'wm dismiss-keyguard') : ;;
       *'dumpsys connectivity') printf '%s\n' 'Active default network: none' ;;
+      *'dumpsys netpolicy') printf '%s\n' 'Metered ifaces: {eth0}' ;;
       *'dumpsys '*|*'logcat -d '*|*'screencap -p'|*'cat /etc/resolv.conf; ip rule;'*) printf '%s\n' evidence ;;
       *) printf 'unexpected Docker exec: %s\n' "$*" >&2; exit 99 ;;
     esac ;;
@@ -243,6 +297,7 @@ printf '%s\n' "$count" >"$MOCK_STATE/asserts"
 [ "$MOCK_CASE:$count" != recovery_post_failure:2 ]
 [ "$MOCK_CASE:$count" != policy_post_failure:2 ]
 [ "$MOCK_CASE:$count" != datasaver_post_failure:2 ]
+[ "$MOCK_CASE:$count" != metered_post_failure:2 ]
 MOCK
 cat >"$tmp/bin/pass" <<'MOCK'
 #!/bin/sh
@@ -259,7 +314,9 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     policy_interrupt policy_pid_error policy_preexisting policy_post_failure policy_unowned \
     datasaver_good datasaver_embedded datasaver_rollback datasaver_embedded_rollback datasaver_command_failure \
     datasaver_map_mismatch datasaver_restore_failure datasaver_interrupt datasaver_preexisting \
-    datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map; do
+    datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map \
+    metered_good metered_embedded metered_leak metered_control_failure metered_foreground metered_preexisting metered_unowned \
+    metered_set_failure metered_restore_failure metered_restore_get_failure metered_service_failure metered_pid_error metered_no_result metered_map_failure metered_interrupt metered_post_failure; do
   state="$tmp/$mode"
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
@@ -269,22 +326,33 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
   recovery=0
   policy=0
   datasaver=0
+  metered=0
   case "$mode" in recovery_*) recovery=1 ;; esac
   case "$mode" in policy_*) policy=1 ;; esac
   case "$mode" in datasaver_*) datasaver=1 ;; esac
+  case "$mode" in metered_*) metered=1 ;; esac
   if [ "$mode" = embedded ] || [ "$mode" = recovery_embedded ] || [ "$mode" = policy_embedded ]; then network_mode=private; fi
   case "$mode" in datasaver_embedded*) network_mode=private ;; esac
+  [ "$mode" != metered_embedded ] || network_mode=private
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_TOOLS="$tmp/bin" MOCK_ASSESS="$tmp/assess" \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_REQUEST_TIMEOUT=2 \
     ROYD_NETWORK_DNS_NETWORK_MODE="$network_mode" \
     ROYD_NETWORK_DNS_RECOVERY="$recovery" \
     ROYD_NETWORK_DNS_POLICY="$policy" \
     ROYD_NETWORK_DNS_DATASAVER="$datasaver" \
+    ROYD_NETWORK_DNS_METERED="$metered" \
     ROYD_NETWORK_DNS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_DNS_WAIT_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_HEALTH_RUNNER="$tmp/bin/pass" ROYD_NETWORK_DNS_SECURITY_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
-  if [ "$mode" = datasaver_good ] || [ "$mode" = datasaver_embedded ]; then
+  if [ "$mode" = metered_good ] || [ "$mode" = metered_embedded ]; then
+    [ "$status" -eq 0 ]
+    grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
+    grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=6 "$state/evidence/manifest.env"
+    for field in OBSERVATION BACKGROUND DENIAL CONTROL RESTORATION MAP SERVER; do grep -Fxq "METERED_${field}_STATUS=pass" "$state/evidence/manifest.env"; done
+    [ -e "$state/metered-restored" ]
+    [ "$(cat "$state/asserts")" = 2 ]
+  elif [ "$mode" = datasaver_good ] || [ "$mode" = datasaver_embedded ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=5 "$state/evidence/manifest.env"
@@ -373,6 +441,19 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
         esac ;;
     esac
     case "$mode" in
+      metered_*)
+        [ "$(cat "$state/asserts")" = 2 ]
+        grep -Fxq 'full container log' "$state/evidence/container/container.log"
+        if [ -e "$state/metered-changed" ]; then [ -e "$state/metered-restored" ]; fi
+        case "$mode" in
+          metered_leak) grep -Fxq METERED_DENIAL_STATUS=fail "$state/evidence/manifest.env" ;;
+          metered_control_failure) grep -Fxq METERED_CONTROL_STATUS=fail "$state/evidence/manifest.env" ;;
+          metered_foreground) grep -Fxq METERED_BACKGROUND_STATUS=fail "$state/evidence/manifest.env" ;;
+          metered_post_failure) grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
+          *) grep -Fxq WORKLOAD_STATUS=fail "$state/evidence/manifest.env" ;;
+        esac ;;
+    esac
+    case "$mode" in
       datasaver_*)
         [ "$(cat "$state/asserts")" = 2 ]
         grep -Fxq 'full container log' "$state/evidence/container/container.log"
@@ -416,6 +497,19 @@ for settings in 2:0:0 1:1:0 1:0:1; do
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_DATASAVER="${settings%%:*}" \
     ROYD_NETWORK_DNS_POLICY="${rest%:*}" ROYD_NETWORK_DNS_RECOVERY="${rest#*:}" \
+    "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
+  [ "$status" -eq 2 ]
+  [ ! -e "$state/evidence" ]
+  [ ! -e "$state/docker.log" ]
+done
+for settings in 2:0:0:0 1:1:0:0 1:0:1:0 1:0:0:1; do
+  state="$tmp/invalid-metered-$settings"
+  mkdir "$state"
+  status=0
+  rest=${settings#*:}
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
+    ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_METERED="${settings%%:*}" \
+    ROYD_NETWORK_DNS_DATASAVER="${rest%%:*}" ROYD_NETWORK_DNS_POLICY="$(printf '%s' "$rest" | cut -d: -f2)" ROYD_NETWORK_DNS_RECOVERY="${rest##*:}" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
   [ "$status" -eq 2 ]
   [ ! -e "$state/evidence" ]
