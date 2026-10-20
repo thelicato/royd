@@ -18,9 +18,17 @@ restore() {
     docker exec "$container" timeout 15 cmd netpolicy set restrict-background false || restore_status=1
     docker exec "$container" timeout 15 cmd netpolicy get restrict-background >"$output/saver-restored.log" || restore_status=1
     grep -Fxq 'Restrict background status: disabled' "$output/saver-restored.log" || restore_status=1
-    for owned_uid in "$target_uid" "$control_uid"; do
-      [ -z "$owned_uid" ] || docker exec "$container" timeout 15 cmd netpolicy remove restrict-background-whitelist "$owned_uid" || restore_status=1
-    done
+    # Revocation already removes the target. Stock netpolicy rejects removing an absent UID.
+    # Query actual membership and never remove an exemption which this test did not own.
+    if docker exec "$container" timeout 15 cmd netpolicy list restrict-background-whitelist >"$output/saver-cleanup-allowlist-before.log"; then
+      for owned_uid in "$target_uid" "$control_uid"; do
+        if [ -n "$owned_uid" ] && grep -Eq "(^|[[:space:]])$owned_uid([[:space:]]|$)" "$output/saver-cleanup-allowlist-before.log"; then
+          docker exec "$container" timeout 15 cmd netpolicy remove restrict-background-whitelist "$owned_uid" || restore_status=1
+        fi
+      done
+    else
+      restore_status=1
+    fi
     docker exec "$container" timeout 15 cmd netpolicy list restrict-background-whitelist >"$output/saver-restored-allowlist.log" || restore_status=1
     cmp "$output/saver-initial-allowlist.log" "$output/saver-restored-allowlist.log" || restore_status=1
   else

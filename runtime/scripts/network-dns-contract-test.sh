@@ -90,6 +90,7 @@ case "$1" in
   exec)
     case "$*" in
       *'cmd netpolicy list restrict-background-whitelist')
+        if [ "$MOCK_CASE" = saver_allowlist_failure ] && [ -e "$MOCK_STATE/datasaver-restored" ]; then exit 1; fi
         printf '%s' 'Restrict background whitelisted UIDs: '
         found=0
         for uid in 10054 10055; do if [ -e "$MOCK_STATE/allow-$uid" ]; then printf '%s ' "$uid"; found=1; fi; done
@@ -100,6 +101,7 @@ case "$1" in
         : >"$MOCK_STATE/allow-$uid" ;;
       *'cmd netpolicy remove restrict-background-whitelist '*)
         for uid in "$@"; do :; done
+        [ -e "$MOCK_STATE/allow-$uid" ] || { printf 'Error: UID %s not whitelisted\n' "$uid"; exit 1; }
         rm -f "$MOCK_STATE/allow-$uid" ;;
       *'cmd netpolicy list restrict-background-blacklist')
         [ "$MOCK_CASE" != metered_restore_get_failure ] || [ ! -e "$MOCK_STATE/metered-restored" ] || exit 1
@@ -346,7 +348,7 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map \
     metered_good metered_embedded metered_leak metered_control_failure metered_foreground metered_preexisting metered_unowned \
     metered_set_failure metered_restore_failure metered_restore_get_failure metered_service_failure metered_pid_error metered_no_result metered_map_failure metered_interrupt metered_post_failure \
-    saver_good saver_embedded saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure; do
+    saver_good saver_embedded saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure saver_allowlist_failure; do
   state="$tmp/$mode"
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
@@ -500,7 +502,7 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
         [ "$(cat "$state/asserts")" = 2 ]
         grep -Fxq 'full container log' "$state/evidence/container/container.log"
         [ -e "$state/datasaver-restored" ]
-        [ ! -e "$state/allow-10054" ] && [ ! -e "$state/allow-10055" ]
+        if [ "$mode" != saver_allowlist_failure ]; then [ ! -e "$state/allow-10054" ] && [ ! -e "$state/allow-10055" ]; fi
         case "$mode" in
           saver_leak) grep -Fxq SAVER_DENIAL_STATUS=fail "$state/evidence/manifest.env" ;;
           saver_exemption_failure) grep -Fxq SAVER_RESTORATION_STATUS=fail "$state/evidence/manifest.env" ;;

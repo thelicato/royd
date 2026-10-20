@@ -6,7 +6,7 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 The active acceptance scope is Android 15 x86_64, standard graphical image, software rendering, the low-memory resource profile and privileged rootful Docker. It is not completion of every item below or a claim of general device compatibility.
 
-1. **Implementation:** qualify the private metered/Data Saver packet backend and fix the observed Settings storage-capacity API crash on fstab-less OCI storage. Logical network hiding and successful commands are insufficient. Investigate recurring diagnostics by their affected invariant; do not require an artificially empty error log or suppress unrelated failures.
+1. **Implementation:** resolve Data Saver's newly exercised Tethering stop-all lookups of absent USB/Ethernet services, then qualify the complete flow. Fix the observed Settings storage-capacity API crash on fstab-less OCI storage. Logical network hiding and successful commands are insufficient. Investigate recurring diagnostics by their affected invariant; do not require an artificially empty error log or suppress unrelated failures.
 2. **Rebuilt-image qualification:** freeze an exact image, then pass fresh boot, app lifecycle, IPv4 DNS/HTTP/native and WebView HTTPS, packet-policy controls, persistence/restarts and timed scrcpy checks. Retain failures and exercise a defined application/network/restart soak. Earlier-image results do not automatically qualify a changed image.
 3. **Build and host acceptance:** record a clean baseline build and reviewed reference-host/kernel evidence, including Binder isolation, OCI configuration and documented limitations. Incremental local builds and lightweight CI alone do not establish support.
 
