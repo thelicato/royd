@@ -115,6 +115,8 @@ Independent follow-up runs on `012e0e603b1b` requalify OEM UID denial, metered b
 - [x] Implement gated cgroup-BPF user/admin metered denial for the OCI publisher's actual interface, retaining stock UID decisions and independent legacy-policy failures.
 - [x] Implement gated global Data Saver activation and packet enforcement with background, user-exemption/revocation and foreground controls plus restoration. Qualify the rebuilt image independently.
 - [ ] Investigate and qualify remaining legacy-table-dependent policies, including byte quotas and threshold alerts; cgroup-BPF UID, metered and Data Saver evidence does not qualify these separate capabilities.
+- [x] Reproduce the interface-accounting prerequisite with real ordinary-UID traffic in both DNS modes and define the [quota/alert implementation contract](network-quotas.md), without claiming a backend fix.
+- [ ] Implement and qualify real interface IP-byte accounting before using its totals for the replacement quota/alert backend; current readable interface maps remain empty despite advancing UID/link counters.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
