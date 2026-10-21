@@ -684,7 +684,9 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     # royd-runtime-about-phone-test
     before=$(pidof system_server) || exit 1
     trap '\''input keyevent KEYCODE_HOME >/dev/null 2>&1 || true'\'' EXIT INT TERM
-    launch=$(am start -W -a android.settings.DEVICE_INFO_SETTINGS) || exit 1
+    # Select the page itself, not another page above it in an existing Settings task.
+    launch=$(am start -W --activity-clear-top -a android.settings.DEVICE_INFO_SETTINGS) || exit 1
+    printf "%s\n" "$launch"
     printf "%s\n" "$launch" | grep -Fxq "Status: ok" || exit 1
     printf "%s\n" "$launch" | grep -Fxq \
       "Activity: com.android.settings/.Settings\$MyDeviceInfoActivity" || exit 1

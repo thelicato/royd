@@ -309,6 +309,9 @@ case "$1" in
           ;;
         *royd-runtime-about-phone-test*)
           [ "${MOCK_BAD_ABOUT_PHONE:-0}" != 1 ] || exit 1
+          if [ -n "${MOCK_ABOUT_PHONE_BIN:-}" ]; then
+            PATH="$MOCK_ABOUT_PHONE_BIN:$PATH" sh -c "$3" || exit 1
+          fi
           if [ -n "${MOCK_ABOUT_PHONE_STATE:-}" ]; then
             : >"$MOCK_ABOUT_PHONE_STATE"
           fi
@@ -1122,6 +1125,59 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_APP_LIFECYCLE=1 \
   exit 1
 fi
 grep -Fq 'application force-stop/relaunch contract failed' "$tmp/error"
+
+mkdir "$tmp/about-bin"
+cat >"$tmp/about-bin/command" <<'MOCK'
+#!/bin/sh
+set -eu
+case "${0##*/}" in
+  am)
+    activity='com.android.settings/.Settings$StorageDashboardActivity'
+    case " $* " in
+      *' --activity-clear-top '*) activity='com.android.settings/.Settings$MyDeviceInfoActivity' ;;
+    esac
+    [ "$MOCK_ABOUT_PHONE_CASE" != wrong_activity ] || activity='com.android.settings/.Settings$StorageDashboardActivity'
+    printf 'Status: ok\nActivity: %s\n' "$activity"
+    ;;
+  pidof)
+    count=0
+    [ ! -f "$MOCK_ABOUT_PHONE_RUN/$1" ] || count=$(cat "$MOCK_ABOUT_PHONE_RUN/$1")
+    count=$((count+1))
+    printf '%s\n' "$count" >"$MOCK_ABOUT_PHONE_RUN/$1"
+    case "$1:$MOCK_ABOUT_PHONE_CASE:$count" in
+      system_server:system_replaced:2) printf '%s\n' 446 ;;
+      system_server:*) printf '%s\n' 445 ;;
+      com.android.settings:settings_replaced:2) printf '%s\n' 1385 ;;
+      com.android.settings:*) printf '%s\n' 1384 ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  input) printf '%s\n' "$*" >>"$MOCK_ABOUT_PHONE_RUN/home" ;;
+  sleep) [ "$*" = 4 ] ;;
+  *) exit 1 ;;
+esac
+MOCK
+chmod +x "$tmp/about-bin/command"
+for command in am pidof input sleep; do ln -s command "$tmp/about-bin/$command"; done
+for mode in nested_task wrong_activity settings_replaced system_replaced; do
+  mkdir "$tmp/about-$mode"
+  status=0
+  PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_ABOUT_PHONE_BIN="$tmp/about-bin" \
+    MOCK_ABOUT_PHONE_CASE="$mode" MOCK_ABOUT_PHONE_RUN="$tmp/about-$mode" \
+    "$script_dir/assert-runtime.sh" "about-$mode" >"$tmp/about-$mode.log" 2>&1 || status=$?
+  if [ "$mode" = nested_task ]; then
+    if [ "$status" -ne 0 ]; then
+      cat "$tmp/about-$mode.log" >&2
+      printf '%s\n' 'error: About-phone workload did not select its page above the nested Settings task' >&2
+      exit 1
+    fi
+    grep -Fq 'Runtime checks passed' "$tmp/about-$mode.log"
+  else
+    [ "$status" -ne 0 ]
+    grep -Fq 'About-phone activity did not remain stable' "$tmp/about-$mode.log"
+  fi
+  grep -Fxq 'keyevent KEYCODE_HOME' "$tmp/about-$mode/home"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ABOUT_PHONE=1 \
     "$script_dir/assert-runtime.sh" bad-about-phone >"$tmp/error" 2>&1; then
