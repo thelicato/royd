@@ -79,7 +79,8 @@ On 21 October 2026, rebuilt image `ed6dd897088f` with patch `0063` passes fresh 
 - [x] Correct and qualify ordinary-UID internal-storage capacity and the loaded Storage Settings dashboard on the shared OCI backing pool, without fabricating a physical device or per-instance quota.
 - [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
 - [x] Requalify container restart/recreation and framework-only restart on the `0063` Android 15 baseline, with preserved named state and verified framework-native power tracing.
-- [ ] Isolate legacy per-UID CPU-stat cleanup from host-global interfaces before qualifying hosts exposing `uid_cputime`; fresh repetition logs reproduce failed cleanup of isolated UIDs through absent `/proc/uid_cputime/remove_uid_range`.
+- [x] Implement strict container-gated omission of the legacy host-global UID CPU-stat cleanup write, preserving local history removal, reads and stock behaviour outside the gate.
+- [ ] Qualify the rebuilt `0064` image through delayed isolated-UID retirement, full runtime checks and retained on-demand policy evidence; do not exercise a real host-global accounting deletion.
 - [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
 - [x] Retain a ten-minute local Android 15 Settings/scroll/Home stream with full pre/post checks and supplementary process/readiness/health observations.
 - [x] Add bounded Android 15 memory-controller delegation recovery for transient early external exec processes, retaining domain-controller constraints and explicit persistent-failure diagnostics.

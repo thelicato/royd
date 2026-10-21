@@ -38,6 +38,7 @@
 .PHONY: android15-wifi-mac-container-test
 .PHONY: android15-gpu-work-container-test
 .PHONY: android15-cpu-residency-container-test
+.PHONY: android15-uid-cpu-cleanup-container-test
 .PHONY: android15-display-identification-test
 .PHONY: android15-binder-freezer-container-test
 .PHONY: android15-installer-frp-container-test
@@ -506,6 +507,9 @@ android15-gpu-work-container-test:
 
 android15-cpu-residency-container-test:
 	./android/scripts/android15-cpu-residency-container-test.sh
+
+android15-uid-cpu-cleanup-container-test:
+	./android/scripts/android15-uid-cpu-cleanup-container-test.sh
 
 android15-display-identification-test:
 	./android/scripts/android15-display-identification-test.sh

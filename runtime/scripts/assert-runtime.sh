@@ -462,6 +462,13 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'KernelCpuUidUserSysTimeReader: (Removing uids |failed to remove uids .* from uid_cputime module)'; then
+    printf 'error: Android 15 attempted host-global UID CPU-stat cleanup in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+  # The cleanup policy marker is on demand, not a boot-readiness condition.
   cpu_time_dump=$(docker exec "$container" dumpsys cpuinfo 2>&1) || {
     printf 'error: Android 15 CPU-time status dump failed in %s\n' "$container" >&2
     exit 1

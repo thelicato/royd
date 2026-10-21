@@ -139,6 +139,9 @@ SRC
     if [ ! -f frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java ]; then
       cp "$ROYD_SYNC_CPU_SPEED_FIXTURE" frameworks/base/core/java/com/android/internal/os/KernelCpuSpeedReader.java
     fi
+    if [ ! -f frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/KernelCpuUidTimeReader.java" frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java
+    fi
     if [ ! -f frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp ]; then
       cat > frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp <<'SRC'
 #include <bit>
@@ -3185,6 +3188,8 @@ ROYD_ANDROID15_TETHERING_SOURCE="$tmp/src/packages/modules/Connectivity/Tetherin
 ROYD_ANDROID15_STORAGE_MANAGER_SOURCE="$tmp/src/frameworks/base/core/java/android/os/storage/StorageManager.java" \
   ROYD_ANDROID15_STORAGE_STATS_SOURCE="$tmp/src/frameworks/base/services/usage/java/com/android/server/usage/StorageStatsService.java" \
   "$android_dir/scripts/android15-storage-capacity-container-test.sh"
+ROYD_ANDROID15_UID_CPU_SOURCE="$tmp/src/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java" \
+  "$android_dir/scripts/android15-uid-cpu-cleanup-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

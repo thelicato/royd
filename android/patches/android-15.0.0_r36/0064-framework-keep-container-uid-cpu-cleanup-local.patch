@@ -1,0 +1,43 @@
+diff --git a/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java b/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java
+--- a/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java
++++ b/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java
+@@ -207,6 +207,8 @@ public abstract class KernelCpuUidTimeReader<T> {
+      */
+     public static class KernelCpuUidUserSysTimeReader extends KernelCpuUidTimeReader<long[]> {
+         private static final String REMOVE_UID_PROC_FILE = "/proc/uid_cputime/remove_uid_range";
++        private static final java.util.concurrent.atomic.AtomicBoolean sRoydKernelCleanupReported =
++                new java.util.concurrent.atomic.AtomicBoolean();
+
+         // [uid, user_time, system_time, (maybe) power_in_milli-amp-micro_seconds]
+         private final long[] mBuffer = new long[4];
+@@ -296,6 +298,16 @@ public abstract class KernelCpuUidTimeReader<T> {
+             removeUidsFromKernelModule(startUid, endUid);
+         }
+
++        private static boolean shouldKeepRoydUidCleanupLocal() {
++            if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++            try {
++                android.system.Os.stat("/sys/fs/selinux/enforce");
++                return false;
++            } catch (android.system.ErrnoException error) {
++                return error.errno == android.system.OsConstants.ENOENT;
++            }
++        }
++
+         /**
+          * Removes UIDs in a given range from the kernel module and internal accounting data. Only
+          * {@link BatteryStatsImpl} and its child processes should call this, as the change on
+@@ -306,6 +318,13 @@ public abstract class KernelCpuUidTimeReader<T> {
+          * @param endUid   the last uid to remove
+          */
+         private void removeUidsFromKernelModule(int startUid, int endUid) {
++            // The legacy kernel table is host-global, even when this interface exists.
++            if (shouldKeepRoydUidCleanupLocal()) {
++                if (sRoydKernelCleanupReported.compareAndSet(false, true)) {
++                    Slog.i(mTag, "ROYD: keeping UID CPU-stat cleanup local to the container");
++                }
++                return;
++            }
+             Slog.d(mTag, "Removing uids " + startUid + "-" + endUid);
+             final int oldMask = StrictMode.allowThreadDiskWritesMask();
+             try (FileWriter writer = new FileWriter(REMOVE_UID_PROC_FILE)) {

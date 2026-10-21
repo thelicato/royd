@@ -507,6 +507,12 @@ case "$1" in
     if [ "${MOCK_OTHER_CPU_READ_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state: open failed: EACCES (Permission denied)'
     fi
+    case "${MOCK_UID_CPU_CLEANUP:-}" in
+      attempt) printf '%s\n' 'KernelCpuUidUserSysTimeReader: Removing uids 99001-99001' ;;
+      failed) printf '%s\n' 'KernelCpuUidUserSysTimeReader: failed to remove uids 99001 - 99001 from uid_cputime module' ;;
+      local) printf '%s\n' 'KernelCpuUidUserSysTimeReader: ROYD: keeping UID CPU-stat cleanup local to the container' ;;
+      other) printf '%s\n' 'KernelCpuUidUserSysTimeReader: unrelated accounting error' ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_PSI_MODE:-0}" != 1 ]; then
       printf '%s\n' 'LowMemDetector: ROYD: using unprivileged 2-second PSI windows for ActivityManager'
     fi
@@ -642,6 +648,18 @@ fi
 grep -Fq 'repeated missing CPU-frequency residency diagnostics' "$tmp/error"
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_OTHER_CPU_READ_FAILURE=1 \
   "$script_dir/assert-runtime.sh" other-cpu-read-failure >/dev/null
+for cleanup in attempt failed; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_UID_CPU_CLEANUP="$cleanup" \
+      "$script_dir/assert-runtime.sh" host-global-uid-cleanup >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted host-global UID CPU-stat cleanup' >&2
+    exit 1
+  fi
+  grep -Fq 'attempted host-global UID CPU-stat cleanup' "$tmp/error"
+done
+for cleanup in local other; do
+  PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_UID_CPU_CLEANUP="$cleanup" \
+    "$script_dir/assert-runtime.sh" local-uid-cleanup >/dev/null
+done
 for status in failed invalid no_total no_header; do
   if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_TIME_DUMP="$status" \
       "$script_dir/assert-runtime.sh" bad-cpu-time-dump >"$tmp/error" 2>&1; then
