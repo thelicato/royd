@@ -467,6 +467,12 @@ case "$1" in
       printf '%s\n' 'ResilientAtomicFile: Failed to verity-protect package manager settings'
       printf '%s\n' 'ResilientAtomicFile: java.io.IOException: Failed to enable fs-verity on FD(404): Operation not supported on transport endpoint'
     fi
+    if [ "${MOCK_STORAGE_PHYSICAL_FAILURE:-0}" = 1 ]; then
+      printf '%s\n' 'vold: No mount point entry for /data'
+    fi
+    if [ "${MOCK_SETTINGS_HISTORICAL_CRASH:-0}" = 1 ]; then
+      printf '%s\n' 'am_crash: [1368,0,com.android.settings,952876613,android.os.ServiceSpecificException,An error occurred while executing doInBackground(),Parcel.java,3275,0]'
+    fi
     if [ "${MOCK_LEGACY_CGROUP_PROFILE_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'libprocessgroup: SetCgroup::ExecuteForProcess: failed to open /dev/cpuctl/top-app/cgroup.procs: No such file or directory'
     fi
@@ -1266,4 +1272,16 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_WRITABLE_HOST_CLOCK=1 \
   exit 1
 fi
 grep -Fq 'Android 15 read-only host-clock policy is missing' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_STORAGE_PHYSICAL_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" unavailable-data-device >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unavailable physical storage lookup' >&2
+  exit 1
+fi
+grep -Fq 'queried an unavailable physical data-storage device' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SETTINGS_HISTORICAL_CRASH=1 \
+    "$script_dir/assert-runtime.sh" recovered-settings-crash >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a Settings crash followed by recovery' >&2
+  exit 1
+fi
+grep -Fq 'retained a Settings crash' "$tmp/error"
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.royd.storageprobe">
+    <uses-sdk android:minSdkVersion="35" android:targetSdkVersion="35" />
+    <application android:label="royd storage probe" android:testOnly="true">
+        <activity android:name=".StorageProbe" android:exported="true" />
+    </application>
+</manifest>

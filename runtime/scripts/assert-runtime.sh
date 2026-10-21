@@ -389,6 +389,14 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Fq 'No mount point entry for /data'; then
+    printf 'error: Android 15 queried an unavailable physical data-storage device in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq 'am_crash.*com\.android\.settings'; then
+    printf 'error: Android 15 retained a Settings crash in %s\n' "$container" >&2
+    exit 1
+  fi
   if docker logs "$container" 2>&1 | grep -Eq \
       'SetCgroup::ExecuteFor(Process|Task): failed to open /dev/(cpuctl|cpuset|blkio)/'; then
     printf 'error: Android 15 attempted unavailable legacy cgroup task profiles in %s\n' \

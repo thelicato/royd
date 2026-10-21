@@ -67,6 +67,7 @@ run ./android/scripts/android15-netpolicy-wifi-container-test.sh
 run ./android/scripts/android15-metered-deny-container-test.sh
 run ./android/scripts/android15-data-saver-container-test.sh
 run ./android/scripts/android15-tethering-idle-container-test.sh
+run ./android/scripts/android15-storage-capacity-container-test.sh
 run ./android/scripts/android15-gpu-memory-container-test.sh
 run ./android/scripts/android15-wifi-mac-container-test.sh
 run ./android/scripts/android15-gpu-work-container-test.sh
@@ -110,6 +111,7 @@ run ./runtime/scripts/restart-contract-test.sh
 run ./runtime/scripts/framework-restart-contract-test.sh
 run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
+run ./runtime/scripts/storage-contract-test.sh
 run ./runtime/scripts/network-tls-contract-test.sh
 run ./runtime/scripts/wait-for-boot-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh

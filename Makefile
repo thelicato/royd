@@ -539,6 +539,16 @@ android15-data-saver-container-test:
 android15-tethering-idle-container-test:
 	./android/scripts/android15-tethering-idle-container-test.sh
 
+.PHONY: android15-storage-capacity-container-test runtime-storage-test runtime-storage-contract-test
+android15-storage-capacity-container-test:
+	./android/scripts/android15-storage-capacity-container-test.sh
+
+runtime-storage-test:
+	./runtime/scripts/storage-test.sh
+
+runtime-storage-contract-test:
+	./runtime/scripts/storage-contract-test.sh
+
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh
 

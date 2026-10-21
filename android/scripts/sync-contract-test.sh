@@ -45,6 +45,11 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
     mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
+    mkdir -p frameworks/base/core/java/android/os/storage frameworks/base/services/usage/java/com/android/server/usage
+    if [ ! -f frameworks/base/core/java/android/os/storage/StorageManager.java ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/StorageManager.java" frameworks/base/core/java/android/os/storage/StorageManager.java
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/StorageStatsService.java" frameworks/base/services/usage/java/com/android/server/usage/StorageStatsService.java
+    fi
     mkdir -p packages/modules/NetworkStack/src/com/android/server/connectivity
     mkdir -p packages/modules/Connectivity/bpf/progs
     if [ ! -f packages/modules/Connectivity/bpf/progs/netd.c ]; then
@@ -3177,6 +3182,9 @@ grep -Fq 'error.errno == android.system.OsConstants.ENOENT' \
   "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
 ROYD_ANDROID15_TETHERING_SOURCE="$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java" \
   "$android_dir/scripts/android15-tethering-idle-container-test.sh"
+ROYD_ANDROID15_STORAGE_MANAGER_SOURCE="$tmp/src/frameworks/base/core/java/android/os/storage/StorageManager.java" \
+  ROYD_ANDROID15_STORAGE_STATS_SOURCE="$tmp/src/frameworks/base/services/usage/java/com/android/server/usage/StorageStatsService.java" \
+  "$android_dir/scripts/android15-storage-capacity-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \
