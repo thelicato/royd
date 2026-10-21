@@ -535,6 +535,10 @@ android15-metered-deny-container-test:
 android15-data-saver-container-test:
 	./android/scripts/android15-data-saver-container-test.sh
 
+.PHONY: android15-tethering-idle-container-test
+android15-tethering-idle-container-test:
+	./android/scripts/android15-tethering-idle-container-test.sh
+
 android15-mnt-tmpfs-container-test:
 	./android/scripts/android15-mnt-tmpfs-container-test.sh
 

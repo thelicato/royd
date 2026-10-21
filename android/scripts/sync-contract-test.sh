@@ -1390,40 +1390,8 @@ StatusOr<TetherController::TetherStatsList> TetherController::getTetherStats() {
 SRC
     fi
     if [ ! -f packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java ]; then
-      cat > packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java <<'SRC'
-package com.android.networkstack.tethering;
-
-import android.content.Context;
-import android.content.pm.PackageManager;
-
-import com.android.networkstack.tethering.util.PrefixUtils;
-import com.android.networkstack.tethering.util.VersionedBroadcastListener;
-import com.android.networkstack.tethering.wear.WearableConnectionManager;
-
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
-import java.net.InetAddress;
-
-public class Tethering {
-    private Context mContext;
-
-    private void disableUsbIpServing(boolean forNcmFunction) {
-    }
-
-    private boolean isEthernetSupported() {
-        return mContext.getSystemService(Context.ETHERNET_SERVICE) != null;
-    }
-
-    void setUsbTethering(boolean enable, IIntResultListener listener) {
-        mHandler.post(() -> {
-        });
-    }
-
-    private boolean hasSystemFeature(final String feature) {
-        return mContext.getPackageManager().hasSystemFeature(feature);
-    }
-}
-SRC
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/Tethering.java" \
+        packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java
     fi
     if [ ! -f packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java ]; then
       cat > packages/modules/Connectivity/staticlibs/device/com/android/net/module/util/netlink/NetlinkUtils.java <<'SRC'
@@ -3203,6 +3171,12 @@ grep -Fq '!hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {' \
   "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
 grep -Fq 'return mContext.getSystemService(Context.ETHERNET_SERVICE) != null;' \
   "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+grep -Fq 'final boolean skipIdleHardware = shouldSkipRoydIdleHardwareStop(type);' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+grep -Fq 'error.errno == android.system.OsConstants.ENOENT' \
+  "$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java"
+ROYD_ANDROID15_TETHERING_SOURCE="$tmp/src/packages/modules/Connectivity/Tethering/src/com/android/networkstack/tethering/Tethering.java" \
+  "$android_dir/scripts/android15-tethering-idle-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

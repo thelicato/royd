@@ -208,6 +208,25 @@ runtime=pass
 ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory \
   "$assert_runner" "$container" >"$output/after-runtime.log" 2>&1 || runtime=fail
 [ "$system_before" = "$(docker exec "$container" pidof system_server)" ] || runtime=fail
+if [ "$saver_policy" = 1 ] || [ "$datasaver" = 1 ]; then
+  if docker exec "$container" timeout 15 dumpsys tethering >"$output/tethering.log" 2>&1; then
+    # A successful activation workload must exercise the bounded idle-stop path, not
+    # silently avoid its broadcast. Packet success never replaces full runtime checks.
+    if [ "$workload" = pass ]; then
+      [ "$(grep -Fc 'ROYD: skipping idle tethering stops for unadvertised container hardware' "$output/tethering.log")" -eq 1 ] || runtime=fail
+      awk '
+        /^[[:space:]]*Tether state:$/ {sections++;inside=1;next}
+        inside && /^[[:space:]]*Hardware offload:$/ {inside=0;ends++;next}
+        inside && /^[[:space:]]*Upstream wanted: false$/ {idle++;next}
+        inside && /^[[:space:]]*Current upstream interface\(s\): null$/ {upstream++;next}
+        inside && $0 !~ /^[[:space:]]*$/ {unexpected=1}
+        END {exit !(sections==1 && ends==1 && idle==1 && upstream==1 && !unexpected)}
+      ' "$output/tethering.log" || runtime=fail
+    fi
+  else
+    runtime=fail
+  fi
+fi
 if [ "$recovery" = 1 ] || [ "$policy" = 1 ] || [ "$datasaver" = 1 ] || [ "$metered" = 1 ] || [ "$saver_policy" = 1 ]; then
   docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container" >"$output/runtime-after.txt"
   cmp -s "$output/runtime-before.txt" "$output/runtime-after.txt" || runtime=fail

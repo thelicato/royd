@@ -307,6 +307,13 @@ case "$1" in
         : >"$MOCK_STATE/restored"
         [ "$MOCK_CASE" != recovery_restore_failure ] ;;
       *'input keyevent KEYCODE_WAKEUP'|*'wm dismiss-keyguard') : ;;
+      *'dumpsys tethering')
+        [ "$MOCK_CASE" != saver_tether_dump_failure ] || exit 1
+        printf '%s\n' 'Tethering:' '  Tether state:'
+        [ "$MOCK_CASE" != saver_tether_active ] || printf '%s\n' '    usb0 - TetheredState - lastError = 0'
+        printf '%s\n' '    Upstream wanted: false' '    Current upstream interface(s): null' '  Hardware offload:'
+        case "$MOCK_CASE" in saver_tether_no_marker) ;; *) printf '%s\n' 'ROYD: skipping idle tethering stops for unadvertised container hardware' ;; esac
+        [ "$MOCK_CASE" != saver_tether_duplicate ] || printf '%s\n' 'ROYD: skipping idle tethering stops for unadvertised container hardware' ;;
       *'dumpsys connectivity') printf '%s\n' 'Active default network: none' ;;
       *'dumpsys netpolicy') printf '%s\n' 'Metered ifaces: {eth0}' ;;
       *'dumpsys '*|*'logcat -d '*|*'screencap -p'|*'cat /etc/resolv.conf; ip rule;'*) printf '%s\n' evidence ;;
@@ -348,7 +355,8 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map \
     metered_good metered_embedded metered_leak metered_control_failure metered_foreground metered_preexisting metered_unowned \
     metered_set_failure metered_restore_failure metered_restore_get_failure metered_service_failure metered_pid_error metered_no_result metered_map_failure metered_interrupt metered_post_failure \
-    saver_good saver_embedded saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure saver_allowlist_failure; do
+    saver_good saver_embedded saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure saver_allowlist_failure \
+    saver_tether_no_marker saver_tether_duplicate saver_tether_active saver_tether_dump_failure; do
   state="$tmp/$mode"
   mkdir "$state"
   printf '%s\n' 0 >"$state/asserts"
@@ -506,7 +514,7 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
         case "$mode" in
           saver_leak) grep -Fxq SAVER_DENIAL_STATUS=fail "$state/evidence/manifest.env" ;;
           saver_exemption_failure) grep -Fxq SAVER_RESTORATION_STATUS=fail "$state/evidence/manifest.env" ;;
-          saver_post_failure) grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
+          saver_post_failure|saver_tether_*) grep -Fxq RUNTIME_STATUS=fail "$state/evidence/manifest.env" ;;
         esac ;;
       datasaver_*)
         [ "$(cat "$state/asserts")" = 2 ]

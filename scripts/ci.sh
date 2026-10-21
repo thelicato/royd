@@ -66,6 +66,7 @@ run ./android/scripts/android15-networkmonitor-wifi-container-test.sh
 run ./android/scripts/android15-netpolicy-wifi-container-test.sh
 run ./android/scripts/android15-metered-deny-container-test.sh
 run ./android/scripts/android15-data-saver-container-test.sh
+run ./android/scripts/android15-tethering-idle-container-test.sh
 run ./android/scripts/android15-gpu-memory-container-test.sh
 run ./android/scripts/android15-wifi-mac-container-test.sh
 run ./android/scripts/android15-gpu-work-container-test.sh
