@@ -84,6 +84,51 @@ JAVA
 JAVA
   "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/ResultName.java"
   "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" ResultName
+  cat >"$tmp/ProbeWindow.java" <<'JAVA'
+class Bundle {}
+class TextView {
+    TextView(Object activity) {}
+    void setPadding(int a, int b, int c, int d) {}
+    void setTextColor(int colour) {}
+}
+class WindowManager { static class LayoutParams { static final int FLAG_KEEP_SCREEN_ON = 0x80; } }
+class android { static class graphics { static class Color { static final int BLACK = 0; } } }
+class ProbeActivity {
+    String resultFile;
+    String webview;
+    int flags = 0x1000;
+    int flagCalls;
+    void onCreate(Bundle state) {}
+    ProbeActivity getIntent() { return this; }
+    String getStringExtra(String name) { return name.equals("webview_url") ? webview : null; }
+    ProbeActivity getWindow() { return this; }
+    void addFlags(int value) { flags |= value; flagCalls++; }
+    void setContentView(Object view) {}
+    String resultName(String name) { return name; }
+}
+class ProbeWindow extends ProbeActivity {
+JAVA
+  # Execute the production onCreate prefix, before its asynchronous network work.
+  awk '/^    @Override public void onCreate/ { copy=1 }
+    copy && /^        new Thread/ { print "    }"; exit }
+    copy { print }' "$source_dir/TlsProbe.java" >>"$tmp/ProbeWindow.java"
+  cat >>"$tmp/ProbeWindow.java" <<'JAVA'
+    public static void main(String[] args) {
+        for (String target : new String[] {null, "https://www.iana.org/help/example-domains"}) {
+            ProbeWindow activity = new ProbeWindow();
+            activity.webview = target;
+            activity.onCreate(new Bundle());
+            int expected = 0x1000 | (target == null ? 0 : WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            if (activity.flags != expected || activity.flagCalls != (target == null ? 0 : 1)) {
+                throw new AssertionError("WebView must keep only its visible window awake");
+            }
+        }
+        System.out.println("Production optional WebView visible-window policy passed");
+    }
+}
+JAVA
+  "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/ProbeWindow.java"
+  "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" ProbeWindow
 else
   printf '%s\n' 'Java execution skipped: set ROYD_TEST_JAVA_HOME for TLS failure-classifier contracts'
 fi

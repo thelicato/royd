@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
+import android.view.WindowManager;
 import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -63,6 +64,10 @@ public final class TlsProbe extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         resultFile = resultName(getIntent().getStringExtra("result_name"));
+        // A visual-state callback requires a visible document, not a sleeping display.
+        if (getIntent().getStringExtra("webview_url") != null) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
         TextView text = new TextView(this);
         text.setPadding(24, 160, 24, 24);
         text.setTextColor(android.graphics.Color.BLACK);
