@@ -20,6 +20,9 @@ static struct RoydAccountingState* bpf_royd_iface_accounting_map_lookup_elem(uin
 static StatsValue* bpf_iface_stats_map_lookup_elem(uint32_t* key) {
     assert(*key == state.ifindex); return no_stats ? NULL : &stats;
 }
+static uint32_t* bpf_royd_iface_error_map_lookup_elem(uint32_t* key) {
+    assert(*key == 0); return &state.errors;
+}
 static int royd_ip_counters(const struct __sk_buff* skb, uint64_t* bytes, uint64_t* packets) {
     assert(skb->ifindex == state.ifindex); *bytes = 128; *packets = 2; return outcome;
 }
@@ -42,7 +45,7 @@ int main(void) {
     skb.ifindex = 42; outcome = 0; royd_account_iface(&skb, true);
     assert(stats.txBytes == 0 && state.errors == 0);
     outcome = -1; royd_account_iface(&skb, true); assert(state.errors == 1);
-    state.errors = UINT32_MAX; royd_account_iface(&skb, true); assert(state.errors == UINT32_MAX);
+    state.errors = 1; royd_account_iface(&skb, true); assert(state.errors == 1);
     outcome = 1; no_stats = true; state.errors = 0;
     royd_account_iface(&skb, true); assert(state.errors == 1 && stats.txBytes == 0);
     no_stats = false; state.errors = 0;

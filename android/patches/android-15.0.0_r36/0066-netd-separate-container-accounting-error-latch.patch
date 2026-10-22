@@ -1,0 +1,68 @@
+diff --git a/packages/modules/Connectivity/bpf/progs/netd.c b/packages/modules/Connectivity/bpf/progs/netd.c
+index 97989b8..f87e84d 100644
+--- a/packages/modules/Connectivity/bpf/progs/netd.c
++++ b/packages/modules/Connectivity/bpf/progs/netd.c
+@@ -79,6 +79,9 @@ DEFINE_BPF_MAP_RO_NETD(stats_map_B, HASH, StatsKey, StatsValue, STATS_MAP_SIZE)
+ DEFINE_BPF_MAP_NO_NETD(iface_stats_map, HASH, uint32_t, StatsValue, IFACE_STATS_MAP_SIZE)
+ struct RoydAccountingState { uint32_t ifindex; uint32_t errors; };
+ DEFINE_BPF_MAP_RW_NETD(royd_iface_accounting_map, ARRAY, uint32_t, struct RoydAccountingState, 1)
++// Never cleared by the control plane after creation. A separate value avoids
++// racing the selector's initial activation with the first packet failure.
++DEFINE_BPF_MAP_RW_NETD(royd_iface_error_map, ARRAY, uint32_t, uint32_t, 1)
+ DEFINE_BPF_MAP_RO_NETD(uid_owner_map, HASH, uint32_t, UidOwnerValue, UID_OWNER_MAP_SIZE)
+ DEFINE_BPF_MAP_RO_NETD(uid_permission_map, HASH, uint32_t, uint8_t, UID_OWNER_MAP_SIZE)
+ DEFINE_BPF_MAP_NO_NETD(ingress_discard_map, HASH, IngressDiscardKey, IngressDiscardValue,
+@@ -227,7 +230,11 @@ static __always_inline inline int royd_account_iface(struct __sk_buff* skb, bool
+     if (!result) return TC_ACT_UNSPEC;
+     StatsValue* value = bpf_iface_stats_map_lookup_elem(&state->ifindex);
+     if (result < 0 || !value) {
+-        __sync_fetch_and_or(&state->errors, 1);  // Sticky, never wraps back to healthy.
++        uint32_t errorKey = 0;
++        uint32_t* error = bpf_royd_iface_error_map_lookup_elem(&errorKey);
++        // Aligned, idempotent word store. All packet writers store one and no
++        // control-plane operation clears this value during the instance's life.
++        if (error) *(volatile uint32_t*)error = 1;
+         return TC_ACT_UNSPEC;
+     }
+     if (egress) {
+diff --git a/system/netd/server/RoydInterfaceAccounting.h b/system/netd/server/RoydInterfaceAccounting.h
+index d938d8f..a645039 100644
+--- a/system/netd/server/RoydInterfaceAccounting.h
++++ b/system/netd/server/RoydInterfaceAccounting.h
+@@ -125,13 +125,15 @@ inline bool ready(uint32_t& ifindex, uint32_t& errors) {
+     ifindex = if_nametoindex("eth0");
+     unique_fd map(object("map_netd_royd_iface_accounting_map"));
+     unique_fd stats(object("map_netd_iface_stats_map"));
++    unique_fd errorMap(object("map_netd_royd_iface_error_map"));
+     AccountingState state = {};
+     Counters counters = {};
+     if (!ifindex || !map.ok() || !mapLayout(map.get(), BPF_MAP_TYPE_ARRAY, sizeof(state))
+             || !lookup(map.get(), 0, state) || !stats.ok()
+             || !mapLayout(stats.get(), BPF_MAP_TYPE_HASH, sizeof(counters))
+-            || !lookup(stats.get(), ifindex, counters)) return false;
+-    errors = state.errors;
++            || !lookup(stats.get(), ifindex, counters) || !errorMap.ok()
++            || !mapLayout(errorMap.get(), BPF_MAP_TYPE_ARRAY, sizeof(errors))
++            || !lookup(errorMap.get(), 0, errors) || state.errors) return false;
+     return state.ifindex == ifindex && !errors
+             && link(ifindex, true, false) && link(ifindex, false, false);
+ }
+@@ -145,13 +147,17 @@ inline bool initialise() {
+     const uint32_t ifindex = if_nametoindex("eth0");
+     unique_fd map(object("map_netd_royd_iface_accounting_map"));
+     unique_fd stats(object("map_netd_iface_stats_map"));
++    unique_fd errorMap(object("map_netd_royd_iface_error_map"));
+     AccountingState state = {};
++    uint32_t initialErrors = 0;
+     Counters zero = {};
+     if (!ifindex || ifindex == 1 || !map.ok() || !stats.ok()
+             || !mapLayout(map.get(), BPF_MAP_TYPE_ARRAY, sizeof(state))
+             || !mapLayout(stats.get(), BPF_MAP_TYPE_HASH, sizeof(zero))
+             || !lookup(map.get(), 0, state) || state.errors
+-            || (state.ifindex && state.ifindex != ifindex)) return false;
++            || (state.ifindex && state.ifindex != ifindex) || !errorMap.ok()
++            || !mapLayout(errorMap.get(), BPF_MAP_TYPE_ARRAY, sizeof(initialErrors))
++            || !lookup(errorMap.get(), 0, initialErrors) || initialErrors) return false;
+     // Preserve boot-monotonic totals across netd/framework restarts.
+     if (update(stats.get(), ifindex, zero, BPF_NOEXIST) && errno != EEXIST) return false;
+     if (!link(ifindex, true, true) || !link(ifindex, false, true)) return false;

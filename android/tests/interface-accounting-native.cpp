@@ -19,6 +19,7 @@ static int failure, bad_link, bad_layout;
 static unsigned iface = 2, selected, errors;
 static bool pins[2], stats_present;
 static bool bad_ethernet;
+static bool inject_error_at_activation;
 static uint64_t stats_bytes;
 void royd_test_close(int fd) { assert(fd >= 100); closes++; }
 static char* fake_getenv(const char* name) {
@@ -66,6 +67,7 @@ static long fake_syscall(long nr, ...) {
             return failure == 1 ? -1 : 100;
         }
         if (p.find("map_netd_iface_stats_map") != std::string::npos) return failure == 2 ? -1 : 101;
+        if (p.find("map_netd_royd_iface_error_map") != std::string::npos) return failure == 16 ? -1 : 102;
         int d = p.find("ingress") == std::string::npos;
         if (p.find("prog_netd_schedcls_royd_") != std::string::npos) return failure == 3 ? -1 : 200+d;
         assert(p.find("link_royd_iface_") != std::string::npos);
@@ -78,9 +80,9 @@ static long fake_syscall(long nr, ...) {
         if (failure == 14) { a->info.info_len = 0; return 0; }
         if (a->info.bpf_fd < 200) {
             auto* m = reinterpret_cast<bpf_map_info*>(a->info.info);
-            m->type = a->info.bpf_fd == 100 ? BPF_MAP_TYPE_ARRAY : BPF_MAP_TYPE_HASH;
+            m->type = a->info.bpf_fd == 101 ? BPF_MAP_TYPE_HASH : BPF_MAP_TYPE_ARRAY;
             m->key_size = bad_layout == 1 ? 8 : 4;
-            m->value_size = a->info.bpf_fd == 100 ? 8 : 32;
+            m->value_size = a->info.bpf_fd == 100 ? 8 : (a->info.bpf_fd == 101 ? 32 : 4);
             if (bad_layout == 2) m->value_size++;
             m->max_entries = bad_layout == 3 ? 0 : 1;
             if (failure == 15) a->info.info_len = offsetof(bpf_map_info, max_entries) + sizeof(m->max_entries);
@@ -101,6 +103,7 @@ static long fake_syscall(long nr, ...) {
     }
     if (cmd == BPF_MAP_LOOKUP_ELEM) {
         if (failure == 6) return -1;
+        if (a->map_fd == 102) { *reinterpret_cast<unsigned*>(a->value) = errors; return 0; }
         if (a->map_fd == 101) {
             assert(*reinterpret_cast<unsigned*>(a->key) == iface);
             auto* c = reinterpret_cast<android::net::royd::Counters*>(a->value);
@@ -110,7 +113,7 @@ static long fake_syscall(long nr, ...) {
         }
         assert(a->map_fd == 100 && *reinterpret_cast<unsigned*>(a->key) == 0);
         auto* s = reinterpret_cast<android::net::royd::AccountingState*>(a->value);
-        s->ifindex = selected; s->errors = errors; return 0;
+        s->ifindex = selected; s->errors = 0; return 0;
     }
     if (cmd == BPF_MAP_UPDATE_ELEM) {
         if (a->map_fd == 101) {
@@ -122,9 +125,10 @@ static long fake_syscall(long nr, ...) {
         }
         assert(a->map_fd == 100 && a->flags == BPF_EXIST);
         config_writes++;
+        if (inject_error_at_activation) errors = 1;
         if (failure == 8) return -1;
         const auto* s = reinterpret_cast<android::net::royd::AccountingState*>(a->value);
-        selected = s->ifindex; errors = s->errors; return 0;
+        assert(s->errors == 0); selected = s->ifindex; return 0;
     }
     if (cmd == BPF_LINK_CREATE) {
         creates++;
@@ -157,6 +161,7 @@ static void reset() {
     failure = bad_link = bad_layout = 0;
     pins[0] = pins[1] = stats_present = false; stats_bytes = 0;
     bad_ethernet = false;
+    inject_error_at_activation = false;
 }
 int main() {
     unsigned cases = 0;
@@ -192,6 +197,9 @@ int main() {
     reset(); errors = 1; assert(!android::net::royd::initialise()); cases++;
     reset(); bad_ethernet = true; assert(!android::net::royd::initialise() && calls == 0); cases++;
     reset(); failure = 15; assert(android::net::royd::initialise()); cases++;
+    reset(); failure = 16; assert(!android::net::royd::initialise() && selected == 0); cases++;
+    reset(); inject_error_at_activation = true;
+    assert(!android::net::royd::initialise() && errors == 1); cases++;
     reset(); assert(android::net::royd::initialise()); assert(creates == 2 && config_writes == 1);
     stats_bytes = 123456; assert(android::net::royd::initialise());
     assert(creates == 2 && config_writes == 1 && stats_bytes == 123456 && closes > 0); cases++;
