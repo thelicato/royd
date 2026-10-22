@@ -24,6 +24,8 @@ A missing hard requirement returns a non-zero exit status. cgroup v2 and memory 
 
 ## Kernel evidence contract
 
+The Android 15 container interface-accounting path additionally requires actual TCX ingress/egress BPF-link support and its existing BPF/network administration permissions. Netd probes program loading, attachment and namespace-local link identity, and reports setup failure explicitly. Kernel version and `CONFIG_NET_XGRESS` alone do not prove availability. This path does not load host modules or replace qdiscs; broader-host qualification remains open. See [network accounting](network-quotas.md).
+
 Capture image-independent kernel evidence with:
 
 ```sh

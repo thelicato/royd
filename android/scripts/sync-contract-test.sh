@@ -55,6 +55,12 @@ case "$1" in
     if [ ! -f packages/modules/Connectivity/bpf/progs/netd.c ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/metered-netd.c" packages/modules/Connectivity/bpf/progs/netd.c
     fi
+    if [ ! -f system/netd/server/main.cpp ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-main.cpp" system/netd/server/main.cpp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-service.cpp" system/netd/server/NetdNativeService.cpp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-network.cpp" system/netd/server/NetworkController.cpp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-route.cpp" system/netd/server/RouteController.cpp
+    fi
     mkdir -p frameworks/base/services/core/java/com/android/server/net
     if [ ! -f frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java ]; then
       cat >frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java <<'SRC'
@@ -3190,6 +3196,8 @@ ROYD_ANDROID15_STORAGE_MANAGER_SOURCE="$tmp/src/frameworks/base/core/java/androi
   "$android_dir/scripts/android15-storage-capacity-container-test.sh"
 ROYD_ANDROID15_UID_CPU_SOURCE="$tmp/src/frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java" \
   "$android_dir/scripts/android15-uid-cpu-cleanup-container-test.sh"
+ROYD_ANDROID15_ACCOUNTING_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-interface-accounting-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

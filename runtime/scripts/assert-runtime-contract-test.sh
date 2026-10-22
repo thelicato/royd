@@ -27,6 +27,10 @@ case "$1" in
       else printf '%s\n' 'Active default network: 100'; fi
       exit 0
     fi
+    if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = netd ]; then
+      printf '%s\n' "${MOCK_ACCOUNTING_STATUS:-royd interface accounting: ifindex=42 errors=0 links=ready}"
+      exit 0
+    fi
     if [ "$1" = cat ] && [ "$2" = /sys/class/net/eth0/ifindex ]; then
       printf '%s\n' "${MOCK_METERED_IFINDEX:-42}"
       exit 0
@@ -350,6 +354,9 @@ case "$1" in
       if [ "${MOCK_MISSING_SAVER:-0}" != 1 ]; then
         printf '%s\n' 'BpfNetMaps: ROYD: enforcing OCI Data Saver through cgroup BPF'
       fi
+    fi
+    if [ "${MOCK_NO_ACCOUNTING_BACKEND:-0}" != 1 ]; then
+      printf '%s\n' 'Netd: ROYD: accounting OCI eth0 IP traffic through private BPF links'
     fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1315,6 +1322,21 @@ if MOCK_NO_METERED_BACKEND=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-r
   exit 1
 fi
 grep -Fq 'Android 15 OCI metered deny backend is missing' "$tmp/error"
+if MOCK_NO_ACCOUNTING_BACKEND=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent IP accounting backend' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 interface IP accounting backend is missing' "$tmp/error"
+for value in \
+    'royd interface accounting: ifindex=43 errors=0 links=ready' \
+    'royd interface accounting: ifindex=42 errors=1 links=ready' \
+    'royd interface accounting: ifindex=42 errors=0 links=unavailable' missing; do
+  if MOCK_ACCOUNTING_STATUS="$value" MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted unavailable interface accounting' >&2
+    exit 1
+  fi
+  grep -Fq 'Android 15 interface IP accounting is unavailable' "$tmp/error"
+done
 if MOCK_MISSING_SAVER=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted an absent Data Saver backend' >&2
   exit 1

@@ -175,6 +175,17 @@ if [ "$sdk" = 35 ]; then
       exit 1 ;;
   esac
   metered_map=$(docker exec "$container" timeout 15 dumpsys connectivity trafficcontroller)
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: accounting OCI eth0 IP traffic through private BPF links'; then
+    printf 'error: Android 15 interface IP accounting backend is missing in %s\n' "$container" >&2
+    exit 1
+  fi
+  accounting=$(docker exec "$container" timeout 15 dumpsys netd)
+  if ! printf '%s\n' "$accounting" | grep -Fxq \
+      "royd interface accounting: ifindex=$metered_ifindex errors=0 links=ready"; then
+    printf 'error: Android 15 interface IP accounting is unavailable in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "$metered_map" | grep -Eq "^[[:space:]]*sRoydMeteredIfaceMap: $metered_ifindex$"; then
     printf 'error: Android 15 OCI metered deny interface does not match eth0 in %s\n' "$container" >&2
     exit 1

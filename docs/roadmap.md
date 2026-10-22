@@ -117,6 +117,7 @@ Independent follow-up runs on `012e0e603b1b` requalify OEM UID denial, metered b
 - [ ] Investigate and qualify remaining legacy-table-dependent policies, including byte quotas and threshold alerts; cgroup-BPF UID, metered and Data Saver evidence does not qualify these separate capabilities.
 - [x] Reproduce the interface-accounting prerequisite with real ordinary-UID traffic in both DNS modes and define the [quota/alert implementation contract](network-quotas.md), without claiming a backend fix.
 - [ ] Implement and qualify real interface IP-byte accounting before using its totals for the replacement quota/alert backend; current readable interface maps remain empty despite advancing UID/link counters.
+- [x] Implement private, strictly container-gated `eth0` ingress/egress IP accounting with attachment ownership, duplicate-update prevention and focused packet/native contracts. Rebuilt-image and broader accounting acceptance remain separate from this source milestone.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.

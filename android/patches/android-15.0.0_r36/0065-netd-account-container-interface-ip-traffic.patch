@@ -1,0 +1,402 @@
+diff --git a/packages/modules/Connectivity/bpf/progs/netd.c b/packages/modules/Connectivity/bpf/progs/netd.c
+index f4e5572..97989b8 100644
+--- a/packages/modules/Connectivity/bpf/progs/netd.c
++++ b/packages/modules/Connectivity/bpf/progs/netd.c
+@@ -77,6 +77,8 @@ DEFINE_BPF_MAP_NO_NETD(app_uid_stats_map, HASH, uint32_t, StatsValue, APP_STATS_
+ DEFINE_BPF_MAP_RO_NETD(stats_map_A, HASH, StatsKey, StatsValue, STATS_MAP_SIZE)
+ DEFINE_BPF_MAP_RO_NETD(stats_map_B, HASH, StatsKey, StatsValue, STATS_MAP_SIZE)
+ DEFINE_BPF_MAP_NO_NETD(iface_stats_map, HASH, uint32_t, StatsValue, IFACE_STATS_MAP_SIZE)
++struct RoydAccountingState { uint32_t ifindex; uint32_t errors; };
++DEFINE_BPF_MAP_RW_NETD(royd_iface_accounting_map, ARRAY, uint32_t, struct RoydAccountingState, 1)
+ DEFINE_BPF_MAP_RO_NETD(uid_owner_map, HASH, uint32_t, UidOwnerValue, UID_OWNER_MAP_SIZE)
+ DEFINE_BPF_MAP_RO_NETD(uid_permission_map, HASH, uint32_t, uint8_t, UID_OWNER_MAP_SIZE)
+ DEFINE_BPF_MAP_NO_NETD(ingress_discard_map, HASH, IngressDiscardKey, IngressDiscardValue,
+@@ -208,6 +210,44 @@ DEFINE_UPDATE_STATS(iface_stats_map, uint32_t)
+ DEFINE_UPDATE_STATS(stats_map_A, StatsKey)
+ DEFINE_UPDATE_STATS(stats_map_B, StatsKey)
+
++#include "royd_iface_account.h"
++
++static __always_inline inline bool royd_owns_iface(uint32_t ifindex) {
++    uint32_t key = 0;
++    struct RoydAccountingState* state = bpf_royd_iface_accounting_map_lookup_elem(&key);
++    return state && state->ifindex && state->ifindex == ifindex;
++}
++
++static __always_inline inline int royd_account_iface(struct __sk_buff* skb, bool egress) {
++    uint32_t key = 0;
++    struct RoydAccountingState* state = bpf_royd_iface_accounting_map_lookup_elem(&key);
++    if (!state || !state->ifindex || state->ifindex != skb->ifindex) return TC_ACT_UNSPEC;
++    uint64_t bytes = 0, packets = 0;
++    int result = royd_ip_counters(skb, &bytes, &packets);
++    if (!result) return TC_ACT_UNSPEC;
++    StatsValue* value = bpf_iface_stats_map_lookup_elem(&state->ifindex);
++    if (result < 0 || !value) {
++        __sync_fetch_and_or(&state->errors, 1);  // Sticky, never wraps back to healthy.
++        return TC_ACT_UNSPEC;
++    }
++    if (egress) {
++        __sync_fetch_and_add(&value->txBytes, bytes);
++        __sync_fetch_and_add(&value->txPackets, packets);
++    } else {
++        __sync_fetch_and_add(&value->rxBytes, bytes);
++        __sync_fetch_and_add(&value->rxPackets, packets);
++    }
++    return TC_ACT_UNSPEC;  // TCX_NEXT: preserve every other policy/filter.
++}
++
++DEFINE_OPTIONAL_BPF_PROG("schedcls/royd_ingress/account", AID_ROOT, AID_ROOT,
++                royd_iface_ingress_prog)
++(struct __sk_buff* skb) { return royd_account_iface(skb, false); }
++
++DEFINE_OPTIONAL_BPF_PROG("schedcls/royd_egress/account", AID_ROOT, AID_ROOT,
++                royd_iface_egress_prog)
++(struct __sk_buff* skb) { return royd_account_iface(skb, true); }
++
+ // both of these return 0 on success or -EFAULT on failure (and zero out the buffer)
+ static __always_inline inline int bpf_skb_load_bytes_net(const struct __sk_buff* const skb,
+                                                          const int L3_off,
+@@ -582,6 +622,7 @@ DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/egress/stats$4_14", AID_ROOT, AID_SYS
+ // WARNING: Android T's non-updatable netd depends on the name of this program.
+ DEFINE_XTBPF_PROG("skfilter/egress/xtbpf", AID_ROOT, AID_NET_ADMIN, xt_bpf_egress_prog)
+ (struct __sk_buff* skb) {
++    if (royd_owns_iface(skb->ifindex)) return XTBPF_MATCH;
+     // Clat daemon does not generate new traffic, all its traffic is accounted for already
+     // on the v4-* interfaces (except for the 20 (or 28) extra bytes of IPv6 vs IPv4 overhead,
+     // but that can be corrected for later when merging v4-foo stats into interface foo's).
+@@ -601,6 +642,7 @@ DEFINE_XTBPF_PROG("skfilter/egress/xtbpf", AID_ROOT, AID_NET_ADMIN, xt_bpf_egres
+ // WARNING: Android T's non-updatable netd depends on the name of this program.
+ DEFINE_XTBPF_PROG("skfilter/ingress/xtbpf", AID_ROOT, AID_NET_ADMIN, xt_bpf_ingress_prog)
+ (struct __sk_buff* skb) {
++    if (royd_owns_iface(skb->ifindex)) return XTBPF_MATCH;
+     // Clat daemon traffic is not accounted by virtue of iptables raw prerouting drop rule
+     // (in clat_raw_PREROUTING chain), which triggers before this (in bw_raw_PREROUTING chain).
+     // It will be accounted for on the v4-* clat interface instead.
+@@ -614,6 +656,7 @@ DEFINE_XTBPF_PROG("skfilter/ingress/xtbpf", AID_ROOT, AID_NET_ADMIN, xt_bpf_ingr
+ DEFINE_SYS_BPF_PROG("schedact/ingress/account", AID_ROOT, AID_NET_ADMIN,
+                     tc_bpf_ingress_account_prog)
+ (struct __sk_buff* skb) {
++    if (royd_owns_iface(skb->ifindex)) return TC_ACT_UNSPEC;
+     if (is_received_skb(skb)) {
+         // Account for ingress traffic before tc drops it.
+         uint32_t key = skb->ifindex;
+diff --git a/system/netd/server/main.cpp b/system/netd/server/main.cpp
+index b0c5406..00e3d66 100644
+--- a/system/netd/server/main.cpp
++++ b/system/netd/server/main.cpp
+@@ -50,6 +50,7 @@
+ #include "NetdNativeService.h"
+ #include "NetlinkManager.h"
+ #include "Process.h"
++#include "RoydInterfaceAccounting.h"
+
+ #include "NetdUpdatablePublic.h"
+ #include "netd_resolv/resolv.h"
+@@ -149,6 +150,14 @@ int main() {
+     }
+     gLog.info("libnetd_updatable_init success");
+
++    if (!android::net::royd::initialise()) {
++        ALOGE("ROYD: cannot establish private interface IP accounting (TCX links required)");
++        exit(1);
++    }
++    if (android::net::royd::enabled()) {
++        ALOGI("ROYD: accounting OCI eth0 IP traffic through private BPF links");
++    }
++
+     NetlinkManager *nm = NetlinkManager::Instance();
+     if (nm == nullptr) {
+         ALOGE("Unable to create NetlinkManager");
+diff --git a/system/netd/server/NetdNativeService.cpp b/system/netd/server/NetdNativeService.cpp
+index 1bfea3d..886a120 100644
+--- a/system/netd/server/NetdNativeService.cpp
++++ b/system/netd/server/NetdNativeService.cpp
+@@ -44,6 +44,7 @@
+ #include "Permission.h"
+ #include "Process.h"
+ #include "RouteController.h"
++#include "RoydInterfaceAccounting.h"
+ #include "SockDiag.h"
+ #include "UidRanges.h"
+ #include "android/net/BnNetd.h"
+@@ -154,6 +155,13 @@ status_t NetdNativeService::dump(int fd, const Vector<String16> &args) {
+
+     DumpWriter dw(fd);
+
++    if (royd::enabled()) {
++        uint32_t ifindex = 0, errors = 0;
++        const bool ready = royd::ready(ifindex, errors);
++        dw.println("royd interface accounting: ifindex=%u errors=%u links=%s",
++                   ifindex, errors, ready ? "ready" : "unavailable");
++    }
++
+     if (!args.isEmpty() && args[0] == TcpSocketMonitor::DUMP_KEYWORD) {
+       dw.blankline();
+       gCtls->tcpSocketMonitor.dump(dw);
+diff --git a/system/netd/server/NetworkController.cpp b/system/netd/server/NetworkController.cpp
+index 85112bb..d84c3a4 100644
+--- a/system/netd/server/NetworkController.cpp
++++ b/system/netd/server/NetworkController.cpp
+@@ -39,6 +39,7 @@
+ #include "LocalNetwork.h"
+ #include "PhysicalNetwork.h"
+ #include "RouteController.h"
++#include "RoydInterfaceAccounting.h"
+ #include "TcUtils.h"
+ #include "UnreachableNetwork.h"
+ #include "VirtualNetwork.h"
+@@ -156,6 +157,7 @@ NetworkController::NetworkController() :
+     const auto& ifaces = getIfaceNames();
+     if (isOk(ifaces)) {
+         for (const std::string& iface : ifaces.value()) {
++            if (royd::preserveQdisc(iface.c_str())) continue;
+             if (int ifIndex = if_nametoindex(iface.c_str())) {
+                 // Ignore the error because the interface might not have a clsact.
+                 tcQdiscDelDevClsact(ifIndex);
+diff --git a/system/netd/server/RouteController.cpp b/system/netd/server/RouteController.cpp
+index d7a6e83..62b33f6 100644
+--- a/system/netd/server/RouteController.cpp
++++ b/system/netd/server/RouteController.cpp
+@@ -31,6 +31,7 @@
+ #include "Fwmark.h"
+ #include "NetdConstants.h"
+ #include "NetlinkCommands.h"
++#include "RoydInterfaceAccounting.h"
+ #include "TcUtils.h"
+
+ #include <android-base/file.h>
+@@ -1199,6 +1200,8 @@ int RouteController::modifyRoute(uint16_t action, uint16_t flags, const char* in
+ }
+
+ static void maybeModifyQdiscClsact(const char* interface, bool add) {
++    // Private TCX links do not need or own OCI's clsact qdisc.
++    if (royd::preserveQdisc(interface)) return;
+     // The clsact attaching of v4- tun interface is triggered by ClatdController::maybeStartBpf
+     // because the clat is started before the v4- interface is added to the network and the
+     // clat startup needs to add {in, e}gress filters.
+diff --git a/packages/modules/Connectivity/bpf/progs/royd_iface_account.h b/packages/modules/Connectivity/bpf/progs/royd_iface_account.h
+new file mode 100644
+--- /dev/null
++++ b/packages/modules/Connectivity/bpf/progs/royd_iface_account.h
+@@ -0,0 +1,50 @@
++// Returns 1 for supported IP traffic, 0 for non-IP, -1 for unavailable accounting.
++// TCX presents Ethernet headers in both directions. Do not change packet contents.
++static __always_inline inline int royd_ip_counters(const struct __sk_buff* skb,
++                                                   uint64_t* bytes, uint64_t* packets) {
++    struct ethhdr eth;
++    if (bpf_skb_load_bytes(skb, 0, &eth, sizeof(eth))) return -1;
++    uint32_t l3len = skb->len - sizeof(eth);
++    uint32_t iplen, declared, transport;
++    if (eth.h_proto == htons(ETH_P_IP)) {
++        struct iphdr ip;
++        if (bpf_skb_load_bytes(skb, sizeof(eth), &ip, sizeof(ip))
++                || ip.version != 4 || ip.ihl < 5) return -1;
++        iplen = ip.ihl * 4;
++        declared = ntohs(ip.tot_len);
++        transport = ip.protocol;
++        if (skb->gso_segs > 1 && (ip.frag_off & htons(0x3fff))) return -1;
++    } else if (eth.h_proto == htons(ETH_P_IPV6)) {
++        struct ipv6hdr ip;
++        if (bpf_skb_load_bytes(skb, sizeof(eth), &ip, sizeof(ip))
++                || ip.version != 6) return -1;
++        iplen = sizeof(ip);
++        declared = iplen + ntohs(ip.payload_len);
++        transport = ip.nexthdr;
++    } else {
++        return 0;  // ARP and other L2 protocols are not IP-layer usage.
++    }
++    if (l3len < iplen || declared < iplen) return -1;
++    if (skb->gso_segs <= 1) {
++        if (eth.h_proto == htons(ETH_P_IPV6) && declared == iplen && l3len > iplen) return -1;
++        if (declared > l3len) return -1;
++        *bytes = declared;  // Exclude Ethernet padding as well as the Ethernet header.
++        *packets = 1;
++        return 1;
++    }
++    uint32_t headers = iplen;
++    if (transport == IPPROTO_TCP) {
++        struct tcphdr tcp;
++        if (bpf_skb_load_bytes(skb, sizeof(eth) + iplen, &tcp, sizeof(tcp))
++                || tcp.doff < 5) return -1;
++        headers += tcp.doff * 4;
++    } else if (transport == IPPROTO_UDP) {
++        headers += sizeof(struct udphdr);
++    } else {
++        return -1;  // Do not fabricate a segmentation estimate for unsupported GSO.
++    }
++    if (l3len < headers) return -1;
++    *packets = skb->gso_segs;
++    *bytes = (uint64_t)l3len + (uint64_t)(skb->gso_segs - 1) * headers;
++    return 1;
++}
+diff --git a/system/netd/server/RoydInterfaceAccounting.h b/system/netd/server/RoydInterfaceAccounting.h
+new file mode 100644
+--- /dev/null
++++ b/system/netd/server/RoydInterfaceAccounting.h
+@@ -0,0 +1,166 @@
++// royd's instance-owned interface accounting. Android 15 baseline only.
++#pragma once
++
++#include <android-base/unique_fd.h>
++#include <errno.h>
++#include <linux/bpf.h>
++#include <net/if.h>
++#include <net/if_arp.h>
++#include <stdint.h>
++#include <stddef.h>
++#include <stdlib.h>
++#include <string>
++#include <string.h>
++#include <sys/stat.h>
++#include <sys/ioctl.h>
++#include <sys/socket.h>
++#include <sys/syscall.h>
++#include <unistd.h>
++
++namespace android::net::royd {
++using android::base::unique_fd;
++constexpr const char* kRoot = "/sys/fs/bpf/netd_shared/";
++struct AccountingState { uint32_t ifindex; uint32_t errors; };
++struct Counters { uint64_t rxPackets, rxBytes, txPackets, txBytes; };
++
++inline bool enabled() {
++    const char* marker = getenv("ROYD_CONTAINER");
++    if (!marker || strcmp(marker, "1")) return false;
++    struct stat st;
++    return stat("/sys/fs/selinux/enforce", &st) == -1 && errno == ENOENT;
++}
++
++inline int bpfCall(enum bpf_cmd cmd, union bpf_attr& attr) {
++    return syscall(__NR_bpf, cmd, &attr, sizeof(attr));
++}
++inline bool preserveQdisc(const char* iface) {
++    return !strcmp(iface, "eth0") && enabled();
++}
++inline int object(const char* name) {
++    std::string path = std::string(kRoot) + name;
++    union bpf_attr attr = {};
++    attr.pathname = reinterpret_cast<uintptr_t>(path.c_str());
++    return bpfCall(BPF_OBJ_GET, attr);
++}
++template <typename T> inline bool info(int fd, T& value, uint32_t minimum) {
++    union bpf_attr attr = {};
++    attr.info.bpf_fd = fd;
++    attr.info.info_len = sizeof(value);
++    attr.info.info = reinterpret_cast<uintptr_t>(&value);
++    return bpfCall(BPF_OBJ_GET_INFO_BY_FD, attr) == 0
++            && attr.info.info_len >= minimum;
++}
++inline bool mapLayout(int fd, uint32_t type, uint32_t size) {
++    struct bpf_map_info mi = {};
++    return info(fd, mi, offsetof(bpf_map_info, max_entries) + sizeof(mi.max_entries))
++            && mi.type == type && mi.key_size == sizeof(uint32_t)
++            && mi.value_size == size && mi.max_entries > 0
++            && (type != BPF_MAP_TYPE_ARRAY || mi.max_entries == 1);
++}
++template <typename T> inline bool lookup(int fd, uint32_t key, T& value) {
++    union bpf_attr attr = {};
++    attr.map_fd = fd;
++    attr.key = reinterpret_cast<uintptr_t>(&key);
++    attr.value = reinterpret_cast<uintptr_t>(&value);
++    return bpfCall(BPF_MAP_LOOKUP_ELEM, attr) == 0;
++}
++template <typename T> inline int update(int fd, uint32_t key, const T& value, uint64_t flags) {
++    union bpf_attr attr = {};
++    attr.map_fd = fd;
++    attr.key = reinterpret_cast<uintptr_t>(&key);
++    attr.value = reinterpret_cast<uintptr_t>(&value);
++    attr.flags = flags;
++    return bpfCall(BPF_MAP_UPDATE_ELEM, attr);
++}
++inline bool validLink(int fd, int prog, uint32_t ifindex, uint32_t direction) {
++    struct bpf_link_info li = {};
++    struct bpf_prog_info pi = {};
++    if (!info(fd, li, offsetof(bpf_link_info, tcx) + sizeof(li.tcx))
++            || !info(prog, pi, offsetof(bpf_prog_info, id) + sizeof(pi.id))
++            || li.type != BPF_LINK_TYPE_TCX
++            || pi.type != BPF_PROG_TYPE_SCHED_CLS || li.prog_id != pi.id
++            || li.tcx.ifindex != ifindex || li.tcx.attach_type != direction) return false;
++    // A matching ifindex alone cannot prove membership in this network namespace.
++    uint32_t ids[64] = {}, links[64] = {};
++    union bpf_attr query = {};
++    query.query.target_ifindex = ifindex;
++    query.query.attach_type = direction;
++    query.query.prog_cnt = 64;
++    query.query.prog_ids = reinterpret_cast<uintptr_t>(ids);
++    query.query.link_ids = reinterpret_cast<uintptr_t>(links);
++    if (bpfCall(BPF_PROG_QUERY, query) || query.query.prog_cnt > 64) return false;
++    for (uint32_t i = 0; i < query.query.prog_cnt; ++i) {
++        if (ids[i] == pi.id && links[i] == li.id) return true;
++    }
++    return false;
++}
++inline bool link(uint32_t ifindex, bool ingress, bool create) {
++    const char* program = ingress ? "prog_netd_schedcls_royd_ingress_account"
++                                 : "prog_netd_schedcls_royd_egress_account";
++    const char* pin = ingress ? "link_royd_iface_ingress" : "link_royd_iface_egress";
++    const uint32_t direction = ingress ? BPF_TCX_INGRESS : BPF_TCX_EGRESS;
++    unique_fd prog(object(program));
++    if (!prog.ok()) return false;
++    unique_fd fd(object(pin));
++    if (!fd.ok()) {
++        if (!create || errno != ENOENT) return false;
++        union bpf_attr attr = {};
++        attr.link_create.prog_fd = prog.get();
++        attr.link_create.target_ifindex = ifindex;
++        attr.link_create.attach_type = direction;
++        // Insert before existing links, without replacing any link or clsact filter.
++        attr.link_create.flags = BPF_F_BEFORE;
++        fd.reset(bpfCall(BPF_LINK_CREATE, attr));
++        if (!fd.ok()) return false;
++        std::string path = std::string(kRoot) + pin;
++        attr = {};
++        attr.bpf_fd = fd.get();
++        attr.pathname = reinterpret_cast<uintptr_t>(path.c_str());
++        if (bpfCall(BPF_OBJ_PIN, attr)) return false;
++    }
++    // Never delete or adopt a mismatching pin, including a detached/recycled device.
++    return validLink(fd.get(), prog.get(), ifindex, direction);
++}
++inline bool ready(uint32_t& ifindex, uint32_t& errors) {
++    ifindex = if_nametoindex("eth0");
++    unique_fd map(object("map_netd_royd_iface_accounting_map"));
++    unique_fd stats(object("map_netd_iface_stats_map"));
++    AccountingState state = {};
++    Counters counters = {};
++    if (!ifindex || !map.ok() || !mapLayout(map.get(), BPF_MAP_TYPE_ARRAY, sizeof(state))
++            || !lookup(map.get(), 0, state) || !stats.ok()
++            || !mapLayout(stats.get(), BPF_MAP_TYPE_HASH, sizeof(counters))
++            || !lookup(stats.get(), ifindex, counters)) return false;
++    errors = state.errors;
++    return state.ifindex == ifindex && !errors
++            && link(ifindex, true, false) && link(ifindex, false, false);
++}
++inline bool initialise() {
++    if (!enabled()) return true;
++    unique_fd socketFd(socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
++    struct ifreq request = {};
++    strcpy(request.ifr_name, "eth0");
++    if (!socketFd.ok() || ioctl(socketFd.get(), SIOCGIFHWADDR, &request)
++            || request.ifr_hwaddr.sa_family != ARPHRD_ETHER) return false;
++    const uint32_t ifindex = if_nametoindex("eth0");
++    unique_fd map(object("map_netd_royd_iface_accounting_map"));
++    unique_fd stats(object("map_netd_iface_stats_map"));
++    AccountingState state = {};
++    Counters zero = {};
++    if (!ifindex || ifindex == 1 || !map.ok() || !stats.ok()
++            || !mapLayout(map.get(), BPF_MAP_TYPE_ARRAY, sizeof(state))
++            || !mapLayout(stats.get(), BPF_MAP_TYPE_HASH, sizeof(zero))
++            || !lookup(map.get(), 0, state) || state.errors
++            || (state.ifindex && state.ifindex != ifindex)) return false;
++    // Preserve boot-monotonic totals across netd/framework restarts.
++    if (update(stats.get(), ifindex, zero, BPF_NOEXIST) && errno != EEXIST) return false;
++    if (!link(ifindex, true, true) || !link(ifindex, false, true)) return false;
++    // Activate only after both owned links are attached and verified.
++    if (!state.ifindex) {
++        state.ifindex = ifindex;
++        if (update(map.get(), 0, state, BPF_EXIST)) return false;
++    }
++    uint32_t current = 0, errors = 0;
++    return ready(current, errors);
++}
++}  // namespace android::net::royd

@@ -5,6 +5,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.LinkProperties;
 import android.net.NetworkCapabilities;
+import android.net.TrafficStats;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -47,6 +48,10 @@ public final class NetworkProbe extends Activity {
                 result.put("uid", Process.myUid());
                 result.put("pid", Process.myPid());
                 result.put("url", url);
+                result.put("total_rx_before", TrafficStats.getTotalRxBytes());
+                result.put("total_tx_before", TrafficStats.getTotalTxBytes());
+                result.put("uid_rx_before", TrafficStats.getUidRxBytes(Process.myUid()));
+                result.put("uid_tx_before", TrafficStats.getUidTxBytes(Process.myUid()));
                 result.put("active_network", String.valueOf(cm.getActiveNetwork()));
                 result.put("network_count", cm.getAllNetworks().length);
                 Network active = cm.getActiveNetwork();
@@ -123,6 +128,10 @@ public final class NetworkProbe extends Activity {
                 } catch (Exception error) { result.put("hostname_http", error.toString()); }
                 Thread.sleep(2000);
                 result.put("default_callback_available", available.get());
+                result.put("total_rx_after", TrafficStats.getTotalRxBytes());
+                result.put("total_tx_after", TrafficStats.getTotalTxBytes());
+                result.put("uid_rx_after", TrafficStats.getUidRxBytes(Process.myUid()));
+                result.put("uid_tx_after", TrafficStats.getUidTxBytes(Process.myUid()));
                 result.put("done", true);
             } catch (Exception error) {
                 try { result.put("probe_error", error.toString()); } catch (Exception ignored) { }
