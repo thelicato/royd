@@ -12,6 +12,7 @@ policy=${ROYD_NETWORK_DNS_POLICY:-0}
 datasaver=${ROYD_NETWORK_DNS_DATASAVER:-0}
 metered=${ROYD_NETWORK_DNS_METERED:-0}
 saver_policy=${ROYD_NETWORK_DNS_SAVER_POLICY:-0}
+sleep_launch=${ROYD_NETWORK_METERED_SLEEP_BEFORE_LAUNCH:-0}
 format=2
 scope=app-system-dns-framework
 if [ "$recovery" = 1 ]; then format=3; scope=continuous-app-ipv4-network-recovery; fi
@@ -42,6 +43,7 @@ case "$policy:$recovery" in 0:0|0:1|1:0) ;; *) exit 2 ;; esac
 case "$datasaver:$policy:$recovery" in 0:0:0|0:0:1|0:1:0|1:0:0) ;; *) exit 2 ;; esac
 case "$metered:$datasaver:$policy:$recovery" in 0:0:0:0|0:0:0:1|0:0:1:0|0:1:0:0|1:0:0:0) ;; *) exit 2 ;; esac
 case "$saver_policy:$metered:$datasaver:$policy:$recovery" in 0:0:0:0:0|0:0:0:0:1|0:0:0:1:0|0:0:1:0:0|0:1:0:0:0|1:0:0:0:0) ;; *) exit 2 ;; esac
+case "$sleep_launch:$metered:$saver_policy" in 0:0:0|0:1:0|0:0:1|1:1:0|1:0:1) ;; *) exit 2 ;; esac
 case "$output" in ''|/|.|..) exit 2 ;; esac
 for command in docker go; do command -v "$command" >/dev/null 2>&1 || exit 1; done
 case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
@@ -67,6 +69,7 @@ finish() {
 ROYD_NETWORK_DNS_EVIDENCE_FORMAT=$format
 NETWORK_SCOPE=$scope
 NETWORK_MODE=$network_mode
+METERED_SLEEP_BEFORE_LAUNCH=$sleep_launch
 RESULT_STATUS=$result
 RUNTIME_STATUS=$runtime
 OCI_OWNERSHIP_STATUS=$ownership

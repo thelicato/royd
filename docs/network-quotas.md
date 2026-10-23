@@ -14,7 +14,7 @@ In pinned Connectivity commit `64cd443febd3ee0fd5c90b47089d82b96850c1e9`:
 
 Framework `NetworkManagementService` retains permission checks and its active quota/alert state. NetworkPolicyManager uses interface limits independently of UID firewall decisions. Preserve those distinctions and stock handling outside the strict container gate.
 
-## Local accounting witness
+## Original missing-accounting witness
 
 On 21 October 2026, frozen image `012e0e603b1b` passes ordinary-UID DNS, literal/hostname nonce HTTP and full independent pre/post runtime checks in both Docker DNS modes. Read-only snapshots around the workload show:
 
@@ -29,9 +29,17 @@ The interface map reports `OK`, its content header is present, and its interface
 
 This reproduces a missing interface-accounting prerequisite, not broken ordinary transport. [Native interface readers](https://android.googlesource.com/platform/packages/modules/Connectivity/+/64cd443febd3ee0fd5c90b47089d82b96850c1e9/service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp) sum this map and initialise an empty result to zero; that is source-path evidence, not a separate live TrafficStats API measurement. No quota, alert callback, forced counter insertion or manual host-network reconfiguration is exercised here. Diagnostic assessment records interface accounting as failed, separately from passing DNS/runtime controls.
 
+## Rebuilt accounting witness
+
+On 22 October 2026, rebuilt image `f14a08bffee0` with patches `0065`/`0066` passes fresh persisted runtime qualification and ordinary-UID DNS/nonce HTTP in both Docker DNS modes. Read-only observations show real `eth0` interface-map increases of RX2658/TX1958 bytes on bridge and RX2009/TX1817 bytes with embedded DNS. Public TrafficStats total and own-UID readings also advance. The map/API windows differ; their byte deltas are not asserted equal to each other or link-layer counters. Both fixture receipts, full pre/post runtime checks, unchanged OCI identity and stable per-instance link/map identities are retained. Distinct map IDs across the instances establish separate observed state.
+
+Framework-only restart retains the same owned links/maps and increasing interface totals without resetting counters. Container restart/recreation preserves the named data/settings/package identity, independently of the per-boot counters. A five-minute scrcpy run also passes, alongside native/WebView HTTPS and certificate-denial checks in both DNS modes. Initial host-observer failures are preserved: bpftool 7.4.0 returns 255 after successful pinned-link information reads, so fresh confirmations use a read-only syscall observer with real failure propagation. No failed workload is relabelled a pass.
+
+These are ordinary IPv4 application and restart witnesses, not complete accounting acceptance. Controlled system/raw traffic, concurrent bidirectional flows, real segmentation/offload accounting and persisted UID history still need independent qualification. Byte quotas and threshold callbacks remain unimplemented.
+
 ## Required implementation invariants
 
-Patch `0065` implements the first accounting path, pending rebuilt-image acceptance. Under the strict gate, netd creates private pinned TCX ingress/egress links on the existing `eth0`, verifies each program, link, direction and current-namespace query, then activates a private selector. These links do not replace clsact qdiscs or other links and survive framework/netd restarts. Existing counters are not reset. Mismatching or detached pins and interface replacement are rejected rather than adopted by recycled ifindex; recreate the disposable instance for a replacement device. Setup failure is fatal to netd and remains visible. Actual program loading and link attachment establish capability, not the kernel version or Kconfig alone. TCX is an additional baseline requirement, not a claim that older hosts now qualify.
+Patch `0065` implements the first accounting path, with the scoped rebuilt-image witness above. Under the strict gate, netd creates private pinned TCX ingress/egress links on the existing `eth0`, verifies each program, link, direction and current-namespace query, then activates a private selector. These links do not replace clsact qdiscs or other links and survive framework/netd restarts. Existing counters are not reset. Mismatching or detached pins and interface replacement are rejected rather than adopted by recycled ifindex; recreate the disposable instance for a replacement device. Setup failure is fatal to netd and remains visible. Actual program loading and link attachment establish capability, not the kernel version or Kconfig alone. TCX is an additional baseline requirement, not a claim that older hosts now qualify.
 
 The hooks count IPv4/IPv6 IP lengths, excluding Ethernet headers, padding, ARP and loopback. Supported TCP/UDP GSO/GRO adds the replicated IP/transport headers using the kernel's segment count and actual IPv4/TCP header lengths, not a fixed-MTU estimate. Unsupported segmented protocols/IPv6 extension chains, malformed headers, failed packet reads or missing counter entries latch a sticky unavailable flag. They do not drop packets or masquerade as zero usage. Interface byte/packet increments are atomic across CPUs. Normal UID accounting keeps its existing independent AOSP semantics.
 

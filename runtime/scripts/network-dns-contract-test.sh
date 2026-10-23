@@ -2,6 +2,7 @@
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+"$script_dir/network-launcher-contract-test.sh"
 for manifest in AndroidManifest.xml PolicyControlManifest.xml; do
   [ "$(grep -c '<uses-permission ' "$root/runtime/tests/network-dns/$manifest")" -eq 2 ]
   ! grep -Eq 'sharedUserId|FOREGROUND_SERVICE|MANAGE_NETWORK|NETWORK_STACK' "$root/runtime/tests/network-dns/$manifest"
@@ -119,6 +120,7 @@ case "$1" in
       *'am start --user 0 '*'/org.royd.networkprobe.MeteredProbeLauncher '*)
         [ "$MOCK_CASE" != metered_service_failure ] || { printf '%s\n' 'Error: service refused'; exit 1; }
         : >"$MOCK_STATE/running"
+        if [ "$MOCK_CASE" != metered_sleep_stays_off ]; then printf '%s\n' Awake >"$MOCK_STATE/display"; fi
         printf '%s\n' "$*" | sed -n 's/.*metered=\([^ ]*\).*/\1/p' >"$MOCK_STATE/metered-phase"
         printf '%s\n' 'Starting service: Intent { cmp=test }' ;;
       *'am get-uid-state '*)
@@ -306,7 +308,10 @@ case "$1" in
       *'ip link set dev eth0 up'*)
         : >"$MOCK_STATE/restored"
         [ "$MOCK_CASE" != recovery_restore_failure ] ;;
-      *'input keyevent KEYCODE_WAKEUP'|*'wm dismiss-keyguard') : ;;
+      *'input keyevent KEYCODE_SLEEP') printf '%s\n' Asleep >"$MOCK_STATE/display" ;;
+      *'timeout 15 dumpsys power') printf '  mWakefulness=%s\n' "$(cat "$MOCK_STATE/display")" ;;
+      *'input keyevent KEYCODE_WAKEUP') printf '%s\n' Awake >"$MOCK_STATE/display" ;;
+      *'wm dismiss-keyguard') : ;;
       *'dumpsys tethering')
         [ "$MOCK_CASE" != saver_tether_dump_failure ] || exit 1
         printf '%s\n' 'Tethering:' '  Tether state:'
@@ -353,9 +358,9 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     datasaver_good datasaver_embedded datasaver_rollback datasaver_embedded_rollback datasaver_command_failure \
     datasaver_map_mismatch datasaver_restore_failure datasaver_interrupt datasaver_preexisting \
     datasaver_app_failure datasaver_post_failure datasaver_pid_error datasaver_uid_changed datasaver_restarted datasaver_preexisting_map \
-    metered_good metered_embedded metered_leak metered_control_failure metered_foreground metered_preexisting metered_unowned \
+    metered_good metered_embedded metered_sleep metered_sleep_stays_off metered_leak metered_control_failure metered_foreground metered_preexisting metered_unowned \
     metered_set_failure metered_restore_failure metered_restore_get_failure metered_service_failure metered_pid_error metered_no_result metered_map_failure metered_interrupt metered_post_failure \
-    saver_good saver_embedded saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure saver_allowlist_failure \
+    saver_good saver_embedded saver_sleep saver_rollback saver_leak saver_exemption_failure saver_restore_failure saver_interrupt saver_post_failure saver_allowlist_failure \
     saver_tether_no_marker saver_tether_duplicate saver_tether_active saver_tether_dump_failure; do
   state="$tmp/$mode"
   mkdir "$state"
@@ -377,6 +382,8 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
   case "$mode" in datasaver_embedded*) network_mode=private ;; esac
   [ "$mode" != metered_embedded ] || network_mode=private
   [ "$mode" != saver_embedded ] || network_mode=private
+  sleep_launch=0
+  case "$mode" in *_sleep*) sleep_launch=1 ;; esac
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_TOOLS="$tmp/bin" MOCK_ASSESS="$tmp/assess" \
     ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" ROYD_NETWORK_DNS_REQUEST_TIMEOUT=2 \
     ROYD_NETWORK_DNS_NETWORK_MODE="$network_mode" \
@@ -385,11 +392,12 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     ROYD_NETWORK_DNS_DATASAVER="$datasaver" \
     ROYD_NETWORK_DNS_METERED="$metered" \
     ROYD_NETWORK_DNS_SAVER_POLICY="$saver" \
+    ROYD_NETWORK_METERED_SLEEP_BEFORE_LAUNCH="$sleep_launch" \
     ROYD_NETWORK_DNS_BUILD_RUNNER="$tmp/bin/build" ROYD_NETWORK_DNS_WAIT_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_HEALTH_RUNNER="$tmp/bin/pass" ROYD_NETWORK_DNS_SECURITY_RUNNER="$tmp/bin/pass" \
     ROYD_NETWORK_DNS_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
-  if [ "$mode" = saver_good ] || [ "$mode" = saver_embedded ]; then
+  if [ "$mode" = saver_good ] || [ "$mode" = saver_embedded ] || [ "$mode" = saver_sleep ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=7 "$state/evidence/manifest.env"
@@ -397,7 +405,7 @@ for mode in good embedded dns_gap both_gaps ownership_changed fixture_failure wr
     [ -e "$state/datasaver-restored" ]
     [ ! -e "$state/allow-10054" ] && [ ! -e "$state/allow-10055" ]
     [ "$(cat "$state/asserts")" = 2 ]
-  elif [ "$mode" = metered_good ] || [ "$mode" = metered_embedded ]; then
+  elif [ "$mode" = metered_good ] || [ "$mode" = metered_embedded ] || [ "$mode" = metered_sleep ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_NETWORK_DNS_EVIDENCE_FORMAT=6 "$state/evidence/manifest.env"
@@ -587,5 +595,29 @@ for settings in 2:0:0:0 1:1:0:0 1:0:1:0 1:0:0:1; do
   [ "$status" -eq 2 ]
   [ ! -e "$state/evidence" ]
   [ ! -e "$state/docker.log" ]
+done
+for value in 2 true 1; do
+  state="$tmp/invalid-sleep-$value"
+  mkdir "$state"
+  status=0
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE=invalid \
+    ROYD_NETWORK_METERED_SLEEP_BEFORE_LAUNCH="$value" \
+    ROYD_NETWORK_DNS_OUTPUT_DIR="$state/evidence" \
+    "$script_dir/network-dns-test.sh" royd:test >"$state/result.log" 2>&1 || status=$?
+  [ "$status" -eq 2 ] && [ ! -e "$state/evidence" ] && [ ! -e "$state/docker.log" ]
+done
+for mode in metered_sleep saver_sleep; do
+  evidence="$tmp/$mode/evidence"
+  grep -Fxq METERED_SLEEP_BEFORE_LAUNCH=1 "$evidence/manifest.env"
+  expected=6
+  [ "$mode" != saver_sleep ] || expected=12
+  count=0
+  for before in "$evidence"/display-before-*.log; do
+    grep -Eq '^[[:space:]]*mWakefulness=Asleep$' "$before"
+    after="$evidence/display-after-${before##*/display-before-}"
+    grep -Eq '^[[:space:]]*mWakefulness=Awake$' "$after"
+    count=$((count + 1))
+  done
+  [ "$count" -eq "$expected" ]
 done
 printf '%s\n' 'Android 15 application DNS and network-state contract test passed'

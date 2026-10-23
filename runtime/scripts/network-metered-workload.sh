@@ -6,7 +6,9 @@ output=${2:?evidence required}
 gateway=${3:?DNS fixture required}
 url=${4:?nonce URL required}
 datasaver=${ROYD_NETWORK_DNS_SAVER_POLICY:-0}
+sleep_launch=${ROYD_NETWORK_METERED_SLEEP_BEFORE_LAUNCH:-0}
 case "$datasaver" in 0|1) ;; *) exit 2 ;; esac
+case "$sleep_launch" in 0|1) ;; *) exit 2 ;; esac
 [ "$(docker inspect --format '{{index .Config.Labels "org.royd.test"}} {{index .Config.Labels "org.royd.test.owner"}}' "$container")" = "network-dns $container" ]
 target_uid=
 control_uid=
@@ -48,6 +50,17 @@ trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
 snapshot() { docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.State.Running}} {{.RestartCount}} {{.State.OOMKilled}}' "$container"; }
+display_state() {
+  expected=$1
+  destination=$2
+  attempt=0
+  while :; do
+    docker exec "$container" timeout 15 dumpsys power >"$destination"
+    grep -Eq "^[[:space:]]*mWakefulness=$expected$" "$destination" && return 0
+    attempt=$((attempt + 1)); [ "$attempt" -lt 10 ] || return 1
+    sleep 1
+  done
+}
 snapshot >"$output/runtime-before.txt"
 grep -Eq '^[a-f0-9]{64} [^ ]+ true 0 false$' "$output/runtime-before.txt"
 denylist >"$output/metered-initial-policy.log"
@@ -96,6 +109,11 @@ for phase in $phases; do
     docker exec "$container" wm dismiss-keyguard
     foreground=false
     if [ "$datasaver:$phase:$role" = 1:foreground:target ]; then foreground=true; fi
+    if [ "$sleep_launch" = 1 ]; then
+      # Exercise a real sleeping-display launch only in this owned disposable instance.
+      docker exec "$container" input keyevent KEYCODE_SLEEP
+      display_state Asleep "$output/display-before-$name.log"
+    fi
     docker exec "$container" timeout 30 am start --user 0 -n "$package/org.royd.networkprobe.MeteredProbeLauncher" \
       --es host royd-probe.test --es dns "$gateway" --es url "$url?metered=$name" --ez foreground "$foreground" >"$output/launch-$name.log" 2>&1
     if grep -Ei 'error|exception|not allowed|denied' "$output/launch-$name.log"; then exit 1; fi
@@ -104,6 +122,9 @@ for phase in $phases; do
       attempt=$((attempt+1)); [ "$attempt" -lt 30 ]; sleep 1
     done
     docker exec "$container" cat "$private/ready.json" >"$output/ready-$name.json"
+    if [ "$sleep_launch" = 1 ]; then
+      display_state Awake "$output/display-after-$name.log"
+    fi
     pid=$(docker exec "$container" pidof "$package")
     case "$pid" in ''|*[!0-9]*) exit 1 ;; esac
     uid=$(docker exec "$container" stat -c %u "/proc/$pid")
