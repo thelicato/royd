@@ -40,6 +40,7 @@ run ./android/scripts/android15-netd-iptables-container-test.sh
 run ./android/scripts/android15-interface-accounting-container-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/android15-network-stats-rcu-container-test.sh
+run ./android/scripts/android15-packet-rcu-container-test.sh
 run ./android/scripts/android15-init-stdio-container-test.sh
 run ./android/scripts/android15-oci-network-route-test.sh
 run ./android/scripts/android15-cgroup-v2-container-test.sh
@@ -113,6 +114,7 @@ run ./runtime/scripts/restart-contract-test.sh
 run ./runtime/scripts/framework-restart-contract-test.sh
 run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
+run ./runtime/scripts/network-history-contract-test.sh
 run ./runtime/scripts/storage-contract-test.sh
 run ./runtime/scripts/network-tls-contract-test.sh
 run ./runtime/scripts/wait-for-boot-contract-test.sh

@@ -1,0 +1,139 @@
+diff --git a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+--- a/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
++++ b/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java
+@@ -40,7 +40,6 @@
+ import static android.net.INetd.PERMISSION_NONE;
+ import static android.net.INetd.PERMISSION_UNINSTALLED;
+ import static android.net.INetd.PERMISSION_UPDATE_DEVICE_STATS;
+-import static android.system.OsConstants.EAFNOSUPPORT;
+ import static android.system.OsConstants.EINVAL;
+ import static android.system.OsConstants.ENODEV;
+ import static android.system.OsConstants.ENOENT;
+@@ -83,7 +82,6 @@
+ import com.android.net.module.util.bpf.IngressDiscardKey;
+ import com.android.net.module.util.bpf.IngressDiscardValue;
+
+-import java.io.File;
+ import java.io.FileDescriptor;
+ import java.io.IOException;
+ import java.net.InetAddress;
+@@ -105,10 +103,14 @@
+     }
+
+     private static final String TAG = "BpfNetMaps";
+-    private static volatile boolean sRoydKernelRcuUnavailable = false;
+     private static boolean isRoydContainerWithoutSelinux() {
+-        return "1".equals(System.getenv("ROYD_CONTAINER"))
+-                && !new File("/sys/fs/selinux/enforce").exists();
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (ErrnoException error) {
++            return error.errno == ENOENT;
++        }
+     }
+
+     private final INetd mNetd;
+@@ -812,16 +814,8 @@
+     public void swapActiveStatsMap() {
+         throwIfPreT("swapActiveStatsMap is not available on pre-T devices");
+         if (isRoydContainerWithoutSelinux()) {
+-            if (sRoydKernelRcuUnavailable) return;
+             final int probeErr = mDeps.synchronizeKernelRCU();
+-            if (probeErr == -EAFNOSUPPORT) {
+-                sRoydKernelRcuUnavailable = true;
+-                Log.w(TAG, "ROYD: leaving the active network stats map unchanged because "
+-                        + "the PF_KEY RCU barrier is unavailable");
+-                return;
+-            }
+-            // Preserve stock fatal handling for every failure other than the unavailable
+-            // address family observed on the container host.
++            // Establish a real grace-period backend before changing the selector.
+             maybeThrow(probeErr, "synchronizeKernelRCU probe failed");
+         }
+
+diff --git a/packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp
+--- a/packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp
++++ b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp
+@@ -27,6 +27,7 @@
+ #include <android-base/unique_fd.h>
+ #include "BpfSyscallWrappers.h"
+ #include "bpf/KernelUtils.h"
++#include "RoydNetworkStatsRcu.h"
+
+ namespace android {
+
+@@ -137,18 +138,9 @@
+
+ static void com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU(JNIEnv *env,
+                                                                           jclass clazz) {
+-    const int pfSocket = socket(AF_KEY, SOCK_RAW | SOCK_CLOEXEC, PF_KEY_V2);
+-
+-    if (pfSocket < 0) {
+-        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:socket", errno);
+-        return;
+-    }
+-
+-    if (close(pfSocket)) {
+-        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:close", errno);
+-        return;
+-    }
+-    return;
++    const char* operation;
++    const int error = royd::synchronizeNetworkStatsRcu(operation);
++    if (error) jniThrowErrnoException(env, operation, -error);
+ }
+
+ /*
+diff --git a/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h
+new file mode 100644
+--- /dev/null
++++ b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h
+@@ -0,0 +1,46 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++#include <atomic>
++#include <cerrno>
++#include <cstdlib>
++#include <cstring>
++#include <linux/pfkeyv2.h>
++#include <log/log.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++namespace royd {
++inline std::atomic_bool packetRcuReported{false};
++
++inline bool containerWithoutSelinux() {
++    const char* value = getenv("ROYD_CONTAINER");
++    if (!value || strcmp(value, "1")) return false;
++    struct stat info;
++    return stat("/sys/fs/selinux/enforce", &info) != 0 && errno == ENOENT;
++}
++
++// Preserve stock PF_KEY handling. Linux packet_release() also waits for
++// synchronize_net(), even for a protocol-zero socket with no receive hook.
++inline int synchronizeNetworkStatsRcu(const char*& operation) {
++    operation = "nativeSynchronizeKernelRCU:socket";
++    int fd = socket(AF_KEY, SOCK_RAW | SOCK_CLOEXEC, PF_KEY_V2);
++    if (fd >= 0) {
++        operation = "nativeSynchronizeKernelRCU:close";
++        return close(fd) == 0 ? 0 : -errno;
++    }
++    const int stockError = errno;
++    if (stockError != EAFNOSUPPORT || !containerWithoutSelinux()) return -stockError;
++    operation = "nativeSynchronizeKernelRCU:packet_socket";
++    // Protocol zero never registers a receive hook. Do not bind, send or receive.
++    fd = socket(AF_PACKET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
++    if (fd < 0) return -errno;
++    operation = "nativeSynchronizeKernelRCU:packet_close";
++    if (close(fd)) return -errno;
++    if (!packetRcuReported.exchange(true)) {
++        ALOGI("ROYD: using packet-socket RCU grace periods for network statistics");
++    }
++    return 0;
++}
++}  // namespace royd

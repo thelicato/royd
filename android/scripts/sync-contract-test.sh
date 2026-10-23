@@ -1173,6 +1173,37 @@ static void verifyClatPerms() {
 }
 SRC
     fi
+    mkdir -p packages/modules/Connectivity/staticlibs/native/bpfmapjni
+    if [ ! -f packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp ]; then
+      cat > packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp <<'SRC'
+#include <android-base/unique_fd.h>
+#include "BpfSyscallWrappers.h"
+#include "bpf/KernelUtils.h"
+
+namespace android {
+
+static void com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU(JNIEnv *env,
+                                                                          jclass clazz) {
+    const int pfSocket = socket(AF_KEY, SOCK_RAW | SOCK_CLOEXEC, PF_KEY_V2);
+
+    if (pfSocket < 0) {
+        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:socket", errno);
+        return;
+    }
+
+    if (close(pfSocket)) {
+        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:close", errno);
+        return;
+    }
+    return;
+}
+
+/*
+ * JNI registration.
+ */
+}
+SRC
+    fi
     if [ ! -f packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java ]; then
       cat > packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java <<'SRC'
 package com.android.server;
@@ -3208,16 +3239,12 @@ grep -Fq 'case VERIFY_PROG:   fd = bpf::retrieveProgram(path); break;' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (fatal) abort();' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
-grep -Fq 'import static android.system.OsConstants.EAFNOSUPPORT;' \
-  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
 grep -Fq 'private static boolean isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
-grep -Fq 'private static volatile boolean sRoydKernelRcuUnavailable = false;' \
-  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
-grep -Fq 'if (probeErr == -EAFNOSUPPORT) {' \
-  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
-grep -Fq 'ROYD: leaving the active network stats map unchanged because' \
-  "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+! grep -Fq 'sRoydKernelRcuUnavailable' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'return error.errno == ENOENT;' "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
+grep -Fq 'royd::synchronizeNetworkStatsRcu(operation)' "$tmp/src/packages/modules/Connectivity/staticlibs/native/bpfmapjni/com_android_net_module_util_BpfMap.cpp"
+ROYD_ANDROID15_RCU_SOURCE="$tmp/src" "$android_dir/scripts/android15-packet-rcu-container-test.sh"
 grep -Fq 'sConfigurationMap.updateEntry(CURRENT_STATS_MAP_CONFIGURATION_KEY,' \
   "$tmp/src/packages/modules/Connectivity/service/src/com/android/server/BpfNetMaps.java"
 grep -Fq 'maybeThrow(err, "synchronizeKernelRCU failed");' \

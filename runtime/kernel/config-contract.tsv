@@ -8,4 +8,5 @@ memory	preferred	CONFIG_PSI	Pressure stall information
 security	recorded	CONFIG_SECCOMP	Seccomp support
 security	recorded	CONFIG_SECCOMP_FILTER	Seccomp BPF filters
 rootless	path-specific	CONFIG_USER_NS	User namespaces for the rootless candidate
+network-stats	path-specific	CONFIG_PACKET	Protocol-zero packet-socket RCU fallback when PF_KEY is unavailable
 host-gpu	path-specific	CONFIG_DRM	Direct Rendering Manager core

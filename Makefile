@@ -103,6 +103,12 @@ runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
 .PHONY: runtime-network-dns-test runtime-network-dns-contract-test
+.PHONY: runtime-network-history-test runtime-network-history-contract-test
+runtime-network-history-test:
+	./runtime/scripts/network-history-test.sh
+
+runtime-network-history-contract-test:
+	./runtime/scripts/network-history-contract-test.sh
 .PHONY: runtime-network-recovery-test
 runtime-network-recovery-test:
 	ROYD_NETWORK_DNS_RECOVERY=1 ./runtime/scripts/network-dns-test.sh
@@ -426,6 +432,10 @@ android15-clat-bpf-container-test:
 
 android15-network-stats-rcu-container-test:
 	./android/scripts/android15-network-stats-rcu-container-test.sh
+
+.PHONY: android15-packet-rcu-container-test
+android15-packet-rcu-container-test:
+	./android/scripts/android15-packet-rcu-container-test.sh
 
 android15-init-stdio-container-test:
 	./android/scripts/android15-init-stdio-container-test.sh

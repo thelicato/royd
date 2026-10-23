@@ -158,6 +158,15 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 OCI network publication is missing in %s\n' "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: leaving the active network stats map unchanged because the PF_KEY RCU barrier is unavailable'; then
+    printf 'error: Android 15 froze UID statistics instead of completing RCU-protected rotation in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Eq 'synchronizeKernelRCU( probe)? failed'; then
+    printf 'error: Android 15 UID statistics RCU barrier failed in %s\n' "$container" >&2
+    exit 1
+  fi
   connectivity=$(docker exec "$container" timeout 15 dumpsys connectivity)
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: enforcing OCI metered UID deny policy through cgroup BPF'; then

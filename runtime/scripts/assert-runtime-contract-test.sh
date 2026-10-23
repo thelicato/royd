@@ -505,6 +505,13 @@ case "$1" in
     if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
     fi
+    if [ "${MOCK_FROZEN_UID_STATS:-0}" = 1 ]; then
+      printf '%s\n' 'BpfNetMaps: ROYD: leaving the active network stats map unchanged because the PF_KEY RCU barrier is unavailable'
+    fi
+    case "${MOCK_UID_RCU_FAILURE:-}" in
+      probe) printf '%s\n' 'NetworkStats: problem reading network stats: synchronizeKernelRCU probe failed' ;;
+      post) printf '%s\n' 'NetworkStats: problem reading network stats: synchronizeKernelRCU failed' ;;
+    esac
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_CPU_RESIDENCY_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'KernelCpuSpeedReader: ROYD: CPU frequency residency unavailable for /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state'
     fi
@@ -1378,4 +1385,18 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SETTINGS_HISTORICAL_CRASH=1 \
   exit 1
 fi
 grep -Fq 'retained a Settings crash' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_FROZEN_UID_STATS=1 \
+    "$script_dir/assert-runtime.sh" frozen-uid-stats >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted frozen UID statistics' >&2
+  exit 1
+fi
+grep -Fq 'froze UID statistics instead of completing RCU-protected rotation' "$tmp/error"
+for phase in probe post; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_UID_RCU_FAILURE="$phase" \
+      "$script_dir/assert-runtime.sh" uid-rcu-failure >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a UID statistics RCU barrier failure' >&2
+    exit 1
+  fi
+  grep -Fq 'UID statistics RCU barrier failed' "$tmp/error"
+done
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

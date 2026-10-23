@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application android:label="royd network probe" android:testOnly="true" android:usesCleartextTraffic="true">
         <activity android:name=".NetworkProbe" android:exported="true" />
+        <activity android:name=".UsageHistoryProbe" android:exported="true" android:turnScreenOn="true" android:showWhenLocked="true" />
         <activity android:name=".RecoveryProbe" android:exported="true" />
         <activity android:name=".MeteredProbeLauncher" android:exported="true" android:turnScreenOn="true" android:showWhenLocked="true" />
         <service android:name=".MeteredProbeService" android:exported="false" />
