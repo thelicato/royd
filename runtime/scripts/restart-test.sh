@@ -150,7 +150,8 @@ read_persistence >"$output/$phase/persistence.txt"
 # Reject an absent setting/identity/package before equality comparisons can pass.
 sed -n '1p' "$output/$phase/persistence.txt" | grep -Eq '^[0-9a-f]{64}  /data/local/tmp/royd-restart-probe$'
 [ "$(sed -n '2p' "$output/$phase/persistence.txt")" = "$container-$started" ]
-sed -n '3p' "$output/$phase/persistence.txt" | grep -Eq '^[0-9a-f]{16}$'
+# SettingsProvider uses Long.toHexString, which does not pad leading zeroes.
+sed -n '3p' "$output/$phase/persistence.txt" | grep -Eq '^[0-9a-f]{1,16}$'
 sed -n '4p' "$output/$phase/persistence.txt" | grep -Eq '^package:org.chromium.webview_shell uid:[0-9]+$'
 [ "$(wc -l <"$output/$phase/persistence.txt")" -eq 4 ]
 docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"

@@ -79,6 +79,13 @@ case "$1" in
         hash=$(printf '%064d' 1)
         token=$(cat "$MOCK_STATE/token")
         android_id=0123456789abcdef
+        case "$MOCK_CASE" in
+          short_identity) android_id=a03aad489ae0bca ;;
+          minimum_identity) android_id=0 ;;
+          empty_identity) android_id= ;;
+          oversized_identity) android_id=123456789abcdef01 ;;
+          malformed_identity) android_id=123456789abcdeg ;;
+        esac
         uid=10054
         if [ "$current" != fresh ]; then
           case "$MOCK_CASE" in
@@ -127,7 +134,8 @@ run_case() {
     "$script_dir/restart-test.sh" royd:test >"$state/result.log" 2>&1
 }
 
-for mode in good file_changed setting_changed identity_changed uid_changed missing_identity \
+for mode in good short_identity minimum_identity empty_identity oversized_identity malformed_identity \
+    file_changed setting_changed identity_changed uid_changed missing_identity \
     missing_package no_restart no_recreate wrong_sdk seed_failure read_failure \
     wait_failure health_failure security_failure assert_failure start_failure restart_failure \
     stop_failure create_failure capture_failure existing_container existing_volume existing_evidence; do
@@ -139,7 +147,7 @@ for mode in good file_changed setting_changed identity_changed uid_changed missi
   fi
   status=0
   run_case || status=$?
-  if [ "$mode" = good ]; then
+  if [ "$mode" = good ] || [ "$mode" = short_identity ] || [ "$mode" = minimum_identity ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq ROYD_RESTART_EVIDENCE_FORMAT=2 "$state/evidence/manifest.env"
@@ -178,13 +186,13 @@ for mode in good file_changed setting_changed identity_changed uid_changed missi
   [ ! -e "$state/volume" ]
 done
 restart_mode=framework
-for mode in good file_changed setting_changed identity_changed uid_changed framework_failure \
+for mode in good short_identity minimum_identity file_changed setting_changed identity_changed uid_changed framework_failure \
     assert_failure health_failure security_failure framework_container_restart; do
   state="$tmp/framework-$mode"
   mkdir "$state"
   status=0
   run_case || status=$?
-  if [ "$mode" = good ]; then
+  if [ "$mode" = good ] || [ "$mode" = short_identity ] || [ "$mode" = minimum_identity ]; then
     [ "$status" -eq 0 ]
     grep -Fxq RESULT_STATUS=pass "$state/evidence/manifest.env"
     grep -Fxq FRAMEWORK_STATUS=pass "$state/evidence/manifest.env"
