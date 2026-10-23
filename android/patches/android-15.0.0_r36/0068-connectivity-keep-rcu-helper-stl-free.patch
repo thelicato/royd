@@ -1,0 +1,40 @@
+diff --git a/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h
+--- a/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h
++++ b/packages/modules/Connectivity/staticlibs/native/bpfmapjni/RoydNetworkStatsRcu.h
+@@ -1,18 +1,17 @@
+ /* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
+ #pragma once
+
+-#include <atomic>
+-#include <cerrno>
+-#include <cstdlib>
+-#include <cstring>
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <linux/pfkeyv2.h>
+-#include <log/log.h>
++#include <android/log.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
+
+ namespace royd {
+-inline std::atomic_bool packetRcuReported{false};
++inline bool packetRcuReported = false;
+
+ inline bool containerWithoutSelinux() {
+     const char* value = getenv("ROYD_CONTAINER");
+@@ -38,8 +37,10 @@
+     if (fd < 0) return -errno;
+     operation = "nativeSynchronizeKernelRCU:packet_close";
+     if (close(fd)) return -errno;
+-    if (!packetRcuReported.exchange(true)) {
+-        ALOGI("ROYD: using packet-socket RCU grace periods for network statistics");
++    // This JNI module deliberately has no C++ standard-library dependency.
++    if (!__atomic_exchange_n(&packetRcuReported, true, __ATOMIC_RELAXED)) {
++        __android_log_write(ANDROID_LOG_INFO, "BpfMap",
++                "ROYD: using packet-socket RCU grace periods for network statistics");
+     }
+     return 0;
+ }

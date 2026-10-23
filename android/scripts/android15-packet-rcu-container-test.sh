@@ -11,7 +11,19 @@ awk -v target="+++ b/$header" '
   copy && /^\+[^+]/ {print substr($0,2)}
   copy && $0 == "+" {print ""}
 ' "$patch" >"$tmp/RoydNetworkStatsRcu.h"
+mkdir -p "$tmp/src/$(dirname -- "$header")"
+cp "$tmp/RoydNetworkStatsRcu.h" "$tmp/src/$header"
+patch -s --fuzz=0 -p1 -d "$tmp/src" <"$root/android/patches/android-15.0.0_r36/0068-connectivity-keep-rcu-helper-stl-free.patch"
+cp "$tmp/src/$header" "$tmp/RoydNetworkStatsRcu.h"
 test -s "$tmp/RoydNetworkStatsRcu.h"
+cat >"$tmp/no-stl.cpp" <<'CPP'
+static void testLog(const char*) { }
+#include "RoydNetworkStatsRcu.h"
+int probe(const char*& operation) { return royd::synchronizeNetworkStatsRcu(operation); }
+CPP
+${CXX:-c++} -std=c++17 -nostdinc++ -fno-exceptions -fno-rtti -Wall -Wextra -Werror \
+  -I"$tmp" -I"$root/android/tests/rcu-stubs" -c "$tmp/no-stl.cpp" -o "$tmp/no-stl.o"
+printf '%s\n' 'Actual RCU helper compiled without C++ standard-library headers'
 ${CXX:-c++} -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$tmp" -I"$root/android/tests/rcu-stubs" "$root/android/tests/rcu-packet-native.cpp" -o "$tmp/native"
 "$tmp/native"

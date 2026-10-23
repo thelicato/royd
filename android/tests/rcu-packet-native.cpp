@@ -35,7 +35,7 @@ static int testClose(int fd) { assert(fd == 100); closeCalls++; errno = closeErr
 static void testLog(const char* value) {
     assert(!strcmp(value, "ROYD: using packet-socket RCU grace periods for network statistics")); logs++;
 }
-#define getenv testGetenv
+#define getenv(...) testGetenv(__VA_ARGS__)
 #define stat(...) testStat(__VA_ARGS__)
 #define socket testSocket
 #define close testClose
