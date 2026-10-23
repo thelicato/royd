@@ -638,15 +638,13 @@ for activity in attach map program initialized; do
   grep -Fq 'attempted host-global GPU-work tracing' "$tmp/error"
 done
 
-if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_CPU_RESIDENCY_MARKER=1 \
-    "$script_dir/assert-runtime.sh" missing-cpu-residency-mode >"$tmp/error" 2>&1; then
-  printf '%s\n' 'error: runtime assertion accepted unreported missing CPU residency' >&2
-  exit 1
-fi
-grep -Fq 'unavailable CPU-frequency residency is not reported' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_CPU_RESIDENCY_MARKER=1 \
+  "$script_dir/assert-runtime.sh" unused-cpu-residency-reader >"$tmp/residency"
+grep -Fxq 'CPU frequency residency: unavailable (cpufreq policies and fallback interface absent)' "$tmp/residency"
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_RESIDENCY_AVAILABLE=1 \
   MOCK_MISSING_CPU_RESIDENCY_MARKER=1 \
-  "$script_dir/assert-runtime.sh" available-cpu-residency >/dev/null
+  "$script_dir/assert-runtime.sh" available-cpu-residency >"$tmp/residency"
+! grep -Fq 'CPU frequency residency: unavailable' "$tmp/residency"
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CPU_RESIDENCY_FAILURE=1 \
     "$script_dir/assert-runtime.sh" missing-cpu-residency >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted repeated missing CPU residency diagnostics' >&2

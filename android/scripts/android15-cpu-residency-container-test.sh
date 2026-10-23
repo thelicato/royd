@@ -117,6 +117,8 @@ JAVA
                     opens = closes = allows = restores = activePolicy = 0;
                     readError = closeError = null;
                     KernelCpuSpeedReader reader = new KernelCpuSpeedReader(0, 2);
+                    // Construction is not a read and cannot promise an availability report.
+                    check(infos.get() == 0 && errors.get() == 0 && opens == 0);
                     openError = fault(kind);
                     zero(reader.readDelta()); zero(reader.readAbsolute());
                     boolean unavailable = gated && kind == 0;

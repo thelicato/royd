@@ -460,12 +460,9 @@ if [ "$sdk" = 35 ]; then
     done
     [ ! -e /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state ]
   '; then
-    if ! docker logs "$container" 2>&1 | grep -Fq \
-        'ROYD: CPU frequency residency unavailable for /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state'; then
-      printf 'error: Android 15 unavailable CPU-frequency residency is not reported in %s\n' \
-        "$container" >&2
-      exit 1
-    fi
+    # BatteryStats can select per-UID frequency data without calling the legacy reader.
+    # Its missing-file diagnostic is on demand, not a boot readiness marker.
+    printf '%s\n' 'CPU frequency residency: unavailable (cpufreq policies and fallback interface absent)'
   fi
   if docker logs "$container" 2>&1 | grep -Eq \
       'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu[0-9]+/cpufreq/stats/time_in_state: open failed: ENOENT'; then
