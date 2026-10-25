@@ -1,0 +1,10 @@
+# Android 15 x86_64 required addition, selected only under the strict gate.
+# The loader retains the stock base and optional vendor policy separately.
+
+# libcutils uses MFD_CLOEXEC | MFD_NOEXEC_SEAL, never executable memfds.
+memfd_create: arg1 == 0x9
+# Variable media buffer sizes; preserve kernel FD permissions and process limits.
+ftruncate: arg1 <= 0x7fffffffffffffff
+# F_GET_SEALS; F_ADD_SEALS for size seals, the probe and read-only protection.
+# Stock minijail logging may independently allow fcntl. Do not remove that path.
+fcntl: arg1 == 1034 || arg1 == 1033 && arg2 == 0x6 || arg1 == 1033 && arg2 == 0x10 || arg1 == 1033 && arg2 == 0x11

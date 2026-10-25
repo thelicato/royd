@@ -275,6 +275,8 @@ Local qualification on 21 October 2026 passes both modes on `sha256:ed6dd897088f
 
 ## scrcpy streaming stability
 
+Use `make runtime-mediaextractor-test` with a fresh `ROYD_MEDIA_OUTPUT_DIR` to isolate extractor shared-memory preparation and repeated Sound Settings launches. Its zero-permission app prepares a known own-asset WAV five times; full post-runtime checks also run after workload failure. Retain the format-1 result, service status, observations and full log/inspect. See [media sandbox policy and limits](media-sandbox.md). This focused check complements the complete scrcpy workload.
+
 After runtime qualification passes, validate the host ADB, scrcpy server, H.264 encoder and changing UI stream together with:
 
 ```sh

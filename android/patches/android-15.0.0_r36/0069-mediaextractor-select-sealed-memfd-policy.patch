@@ -1,0 +1,129 @@
+diff --git a/frameworks/av/services/mediaextractor/main_extractorservice.cpp b/frameworks/av/services/mediaextractor/main_extractorservice.cpp
+--- a/frameworks/av/services/mediaextractor/main_extractorservice.cpp
++++ b/frameworks/av/services/mediaextractor/main_extractorservice.cpp
+@@ -35,6 +35,7 @@
+ // from LOCAL_C_INCLUDES
+ #include "MediaExtractorService.h"
+ #include "minijail.h"
++#include "RoydMediaExtractorPolicy.h"
+
+ using namespace android;
+
+@@ -64,7 +65,14 @@
+     //calling the function before entering minijail, we can force dlopen.
+     android::report_sysprop_change();
+
+-    SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
++    const char* requiredPolicy = royd::mediaExtractorSeccompPolicy(kSystemSeccompPolicyPath);
++    if (requiredPolicy != kSystemSeccompPolicyPath) {
++        SetUpMinijailWithRequiredPolicy(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath,
++                                       requiredPolicy);
++        ALOGI("ROYD: using sealed-memfd mediaextractor seccomp policy");
++    } else {
++        SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
++    }
+
+     strcpy(argv[0], "media.extractor");
+     sp<ProcessState> proc(ProcessState::self());
+diff --git a/frameworks/av/services/mediaextractor/Android.bp b/frameworks/av/services/mediaextractor/Android.bp
+--- a/frameworks/av/services/mediaextractor/Android.bp
++++ b/frameworks/av/services/mediaextractor/Android.bp
+@@ -46,6 +46,7 @@
+
+     srcs: ["main_extractorservice.cpp"],
+     shared_libs: [
++        "libbase",
+         "libmedia",
+         "libmediaextractorservice",
+         "libmediautils",
+diff --git a/frameworks/av/services/mediaextractor/RoydMediaExtractorPolicy.h b/frameworks/av/services/mediaextractor/RoydMediaExtractorPolicy.h
+--- /dev/null
++++ b/frameworks/av/services/mediaextractor/RoydMediaExtractorPolicy.h
+@@ -0,0 +1,26 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <android-base/properties.h>
++
++namespace royd {
++inline const char* mediaExtractorSeccompPolicy(const char* stockPolicy) {
++#if defined(__x86_64__)
++    const char* container = getenv("ROYD_CONTAINER");
++    if (!container || strcmp(container, "1")) return stockPolicy;
++    struct stat info;
++    if (stat("/sys/fs/selinux/enforce", &info) == 0 || errno != ENOENT) {
++        return stockPolicy;
++    }
++    if (android::base::GetBoolProperty("ro.treble.enabled", false)
++            && android::base::GetBoolProperty("sys.use_memfd", false)) {
++        return "/vendor/etc/seccomp_policy/royd-mediaextractor-x86_64.policy";
++    }
++#endif
++    return stockPolicy;
++}
++}  // namespace royd
+diff --git a/frameworks/av/media/module/minijail/minijail.h b/frameworks/av/media/module/minijail/minijail.h
+--- a/frameworks/av/media/module/minijail/minijail.h
++++ b/frameworks/av/media/module/minijail/minijail.h
+@@ -23,6 +23,10 @@
+                       const std::vector<std::string>& additional_policy_contents);
+ void SetUpMinijail(const std::string& base_policy_path,
+                    const std::string& additional_policy_path);
++// A required addition must be read successfully, unlike optional vendor policy.
++void SetUpMinijailWithRequiredPolicy(const std::string& base_policy_path,
++                                    const std::string& additional_policy_path,
++                                    const std::string& required_policy_path);
+ void SetUpMinijailList(const std::string& base_policy_path,
+                        const std::vector<std::string>& additional_policy_paths);
+ }
+diff --git a/frameworks/av/media/module/minijail/minijail.cpp b/frameworks/av/media/module/minijail/minijail.cpp
+--- a/frameworks/av/media/module/minijail/minijail.cpp
++++ b/frameworks/av/media/module/minijail/minijail.cpp
+@@ -61,8 +61,26 @@
+     SetUpMinijailList(base_policy_path, {additional_policy_path});
+ }
+
++static void SetUpMinijailInternal(const std::string& base_policy_path,
++                                 const std::vector<std::string>& additional_policy_paths,
++                                 const std::string& required_policy_path);
++
++void SetUpMinijailWithRequiredPolicy(const std::string& base_policy_path,
++                                    const std::string& additional_policy_path,
++                                    const std::string& required_policy_path)
++{
++    SetUpMinijailInternal(base_policy_path, {additional_policy_path}, required_policy_path);
++}
++
+ void SetUpMinijailList(const std::string& base_policy_path,
+-                   const std::vector<std::string>& additional_policy_paths)
++                     const std::vector<std::string>& additional_policy_paths)
++{
++    SetUpMinijailInternal(base_policy_path, additional_policy_paths, "");
++}
++
++static void SetUpMinijailInternal(const std::string& base_policy_path,
++                                 const std::vector<std::string>& additional_policy_paths,
++                                 const std::string& required_policy_path)
+ {
+     std::string base_policy_content;
+     std::vector<std::string> additional_policy_contents;
+@@ -80,6 +98,15 @@
+             LOG(WARNING) << "Could not read additional policy file '" << one_policy_path << "'";
+         }
+         additional_policy_contents.push_back(one_policy_content);
++    }
++
++    if (!required_policy_path.empty()) {
++        std::string required_policy_content;
++        if (!base::ReadFileToString(required_policy_path, &required_policy_content,
++                                    false /* follow_symlinks */)) {
++            LOG(FATAL) << "Could not read required policy file '" << required_policy_path << "'";
++        }
++        additional_policy_contents.push_back(required_policy_content);
+     }
+
+     base::unique_fd policy_fd(WritePolicyToPipe(base_policy_content, additional_policy_contents));

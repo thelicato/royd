@@ -417,6 +417,10 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 retained a Settings crash in %s\n' "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Eq 'libminijail\[[0-9]+\]: blocked syscall: memfd_create|Service .mediaextractor.*received signal (6|31)([^0-9]|$)'; then
+    printf 'error: Android 15 retained a mediaextractor sandbox failure or service death in %s\n' "$container" >&2
+    exit 1
+  fi
   if docker logs "$container" 2>&1 | grep -Eq \
       'SetCgroup::ExecuteFor(Process|Task): failed to open /dev/(cpuctl|cpuset|blkio)/'; then
     printf 'error: Android 15 attempted unavailable legacy cgroup task profiles in %s\n' \

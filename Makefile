@@ -424,6 +424,17 @@ android15-netbpfload-container-test:
 android15-memfd-container-test:
 	./android/scripts/android15-memfd-container-test.sh
 
+.PHONY: android15-mediaextractor-memfd-container-test
+android15-mediaextractor-memfd-container-test:
+	./android/scripts/android15-mediaextractor-memfd-container-test.sh
+
+.PHONY: runtime-mediaextractor-test runtime-mediaextractor-contract-test
+runtime-mediaextractor-test:
+	./runtime/scripts/mediaextractor-test.sh
+
+runtime-mediaextractor-contract-test:
+	./runtime/scripts/mediaextractor-contract-test.sh
+
 android15-netd-iptables-container-test:
 	./android/scripts/android15-netd-iptables-container-test.sh
 

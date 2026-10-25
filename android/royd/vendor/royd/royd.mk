@@ -19,6 +19,10 @@ PRODUCT_COPY_FILES += \
 
 $(call inherit-product, vendor/royd/version.mk)
 
+ifeq ($(ROYD_ANDROID_VERSION):$(TARGET_PRODUCT),15:royd_x86_64)
+PRODUCT_COPY_FILES += vendor/royd/seccomp_policy/royd-mediaextractor-x86_64.policy:$(TARGET_COPY_OUT_VENDOR)/etc/seccomp_policy/royd-mediaextractor-x86_64.policy
+endif
+
 $(call inherit-product, vendor/royd/profile.mk)
 
 $(call inherit-product, vendor/royd/hal_profile.mk)

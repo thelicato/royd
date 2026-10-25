@@ -129,6 +129,7 @@ Current graphical acceptance remains blocked: the five-minute scrcpy workload re
 - [x] Restore real RCU-protected detailed stats-map rotation and locally qualify recorded ordinary-UID Ethernet history in both DNS modes, with access denial, repeated polls and independent runtime evidence.
 - [ ] Qualify recorded UID-history durability across restarts; generic persisted-state checks do not establish this.
 - [ ] Fix and qualify the reproduced mediaextractor memfd sandbox failure and resulting Sound Settings crash, preserving scoped syscall restrictions and full crash-history assertions.
+- [x] Implement a strictly gated, required media shared-memory policy addition with stock/vendor composition, real Minijail/kernel contracts and a zero-permission application/Sound Settings qualification runner. Rebuilt-image and scrcpy qualification remain separate from this source milestone.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.

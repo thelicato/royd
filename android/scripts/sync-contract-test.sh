@@ -45,6 +45,41 @@ case "$1" in
       frameworks/base/packages/SettingsLib/src/com/android/settingslib/deviceinfo \
       frameworks/native/services/gpuservice/gpuwork
     mkdir -p frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm
+    mkdir -p frameworks/av/services/mediaextractor
+    mkdir -p frameworks/av/media/module/minijail
+    if [ ! -f frameworks/av/media/module/minijail/minijail.cpp ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/mediaextractor-minijail.cpp" frameworks/av/media/module/minijail/minijail.cpp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/mediaextractor-minijail.h" frameworks/av/media/module/minijail/minijail.h
+    fi
+    if [ ! -f frameworks/av/services/mediaextractor/main_extractorservice.cpp ]; then
+      cat >frameworks/av/services/mediaextractor/main_extractorservice.cpp <<'SRC'
+// from LOCAL_C_INCLUDES
+#include "MediaExtractorService.h"
+#include "minijail.h"
+
+using namespace android;
+
+    //calling the function before entering minijail, we can force dlopen.
+    android::report_sysprop_change();
+
+    SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
+
+    strcpy(argv[0], "media.extractor");
+    sp<ProcessState> proc(ProcessState::self());
+SRC
+      cat >frameworks/av/services/mediaextractor/Android.bp <<'SRC'
+cc_binary {
+    name: "mediaextractor",
+
+    srcs: ["main_extractorservice.cpp"],
+    shared_libs: [
+        "libmedia",
+        "libmediaextractorservice",
+        "libmediautils",
+    ],
+}
+SRC
+    fi
     mkdir -p frameworks/base/core/java/android/os/storage frameworks/base/services/usage/java/com/android/server/usage
     if [ ! -f frameworks/base/core/java/android/os/storage/StorageManager.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/StorageManager.java" frameworks/base/core/java/android/os/storage/StorageManager.java
@@ -3270,6 +3305,10 @@ grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/frameworks/bas
 grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"
+
+grep -Fq 'SetUpMinijailWithRequiredPolicy(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath,' "$tmp/src/frameworks/av/services/mediaextractor/main_extractorservice.cpp"
+grep -Fq 'errno != ENOENT' "$tmp/src/frameworks/av/services/mediaextractor/RoydMediaExtractorPolicy.h"
+cmp "$android_dir/royd/vendor/royd/seccomp_policy/royd-mediaextractor-x86_64.policy" "$tmp/src/vendor/royd/seccomp_policy/royd-mediaextractor-x86_64.policy"
 
 # Adding a new patch at the end of an already applied set must not require a
 # fresh multi-gigabyte AOSP checkout. Changed or reordered existing patches

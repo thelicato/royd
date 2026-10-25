@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.royd.mediaprobe">
+    <uses-sdk android:minSdkVersion="35" android:targetSdkVersion="35" />
+    <application android:label="royd media probe" android:testOnly="true">
+        <activity android:name=".MediaProbe" android:exported="true" />
+    </application>
+</manifest>

@@ -505,6 +505,12 @@ case "$1" in
     if [ "${MOCK_CPU_MONITOR_WTF:-0}" = 1 ]; then
       printf '%s\n' 'am_wtf: [0,591,system_server,-1,CpuMonitorService,Failed to initialize CPU info reader]'
     fi
+    case "${MOCK_MEDIA_FAILURE:-}" in
+      syscall) printf 'libminijail[376]: blocked syscall: memfd_create\n' ;;
+      death) printf "Service 'mediaextractor' (pid 376) received signal 6\n" ;;
+      sigsys) printf "Service 'mediaextractor' (pid 376) received signal 31\n" ;;
+      shutdown) printf "Service 'mediaextractor' (pid 376) received signal 15\n" ;;
+    esac
     if [ "${MOCK_FROZEN_UID_STATS:-0}" = 1 ]; then
       printf '%s\n' 'BpfNetMaps: ROYD: leaving the active network stats map unchanged because the PF_KEY RCU barrier is unavailable'
     fi
@@ -1399,4 +1405,14 @@ for phase in probe post; do
   fi
   grep -Fq 'UID statistics RCU barrier failed' "$tmp/error"
 done
+for failure in syscall death sigsys; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MEDIA_FAILURE="$failure" \
+      "$script_dir/assert-runtime.sh" media-failure >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted a media sandbox failure' >&2
+    exit 1
+  fi
+  grep -Fq 'retained a mediaextractor sandbox failure or service death' "$tmp/error"
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MEDIA_FAILURE=shutdown \
+  "$script_dir/assert-runtime.sh" media-shutdown >"$tmp/error" 2>&1
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

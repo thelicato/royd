@@ -36,6 +36,7 @@ run ./android/scripts/android15-installd-app-data-container-test.sh
 run ./android/scripts/android15-logd-scheduling-container-test.sh
 run ./android/scripts/android15-netbpfload-container-test.sh
 run ./android/scripts/android15-memfd-container-test.sh
+run ./android/scripts/android15-mediaextractor-memfd-container-test.sh
 run ./android/scripts/android15-netd-iptables-container-test.sh
 run ./android/scripts/android15-interface-accounting-container-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
@@ -116,6 +117,7 @@ run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
 run ./runtime/scripts/network-history-contract-test.sh
 run ./runtime/scripts/storage-contract-test.sh
+run ./runtime/scripts/mediaextractor-contract-test.sh
 run ./runtime/scripts/network-tls-contract-test.sh
 run ./runtime/scripts/wait-for-boot-contract-test.sh
 run ./runtime/scripts/security-contract-test.sh
