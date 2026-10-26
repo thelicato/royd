@@ -134,6 +134,7 @@ Broader graphical acceptance remains open: the original bridge-history log conta
 - [ ] Qualify recorded UID-history durability across restarts; generic persisted-state checks do not establish this.
 - [x] Fix and qualify the reproduced mediaextractor memfd sandbox failure and resulting Sound Settings crash, preserving scoped syscall restrictions and full crash-history assertions.
 - [x] Implement a strictly gated, required media shared-memory policy addition with stock/vendor composition, real Minijail/kernel contracts and a zero-permission application/Sound Settings qualification runner. Rebuilt-image and scrcpy qualification remain separate from this source milestone.
+- [x] Reject retained application ANR and unresponsive-window history before and after Android 15 runtime workloads, including native/WindowManager-only reports and recovered processes. This closes the qualification gap, not the original timeout cause.
 - [ ] Diagnose the retained WebView-shell focus-event timeout near lifecycle force-stop and qualify responsiveness; passing command manifests and absence of a formal ANR event do not resolve it.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.

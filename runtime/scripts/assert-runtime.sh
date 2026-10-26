@@ -29,6 +29,10 @@ case "$sdk" in
     ;;
 esac
 
+if [ "$sdk" = 35 ]; then
+  "$script_dir/assert-app-responsiveness.sh" "$container"
+fi
+
 resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
 case "$resource_profile:$sdk" in
   low-memory:*)
@@ -867,6 +871,10 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 attempted unqualified Binder freezer operations in %s\n' "$container" >&2
     exit 1
   fi
+fi
+
+if [ "$sdk" = 35 ]; then
+  "$script_dir/assert-app-responsiveness.sh" "$container"
 fi
 
 printf 'Runtime checks passed: %s\n' "$container"

@@ -313,6 +313,7 @@ case "$1" in
           ;;
         *royd-runtime-about-phone-test*)
           [ "${MOCK_BAD_ABOUT_PHONE:-0}" != 1 ] || exit 1
+          if [ -n "${MOCK_ANR_STATE:-}" ]; then : >"$MOCK_ANR_STATE"; fi
           if [ -n "${MOCK_ABOUT_PHONE_BIN:-}" ]; then
             PATH="$MOCK_ABOUT_PHONE_BIN:$PATH" sh -c "$3" || exit 1
           fi
@@ -480,6 +481,23 @@ case "$1" in
     if [ "${MOCK_STORAGE_PHYSICAL_FAILURE:-0}" = 1 ]; then
       printf '%s\n' 'vold: No mount point entry for /data'
     fi
+    if [ "${MOCK_APP_ANR_PHASE:-early}" = early ] || [ -f "${MOCK_ANR_STATE:-/nonexistent}" ]; then
+      case "${MOCK_APP_ANR:-}" in
+        window|recovered)
+          printf '%s\n' '10-26 10:00:00.123 500 630 I WindowManager: ANR in Window{abc u0 example.app/.Main}. Reason:Input dispatching timed out (Waited 5043ms for FocusEvent(hasFocus=true)).'
+          ;;
+        native)
+          printf '%s\n' 'W InputDispatcher: Window abc example.app/.Main is unresponsive: example.app/.Main is not responding. Waited 5043ms for FocusEvent(hasFocus=true)'
+          ;;
+        formal) printf '%s\n' 'I am_anr  : [0,101,example.app,0,Input dispatching timed out]' ;;
+        activity) printf '%s\n' 'E ActivityManager: ANR in example.app (example.app/.Main)' ;;
+        unrelated) printf '%s\n' 'I example.app: text mentions ANR in documentation; no input timeout' ;;
+      esac
+      if [ "${MOCK_APP_ANR:-}" = recovered ]; then
+        printf '%s\n' 'I ActivityManager: Start proc 202:example.app/u0a55 for top-activity'
+      fi
+    fi
+    if [ "${MOCK_APP_ANR_LOG_FAILURE:-0}" = 1 ]; then exit 1; fi
     if [ "${MOCK_SETTINGS_HISTORICAL_CRASH:-0}" = 1 ]; then
       printf '%s\n' 'am_crash: [1368,0,com.android.settings,952876613,android.os.ServiceSpecificException,An error occurred while executing doInBackground(),Parcel.java,3275,0]'
     fi
@@ -1391,6 +1409,26 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SETTINGS_HISTORICAL_CRASH=1 \
   exit 1
 fi
 grep -Fq 'retained a Settings crash' "$tmp/error"
+for mode in window native formal activity recovered; do
+  for phase in early late; do
+    rm -f "$tmp/anr-state"
+    if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR="$mode" MOCK_APP_ANR_PHASE="$phase" \
+        MOCK_ANR_STATE="$tmp/anr-state" "$script_dir/assert-runtime.sh" app-anr >"$tmp/error" 2>&1; then
+      printf 'error: runtime assertion accepted %s ANR in %s phase\n' "$mode" "$phase" >&2
+      exit 1
+    fi
+    grep -Fq 'retained application ANR or input timeout diagnostics' "$tmp/error"
+    if [ "$phase" = late ]; then test -f "$tmp/anr-state"; else test ! -f "$tmp/anr-state"; fi
+  done
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=unrelated \
+  "$script_dir/assert-runtime.sh" unrelated-anr-text >"$tmp/output" 2>&1
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR_LOG_FAILURE=1 \
+    "$script_dir/assert-runtime.sh" unreadable-anr-history >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted unreadable responsiveness history' >&2
+  exit 1
+fi
+grep -Fq 'could not read application responsiveness history' "$tmp/error"
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_FROZEN_UID_STATS=1 \
     "$script_dir/assert-runtime.sh" frozen-uid-stats >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted frozen UID statistics' >&2
