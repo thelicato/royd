@@ -5,7 +5,11 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 for script in android/scripts/*.sh runtime/scripts/*.sh android/royd/vendor/royd/bin/*; do
-  sh -n "$script"
+  IFS= read -r interpreter < "$script"
+  case "$interpreter" in
+    '#!/bin/bash'|'#!/usr/bin/env bash') bash -n "$script" ;;
+    *) sh -n "$script" ;;
+  esac
 done
 
 for script in android/scripts/*.sh runtime/scripts/*.sh android/royd/vendor/royd/bin/*; do

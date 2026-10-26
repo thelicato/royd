@@ -102,6 +102,13 @@ runtime-network-http-test:
 runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
+.PHONY: runtime-network-accounting-test runtime-network-accounting-contract-test
+runtime-network-accounting-test:
+	./runtime/scripts/network-accounting-test.sh
+
+runtime-network-accounting-contract-test:
+	./runtime/scripts/network-accounting-contract-test.sh
+
 .PHONY: runtime-network-dns-test runtime-network-dns-contract-test
 .PHONY: runtime-network-history-test runtime-network-history-contract-test runtime-network-history-restart-test
 runtime-network-history-restart-test:

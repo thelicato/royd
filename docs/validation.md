@@ -271,6 +271,14 @@ After rebuilding/importing, run `make runtime-cgroup-delegation-test` with a fre
 
 Storage UI qualification wakes and unlocks only its disposable instance, then sends a normal swipe after launching the dashboard. Retained power observations must show an awake display and advancing user-activity time before the asynchronous loading interval. A programmatic launch alone does not renew inactivity. Keep the real timeout, permissions, loaded-dashboard/PID checks and complete crash-history rejection unchanged.
 
+## Native interface UDP accounting
+
+Run `ROYD_IMAGE=<pinned-image-id> ROYD_ACCOUNTING_OUTPUT_DIR=<new-directory> make runtime-network-accounting-test` on the local rootful Docker host. The runner requires the Android 15 x86_64 standard graphical software image, low-memory profile and privileged baseline. It compiles the optional host observer and native test binary, creates labelled disposable bridge resources and never adopts an existing container, data volume or evidence directory. See [native UDP accounting](network-quotas.md#native-udp-accounting-witness) for dependencies, exact packet semantics and scope.
+
+The format-1 manifest separates workload, full runtime and observer-detachment status. Retain both production/private snapshots per phase, worker UID/capability/cgroup observations, nonce fixture receipts, exact assessments, attachment queries, OCI/qdisc comparisons and complete Docker log/inspect before cleanup. Reassess saved evidence with `PYTHONDONTWRITEBYTECODE=1 python3 runtime/tests/network-accounting/assess.py <directory>`. Use `make runtime-network-accounting-contract-test` for lightweight integrity, malformed-observation, concurrency, loopback and packet-envelope regressions; canonical CI does not load BPF programs or qualify a host.
+
+The initial local run on `787018adad5f` passes all five traffic phases, independent pre/post runtime and observer removal without an image rebuild. Its native UID1000 workers have zero effective capabilities and use the init cgroup. Exact UDP segment totals and loopback exclusion do not close TCP segmentation, blocked-packet accounting, general system-service networking, quotas/alerts or reference-host acceptance.
+
 ## Recorded UID-history durability
 
 Run `make runtime-network-history-restart-test` with a fresh `ROYD_RESTART_OUTPUT_DIR`, then repeat with `ROYD_RESTART_MODE=framework` and another directory. The local Unix-socket Docker engine, Android 15 x86_64 graphical software image, low-memory profile and privileged baseline are required. The existing restart runner retains its independent boot, security, runtime, identity and generic persistence checks. `HISTORY_ENABLED` and `HISTORY_STATUS` extend its format-2 manifest without changing ordinary restart mode.
