@@ -96,6 +96,10 @@ SRC
       cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-network.cpp" system/netd/server/NetworkController.cpp
       cp "$ROYD_SYNC_FREEZER_FIXTURES/accounting-netd-route.cpp" system/netd/server/RouteController.cpp
     fi
+    if [ ! -f system/netd/server/BandwidthController.cpp ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/global-alert-bandwidth.cpp" system/netd/server/BandwidthController.cpp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/global-alert-bandwidth.h" system/netd/server/BandwidthController.h
+    fi
     mkdir -p frameworks/base/services/core/java/com/android/server/net
     if [ ! -f frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java ]; then
       cat >frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java <<'SRC'

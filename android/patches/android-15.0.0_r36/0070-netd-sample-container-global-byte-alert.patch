@@ -1,0 +1,347 @@
+diff --git a/system/netd/server/BandwidthController.h b/system/netd/server/BandwidthController.h
+--- a/system/netd/server/BandwidthController.h
++++ b/system/netd/server/BandwidthController.h
+@@ -22,6 +22,10 @@
+ #include <utility>
+ #include <vector>
+ #include <mutex>
++#include <memory>
++
++namespace android::net::royd { class GlobalAlert; }
++namespace android::netdutils { class DumpWriter; }
+
+ #include "NetdConstants.h"
+
+@@ -30,6 +34,8 @@
+     std::mutex lock;
+
+     BandwidthController();
++    ~BandwidthController();
++    void dumpRoydGlobalAlert(android::netdutils::DumpWriter& writer);
+
+     int setupIptablesHooks();
+
+@@ -120,6 +126,7 @@
+
+     int64_t mSharedQuotaBytes = 0;
+     int64_t mGlobalAlertBytes = 0;
++    std::unique_ptr<android::net::royd::GlobalAlert> mRoydGlobalAlert;
+
+     std::map<std::string, QuotaInfo> mQuotaIfaces;
+     std::set<std::string> mSharedQuotaIfaces;
+diff --git a/system/netd/server/BandwidthController.cpp b/system/netd/server/BandwidthController.cpp
+--- a/system/netd/server/BandwidthController.cpp
++++ b/system/netd/server/BandwidthController.cpp
+@@ -52,6 +52,8 @@
+ #include "Controllers.h"
+ #include "FirewallController.h" /* For makeCriticalCommands */
+ #include "Fwmark.h"
++#include "RoydGlobalAlertSource.h"
++#include <netdutils/DumpWriter.h>
+ #include "NetdConstants.h"
+ #include "android/net/INetd.h"
+
+@@ -258,6 +260,40 @@
+ }  // namespace
+
+ BandwidthController::BandwidthController() {
++    using namespace android::net;
++    if (royd::enabled()) {
++        mRoydGlobalAlert = std::make_unique<royd::GlobalAlert>(
++            [](royd::AlertSample& sample) {
++                const int result = royd::readGlobalAlert(sample);
++                if (result) ALOGE("ROYD: global alert sampling failed: %d", result);
++                return result;
++            },
++            [](uint64_t generation) {
++                const auto listeners = gCtls->eventReporter.getNetdUnsolicitedEventListenerMap();
++                bool success = !listeners.empty();
++                for (const auto& listener : listeners) {
++                    const auto result = listener.first->onQuotaLimitReached("globalAlert", "eth0");
++                    auto entry = gUnsolicitedLog.newEntry().function("onQuotaLimitReached")
++                            .args("globalAlert", "eth0");
++                    gUnsolicitedLog.log(entry.withAutomaticDuration());
++                    if (!result.isOk()) success = false;
++                }
++                if (!success) ALOGE("ROYD: global alert delivery failed for generation %" PRIu64,
++                                    generation);
++                return success;
++            });
++    }
++}
++
++BandwidthController::~BandwidthController() = default;
++
++void BandwidthController::dumpRoydGlobalAlert(android::netdutils::DumpWriter& writer) {
++    if (!mRoydGlobalAlert) return;
++    const auto state = mRoydGlobalAlert->status();
++    writer.println("royd global alert: generation=%" PRIu64 " bytes=%" PRIu64
++                   " armed=%s committed=%" PRIu64 " error=%d sample_ms=250",
++                   state.generation, state.bytes, state.armed ? "yes" : "no",
++                   state.committed, state.error);
+ }
+
+ void BandwidthController::flushCleanTables(bool doClean) {
+@@ -275,6 +311,7 @@
+ }
+
+ int BandwidthController::enableBandwidthControl() {
++    if (mRoydGlobalAlert) mRoydGlobalAlert->cancel();
+     /* Let's pretend we started from scratch ... */
+     mSharedQuotaIfaces.clear();
+     mQuotaIfaces.clear();
+@@ -555,6 +592,18 @@
+ }
+
+ int BandwidthController::setGlobalAlert(int64_t bytes) {
++    if (mRoydGlobalAlert) {
++        const int result = mRoydGlobalAlert->arm(bytes);
++        if (result) {
++            ALOGE("ROYD: global alert registration failed: %d", result);
++        } else {
++            static std::once_flag marker;
++            std::call_once(marker, [] {
++                ALOGI("ROYD: using sampled container global byte alerts");
++            });
++        }
++        return result;
++    }
+     const char *alertName = ALERT_GLOBAL_NAME;
+
+     if (!bytes) {
+@@ -576,6 +625,10 @@
+ }
+
+ int BandwidthController::removeGlobalAlert() {
++    if (mRoydGlobalAlert) {
++        const int result = mRoydGlobalAlert->cancel();
++        return result == -ENOENT ? -1 : result;
++    }
+
+     const char *alertName = ALERT_GLOBAL_NAME;
+
+diff --git a/system/netd/server/NetdNativeService.cpp b/system/netd/server/NetdNativeService.cpp
+--- a/system/netd/server/NetdNativeService.cpp
++++ b/system/netd/server/NetdNativeService.cpp
+@@ -154,6 +154,7 @@
+     // their dump() methods MUST handle locking appropriately.
+
+     DumpWriter dw(fd);
++    gCtls->bandwidthCtrl.dumpRoydGlobalAlert(dw);
+
+     if (royd::enabled()) {
+         uint32_t ifindex = 0, errors = 0;
+diff --git a/system/netd/server/RoydGlobalAlert.h b/system/netd/server/RoydGlobalAlert.h
+--- /dev/null
++++ b/system/netd/server/RoydGlobalAlert.h
+@@ -0,0 +1,157 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++#include <chrono>
++#include <condition_variable>
++#include <cstdint>
++#include <cerrno>
++#include <functional>
++#include <limits>
++#include <mutex>
++#include <pthread.h>
++#include <utility>
++
++namespace android::net::royd {
++// Samples are IP-layer totals from one verified private accounting attachment.
++struct AlertSample {
++    uint32_t ifindex = 0, map = 0, ingress = 0, egress = 0;
++    uint64_t rx = 0, tx = 0;
++    bool sameSource(const AlertSample& other) const {
++        return ifindex == other.ifindex && map == other.map
++                && ingress == other.ingress && egress == other.egress;
++    }
++};
++
++// A sampled notification, never a packet-path quota or packet drop mechanism.
++class GlobalAlert {
++  public:
++    using Read = std::function<int(AlertSample&)>;
++    using Notify = std::function<bool(uint64_t)>;
++    using Start = int (*)(pthread_t*, const pthread_attr_t*, void* (*)(void*), void*);
++    struct Status {
++        uint64_t generation = 0, bytes = 0, committed = 0;
++        bool armed = false;
++        int error = 0;
++    };
++    GlobalAlert(Read read, Notify notify, std::chrono::milliseconds interval =
++                std::chrono::milliseconds(250), Start start = pthread_create)
++        : mRead(std::move(read)), mNotify(std::move(notify)), mInterval(interval), mStart(start) {}
++    ~GlobalAlert() {
++        {
++            std::lock_guard guard(mLock);
++            mStop = true;
++            mChanged.notify_all();
++        }
++        if (mStarted) pthread_join(mThread, nullptr);
++    }
++    GlobalAlert(const GlobalAlert&) = delete;
++    GlobalAlert& operator=(const GlobalAlert&) = delete;
++
++    int arm(int64_t bytes) {
++        // The stock diagnostic documents 1..INT64_MAX; no negative sentinel.
++        if (bytes <= 0) return -ERANGE;
++        std::lock_guard guard(mLock);
++        if (mState.error) return -mState.error;
++        if (mState.generation == std::numeric_limits<uint64_t>::max()) return -EOVERFLOW;
++        AlertSample sample;
++        const int error = mRead(sample);
++        if (error) return error;
++        if (!valid(sample)) return -ENODATA;
++        if (mState.generation && (!sample.sameSource(mLast)
++                || sample.rx < mLast.rx || sample.tx < mLast.tx)) {
++            failLocked(ESTALE);
++            return -ESTALE;
++        }
++        if (!mStarted) {
++            const int result = mStart(&mThread, nullptr, work, this);
++            if (result) return -result;
++            mStarted = true;
++        }
++        // Registration linearises here, after a healthy sample and worker start.
++        mBase = mLast = sample;
++        ++mState.generation;
++        mState.bytes = static_cast<uint64_t>(bytes);
++        mState.armed = true;
++        mChanged.notify_all();
++        return 0;
++    }
++    int cancel() {
++        std::lock_guard guard(mLock);
++        if (!mState.bytes) return -ENOENT;
++        if (mState.generation == std::numeric_limits<uint64_t>::max()) return -EOVERFLOW;
++        ++mState.generation;
++        mState.armed = false;
++        mState.bytes = 0;
++        mChanged.notify_all();
++        return 0;
++    }
++    Status status() {
++        std::lock_guard guard(mLock);
++        return mState;
++    }
++
++  private:
++    static bool valid(const AlertSample& s) {
++        return s.ifindex > 1 && s.map && s.ingress && s.egress && s.ingress != s.egress;
++    }
++    void failLocked(int error) {
++        mState.error = error;
++        mState.armed = false;
++    }
++    static void* work(void* self) {
++        static_cast<GlobalAlert*>(self)->run();
++        return nullptr;
++    }
++    void run() {
++        pthread_setname_np(pthread_self(), "royd-alert");
++        std::unique_lock guard(mLock);
++        while (!mStop) {
++            if (!mState.armed) {
++                mChanged.wait(guard, [&] { return mStop || mState.armed; });
++                continue;
++            }
++            const uint64_t generation = mState.generation;
++            if (mChanged.wait_for(guard, mInterval, [&] {
++                    return mStop || !mState.armed || generation != mState.generation;
++                })) continue;
++            guard.unlock();
++            AlertSample sample;
++            const int error = mRead(sample);
++            guard.lock();
++            // Reads started for an old window cannot fire a replacement alert.
++            if (mStop || !mState.armed || generation != mState.generation) continue;
++            if (error || !valid(sample)) {
++                failLocked(error < 0 ? -error : EIO);
++                continue;
++            }
++            if (!sample.sameSource(mLast) || sample.rx < mLast.rx || sample.tx < mLast.tx) {
++                failLocked(ESTALE);
++                continue;
++            }
++            mLast = sample;
++            const uint64_t rx = sample.rx - mBase.rx, tx = sample.tx - mBase.tx;
++            // Subtraction/comparison avoids overflowing a shared RX+TX sum.
++            if (rx < mState.bytes && tx < mState.bytes - rx) continue;
++            mState.armed = false;
++            ++mState.committed;
++            // Delivery linearises at this one-shot commitment. Binder delivery
++            // already committed before replacement/cancellation cannot be recalled.
++            // No alert or BandwidthController lock is held during the callback.
++            guard.unlock();
++            const bool delivered = mNotify(generation);
++            guard.lock();
++            if (!delivered && generation == mState.generation) failLocked(EIO);
++        }
++    }
++    Read mRead;
++    Notify mNotify;
++    const std::chrono::milliseconds mInterval;
++    Start mStart;
++    std::mutex mLock;
++    std::condition_variable mChanged;
++    pthread_t mThread{};
++    bool mStarted = false, mStop = false;
++    AlertSample mBase, mLast;
++    Status mState;
++};
++}  // namespace android::net::royd
+diff --git a/system/netd/server/RoydGlobalAlertSource.h b/system/netd/server/RoydGlobalAlertSource.h
+--- /dev/null
++++ b/system/netd/server/RoydGlobalAlertSource.h
+@@ -0,0 +1,49 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++#include <ifaddrs.h>
++#include "RoydGlobalAlert.h"
++#include "RoydInterfaceAccounting.h"
++
++namespace android::net::royd {
++inline int readGlobalAlert(AlertSample& sample) {
++    // A global alert cannot silently omit an additional active IP interface.
++    struct ifaddrs* addresses = nullptr;
++    if (getifaddrs(&addresses)) return -errno;
++    bool extra = false;
++    for (const auto* item = addresses; item; item = item->ifa_next) {
++        if (!item->ifa_addr || !(item->ifa_flags & IFF_UP)
++                || (item->ifa_flags & IFF_LOOPBACK)) continue;
++        const char* name = item->ifa_name;
++        if (!name) { extra = true; break; }
++        const int family = item->ifa_addr->sa_family;
++        if ((family == AF_INET || family == AF_INET6) && strcmp(name, "eth0")) {
++            extra = true;
++        }
++    }
++    freeifaddrs(addresses);
++    if (extra) return -EOPNOTSUPP;
++    uint32_t errors = 0;
++    if (!ready(sample.ifindex, errors)) return -ENODATA;
++    unique_fd stats(object("map_netd_iface_stats_map"));
++    struct bpf_map_info map = {};
++    Counters counters = {};
++    if (!stats.ok() || !mapLayout(stats.get(), BPF_MAP_TYPE_HASH, sizeof(counters))
++            || !info(stats.get(), map, offsetof(bpf_map_info, id) + sizeof(map.id))
++            || !map.id || !lookup(stats.get(), sample.ifindex, counters)) return -EIO;
++    sample.map = map.id;
++    for (unsigned direction = 0; direction < 2; ++direction) {
++        unique_fd linkFd(object(direction ? "link_royd_iface_egress" : "link_royd_iface_ingress"));
++        struct bpf_link_info link = {};
++        if (!linkFd.ok() || !info(linkFd.get(), link, offsetof(bpf_link_info, id)
++                + sizeof(link.id)) || !link.id) return -EIO;
++        (direction ? sample.egress : sample.ingress) = link.id;
++    }
++    // Detect withdrawal/error between the initial readiness check and map read.
++    uint32_t current = 0;
++    if (!ready(current, errors) || current != sample.ifindex) return -ENODATA;
++    sample.rx = counters.rxBytes;
++    sample.tx = counters.txBytes;
++    return 0;
++}
++}  // namespace android::net::royd

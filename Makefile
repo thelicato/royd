@@ -572,6 +572,10 @@ android15-netpolicy-wifi-container-test:
 android15-metered-deny-container-test:
 	./android/scripts/android15-metered-deny-container-test.sh
 
+.PHONY: android15-global-alert-container-test
+android15-global-alert-container-test:
+	./android/scripts/android15-global-alert-container-test.sh
+
 .PHONY: android15-interface-accounting-container-test
 android15-interface-accounting-container-test:
 	./android/scripts/android15-interface-accounting-container-test.sh
