@@ -6,6 +6,9 @@ image=${1:-${ROYD_IMAGE:-$($script_dir/default-image.sh standard x86_64)}}
 output=${ROYD_ACCOUNTING_OUTPUT_DIR:-$root/.work/network-accounting-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 tcp_mode=${ROYD_ACCOUNTING_TCP:-0}
 case "$tcp_mode" in 0|1) ;; *) exit 2 ;; esac
+policy_mode=${ROYD_ACCOUNTING_POLICY:-0}
+case "$policy_mode" in 0|1) ;; *) exit 2 ;; esac
+policy_status=not-tested policy_restore_needed=0 fixture_input= fixture_status=not-tested
 tcp_status=not-tested
 container=royd-accounting-$$
 volume=$container-data
@@ -24,9 +27,11 @@ snapshot_identity() { docker inspect --format '{{.Id}} {{.State.StartedAt}} {{.S
 runtime_check() { ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND=software ROYD_RESOURCE_PROFILE=low-memory "$script_dir/assert-runtime.sh" "$container"; }
 inspect_accounting() { nsenter --net="/proc/$host_pid/ns/net" "$output/build/observe" inspect "$bpf_root" "$ns"; }
 oci() { docker exec "$container" sh -c 'ip -o -4 addr show dev eth0; ip -4 route show table main; ip link show dev eth0; cat /etc/resolv.conf'; }
+. "$script_dir/network-accounting-policy.sh"
 finish() {
  status=$?
  trap - EXIT HUP INT TERM
+ if [ "$policy_restore_needed" = 1 ]; then policy_restore >"$output/policy-failure-restore.log" 2>&1 || status=1; fi
  for fd in "${inputs[@]}"; do exec {fd}>&-; done
  for child in "${children[@]}"; do wait "$child" || status=1; done
  if [ -n "$observer_pid" ]; then
@@ -43,12 +48,15 @@ PY
    then detached=pass; else status=1; fi
   else status=1; fi
  fi
+ if [ -n "$fixture_input" ]; then exec {fixture_input}>&-; fi
  if [ -n "$fixture_pid" ]; then
   kill "$fixture_pid" 2>/dev/null || status=1
-  fixture_status=0
-  wait "$fixture_pid" 2>"$output/fixture-stop.log" || fixture_status=$?
-  printf 'EXIT_STATUS=%s\n' "$fixture_status" >"$output/fixture-stop.env"
-  [ "$fixture_status" = 143 ] || status=1
+  fixture_exit=0
+  wait "$fixture_pid" 2>"$output/fixture-stop.log" || fixture_exit=$?
+  printf 'EXIT_STATUS=%s\n' "$fixture_exit" >"$output/fixture-stop.env"
+  [ "$fixture_exit" = 143 ] || status=1
+  fixture_status=fail
+  if PYTHONDONTWRITEBYTECODE=1 python3 "$root/runtime/tests/network-accounting/assess.py" "$output" --fixture-socket >"$output/fixture-assessment.json" 2>"$output/fixture-assessment.log"; then fixture_status=pass; else status=1; fi
  fi
  if [ "$pre" = 1 ]; then
   runtime=fail
@@ -64,7 +72,7 @@ PY
  if [ "$owned" = 1 ]; then "$script_dir/container-evidence.sh" "$container" "$output/container" >"$output/capture.log" 2>&1 || status=1; fi
  result=fail
  [ "$status" != 0 ] || result=pass
- printf 'ROYD_ACCOUNTING_EVIDENCE_FORMAT=2\nRESULT_STATUS=%s\nWORKLOAD_STATUS=%s\nTCP_ENABLED=%s\nTCP_STATUS=%s\nRUNTIME_STATUS=%s\nDETACH_STATUS=%s\nIMAGE_ID=%s\nCOMMAND_EXIT_STATUS=%s\n' "$result" "$workload" "$tcp_mode" "$tcp_status" "$runtime" "$detached" "$image_id" "$status" >"$output/manifest.env"
+ printf 'ROYD_ACCOUNTING_EVIDENCE_FORMAT=3\nRESULT_STATUS=%s\nWORKLOAD_STATUS=%s\nTCP_ENABLED=%s\nTCP_STATUS=%s\nPOLICY_ENABLED=%s\nPOLICY_STATUS=%s\nFIXTURE_STATUS=%s\nRUNTIME_STATUS=%s\nDETACH_STATUS=%s\nIMAGE_ID=%s\nCOMMAND_EXIT_STATUS=%s\n' "$result" "$workload" "$tcp_mode" "$tcp_status" "$policy_mode" "$policy_status" "$fixture_status" "$runtime" "$detached" "$image_id" "$status" >"$output/manifest.env"
  if [ "$owned" = 1 ]; then docker rm -f "$container" >"$output/cleanup.log"; fi
  if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >>"$output/cleanup.log"; fi
  exit "$status"
@@ -75,6 +83,10 @@ trap 'exit 143' HUP TERM
 image_id=$(docker image inspect --format '{{.Id}}' "$image")
 [ "$(docker image inspect --format '{{index .Config.Labels "org.royd.android-version"}} {{index .Config.Labels "org.royd.arch"}} {{index .Config.Labels "org.royd.image-profile"}} {{index .Config.Labels "org.royd.hal-profile"}} {{index .Config.Labels "org.royd.graphics-backend"}}' "$image_id")" = '15 x86_64 standard graphical software' ]
 "$script_dir/network-accounting-build.sh" "$output/build" >"$output/build.log" 2>&1
+if [ "$policy_mode" = 1 ]; then
+ accounting_tree=${ROYD_ANDROID_TEST_TREE:-$root/.work/android-src-15}
+ ROYD_ANDROID_TEST_SYSTEM_MODULES=${ROYD_ANDROID_TEST_SYSTEM_MODULES:-$accounting_tree/out/soong/.intermediates/libcore/core-all-system-modules/android_common/system} ROYD_NETWORK_DNS_POLICY=1 "$script_dir/network-dns-build.sh" "$output/policy-build" >"$output/policy-build.log" 2>&1
+fi
 docker volume create "$volume" >"$output/volume.log"
 volume_owned=1
 security_args=$("$script_dir/security-args.sh" privileged)
@@ -109,8 +121,16 @@ docker cp "$output/build/traffic" "$container:/data/local/tmp/royd-accounting-pr
 gateway=$(docker inspect --format '{{(index .NetworkSettings.Networks "bridge").Gateway}}' "$container")
 tcp_options=()
 [ "$tcp_mode" = 0 ] || tcp_options=(-tcp)
-"$output/build/traffic" -mode server -listen "$gateway:0" "${tcp_options[@]}" >"$output/fixture.log" 2>&1 &
-fixture_pid=$!
+if [ "$policy_mode" = 1 ]; then
+ tcp_options+=(-policy)
+ mkfifo "$output/fixture.input"
+ "$output/build/traffic" -mode server -listen "$gateway:0" "${tcp_options[@]}" <"$output/fixture.input" >"$output/fixture.log" 2>&1 &
+ fixture_pid=$!
+ exec {fixture_input}>"$output/fixture.input"
+else
+ "$output/build/traffic" -mode server -listen "$gateway:0" "${tcp_options[@]}" >"$output/fixture.log" 2>&1 &
+ fixture_pid=$!
+fi
 for attempt in $(seq 1 100); do grep -q '"event":"ready"' "$output/fixture.log" && break; kill -0 "$fixture_pid"; sleep 0.05; done
 readarray -t fixture < <(python3 - "$output/fixture.log" <<'PY'
 import json,sys
@@ -176,4 +196,9 @@ workload=pass
 if [ "$tcp_mode" = 1 ]; then
  PYTHONDONTWRITEBYTECODE=1 python3 "$root/runtime/tests/network-accounting/assess_tcp.py" "$output" >"$output/tcp-assessment.jsonl" 2>"$output/tcp-assessment.log"
  tcp_status=pass
+fi
+if [ "$policy_mode" = 1 ]; then
+ policy_status=fail
+ policy_workload
+ policy_status=pass
 fi

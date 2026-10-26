@@ -68,13 +68,28 @@ def assess(before, after, workers, receipts, phase, kind):
             assert change['raw_bytes'] == packets * (PAYLOAD + 28 + 14)
     return {'phase': phase, 'kind': kind, 'packets_per_direction': packets, 'ip_bytes_per_direction': expected[1], 'status': 'pass'}
 
+def fixture_socket(receipts):
+    rows = [r for r in receipts if r.get('event') == 'udp-fixture-stop']
+    assert len(rows) == 1, 'missing or duplicated owned fixture socket evidence'
+    state = rows[0]['socket']
+    assert 'error' not in state, 'owned fixture socket diagnostics unavailable'
+    assert state['local'] == receipts[0]['address']
+    assert type(state['receive_buffer_bytes']) is int and state['receive_buffer_bytes'] > 0
+    assert state['socket_drops'] == 0, 'owned fixture UDP receive queue dropped packets'
+    assert state['queue_bytes_hex'] == '00000000:00000000', 'owned fixture queue was not drained'
+    return dict(status='pass', receive_buffer_bytes=state['receive_buffer_bytes'], socket_drops=0)
+
 def main():
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument('directory', type=Path)
+    p.add_argument('--fixture-socket', action='store_true')
     a = p.parse_args()
     root = a.directory
     receipts = [json.loads(x) for x in (root/'fixture.log').read_text().splitlines()]
+    if a.fixture_socket:
+        print(json.dumps(fixture_socket(receipts)), flush=True)
+        return
     for phase, kind in enumerate(('raw', 'normal', 'segmented', 'concurrent', 'loopback'), 1):
         d = root/f'phase-{phase}'
         uids = [0, 1000] if kind == 'concurrent' else [0] if kind == 'raw' else [1000]

@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     publish(argv[5],"ready",index,stats,selector,errors,links,observed,tcp_counts,tcp_records);
     char stop[512], request[512];snprintf(stop,sizeof(stop),"%s/stop",argv[5]);snprintf(request,sizeof(request),"%s/request",argv[5]);
     for(unsigned tick=0;tick<18000;tick++) {
-        if(!access(stop,F_OK)) { close(attached[0]);close(attached[1]);bpf_object__close(obj);return 0; }
+        if(!access(stop,F_OK)) { publish(argv[5],"final",index,stats,selector,errors,links,observed,tcp_counts,tcp_records);close(attached[0]);close(attached[1]);bpf_object__close(obj);return 0; }
         FILE* f=fopen(request,"r");if(f) { char name[64]={};check(fgets(name,sizeof(name),f)!=NULL,"snapshot request");check(!fclose(f),"request close");name[strcspn(name,"\n")]=0;check(!unlink(request),"request consumed");publish(argv[5],name,index,stats,selector,errors,links,observed,tcp_counts,tcp_records); }
         usleep(10000);
     }

@@ -13,7 +13,12 @@ done
 mkdir "$out"
 out=$(CDPATH= cd -- "$out" && pwd)
 mkdir "$out/classes" "$out/dex"
-"$jdk/bin/javac" --release 17 -classpath "$sdk" -d "$out/classes" "$root"/runtime/tests/network-dns/*.java
+if [ -n "${ROYD_ANDROID_TEST_SYSTEM_MODULES:-}" ]; then
+  [ -f "$ROYD_ANDROID_TEST_SYSTEM_MODULES/lib/modules" ] || { printf 'error: Android test system modules missing: %s\n' "$ROYD_ANDROID_TEST_SYSTEM_MODULES" >&2; exit 1; }
+  "$jdk/bin/javac" --system "$ROYD_ANDROID_TEST_SYSTEM_MODULES" -source 17 -target 17 -classpath "$sdk" -d "$out/classes" "$root"/runtime/tests/network-dns/*.java
+else
+  "$jdk/bin/javac" --release 17 -classpath "$sdk" -d "$out/classes" "$root"/runtime/tests/network-dns/*.java
+fi
 PATH="$jdk/bin:$PATH" "$tree/out/host/linux-x86/bin/d8" --min-api 35 --lib "$sdk" --output "$out/dex" "$out"/classes/org/royd/networkprobe/*.class
 "$tree/out/host/linux-x86/bin/aapt2" link -I "$sdk" --manifest "$root/runtime/tests/network-dns/AndroidManifest.xml" -o "$out/unsigned.apk"
 (cd "$out/dex" && zip -q "$out/unsigned.apk" classes.dex)

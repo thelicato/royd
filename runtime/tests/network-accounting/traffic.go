@@ -125,7 +125,7 @@ type flow struct {
 	first   int64
 }
 
-func server(listen string, tcpMode bool) {
+func server(listen string, tcpMode, policyMode bool) {
 	host, port, e := net.SplitHostPort(listen)
 	ip := net.ParseIP(host)
 	require(e == nil && ip != nil && ip.To4() != nil && ip.IsPrivate() && port == "0", "private bridge and ephemeral port required")
@@ -135,6 +135,7 @@ func server(listen string, tcpMode bool) {
 	c, e := net.ListenUDP("udp4", &net.UDPAddr{IP: ip.To4()})
 	require(e == nil, "UDP listener")
 	defer c.Close()
+	udpStopEvidence(c)
 	require(c.SetReadBuffer(4<<20) == nil, "receive buffer")
 	c.SetDeadline(time.Now().Add(90 * time.Second))
 	tcpAddress := ""
@@ -144,12 +145,20 @@ func server(listen string, tcpMode bool) {
 		tcpAddress = listener.Addr().String()
 	}
 	emit(map[string]any{"event": "ready", "address": c.LocalAddr().String(), "tcp_address": tcpAddress, "nonce": hex.EncodeToString(nonce[:])})
+	var policy *policyFixture
+	if policyMode {
+		policy = startPolicyFixture(c, nonce[:])
+	}
 	flows := map[string]*flow{}
 	for {
 		data := make([]byte, size+1)
 		n, peer, e := c.ReadFromUDP(data)
 		require(e == nil, "fixture receive: "+fmt.Sprint(e))
 		data = data[:n]
+		if policy != nil && len(data) >= 20 && binary.BigEndian.Uint32(data[16:]) >= 8 {
+			policy.receive(data, peer)
+			continue
+		}
 		phase, uid, seq, count, seg := fields(data, nonce[:])
 		key := fmt.Sprintf("%d-%d", phase, uid)
 		f := flows[key]
@@ -221,6 +230,50 @@ func workerReady(uid int) {
 	command, e := bufio.NewReader(os.Stdin).ReadString('\n')
 	require(e == nil && command == "start\n", "start barrier")
 }
+
+// Bound outstanding traffic to one batch per worker. Accounting, not throughput,
+// is the invariant: never retry a missing response or fabricate a receipt.
+func udpExchange(c *net.UDPConn, nonce []byte, phase, uid, count int, segmented bool, rawFD int, destination *net.UDPAddr) error {
+	step := 1
+	if segmented {
+		step = batch
+	}
+	seen := map[int]bool{}
+	for seq := 0; seq < count; seq += step {
+		var data []byte
+		for i := seq; i < seq+step; i++ {
+			data = append(data, packet(nonce, phase, uid, i, count, segmented)...)
+		}
+		var err error
+		if rawFD >= 0 {
+			peer := &syscall.SockaddrInet4{Port: destination.Port}
+			copy(peer.Addr[:], destination.IP.To4())
+			err = syscall.Sendto(rawFD, rawPacket(c, destination, data, seq), 0, peer)
+		} else {
+			err = send(c, data, nil, segmented)
+		}
+		if err != nil {
+			return fmt.Errorf("worker send: %w", err)
+		}
+		for i := 0; i < step; i++ {
+			reply := make([]byte, size+1)
+			n, err := c.Read(reply)
+			if err != nil {
+				return err
+			}
+			p, u, sequence, total, seg := fields(reply[:n], nonce)
+			if p != phase || u != uid || total != count || seg != segmented || seen[sequence] || sequence < seq || sequence >= seq+step {
+				return fmt.Errorf("reply mismatch or duplicate")
+			}
+			seen[sequence] = true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if len(seen) != count {
+		return fmt.Errorf("incomplete UDP exchange")
+	}
+	return nil
+}
 func worker(address, nonceText string, phase, uid, count int, segmented, rawMode, loopback bool) {
 	require(os.Getuid() == uid && os.Geteuid() == uid && os.Getgid() == uid, "worker UID/GID mismatch")
 	require((uid == 0 || uid == 1000) && count > 0 && count <= 1024 && (!segmented || count%batch == 0) && (!rawMode || uid == 0 && !segmented), "worker options")
@@ -258,48 +311,11 @@ func worker(address, nonceText string, phase, uid, count int, segmented, rawMode
 		defer syscall.Close(rawFD)
 		require(syscall.SetsockoptInt(rawFD, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1) == nil, "IP_HDRINCL")
 	}
-	received := make(chan error, 1)
-	go func() {
-		seen := map[int]bool{}
-		for i := 0; i < count; i++ {
-			b := make([]byte, size+1)
-			n, e := c.Read(b)
-			if e != nil {
-				received <- e
-				return
-			}
-			p, u, seq, total, seg := fields(b[:n], nonce)
-			if p != phase || u != uid || total != count || seg != segmented || seen[seq] {
-				received <- fmt.Errorf("reply mismatch/duplicate")
-				return
-			}
-			seen[seq] = true
-		}
-		received <- nil
-	}()
 	start := mono()
-	step := 1
-	if segmented {
-		step = batch
+	if e = udpExchange(c, nonce, phase, uid, count, segmented, rawFD, destination); e != nil {
+		panic("missing or invalid reply: " + udpError(c, e))
 	}
-	for seq := 0; seq < count; seq += step {
-		var data []byte
-		for i := seq; i < seq+step; i++ {
-			data = append(data, packet(nonce, phase, uid, i, count, segmented)...)
-		}
-		if rawMode {
-			peer := &syscall.SockaddrInet4{Port: destination.Port}
-			copy(peer.Addr[:], destination.IP.To4())
-			e = syscall.Sendto(rawFD, rawPacket(c, destination, data, seq), 0, peer)
-		} else {
-			e = send(c, data, nil, segmented)
-		}
-		require(e == nil, "worker send: "+fmt.Sprint(e))
-		time.Sleep(time.Millisecond)
-	}
-	receiveError := <-received
-	require(receiveError == nil, "missing or invalid reply: "+fmt.Sprint(receiveError))
-	emit(map[string]any{"event": "complete", "uid": uid, "phase": phase, "packets": count, "payload_bytes": count * size, "segmented": segmented, "raw": rawMode, "loopback": loopback, "start_ns": start, "end_ns": mono(), "local": c.LocalAddr().String(), "remote": c.RemoteAddr().String()})
+	emit(map[string]any{"event": "complete", "uid": uid, "phase": phase, "packets": count, "payload_bytes": count * size, "segmented": segmented, "raw": rawMode, "loopback": loopback, "start_ns": start, "end_ns": mono(), "local": c.LocalAddr().String(), "remote": c.RemoteAddr().String(), "udp_socket": udpDiagnostics(c)})
 }
 func main() {
 	defer func() {
@@ -319,9 +335,10 @@ func main() {
 	rawMode := flag.Bool("raw", false, "root IPv4 raw socket")
 	loop := flag.Bool("loopback", false, "owned loopback echo")
 	tcpMode := flag.Bool("tcp", false, "controlled bidirectional TCP stream")
+	policyMode := flag.Bool("policy", false, "ordinary-app UID-policy fixture")
 	flag.Parse()
 	if *mode == "server" {
-		server(*listen, *tcpMode)
+		server(*listen, *tcpMode, *policyMode)
 	} else {
 		require(*mode == "worker", "mode")
 		if *tcpMode {

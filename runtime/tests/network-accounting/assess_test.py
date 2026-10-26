@@ -1,6 +1,6 @@
 import copy
 import unittest
-from assess import assess
+from assess import assess, fixture_socket
 
 
 class AccountingTest(unittest.TestCase):
@@ -31,6 +31,19 @@ class AccountingTest(unittest.TestCase):
                 receipts.append(dict(event='complete', phase=1, uid=uid, packets=count,
                                      payload_bytes=count*1200, segmented=segmented, peer=local))
         return before, after, workers, receipts, 1, kind
+
+    def test_owned_fixture_socket_evidence(self):
+        receipts = [dict(event='ready', address='172.17.0.1:9000'),
+                    dict(event='udp-fixture-stop', socket=dict(local='172.17.0.1:9000', receive_buffer_bytes=425984,
+                                                             socket_drops=0, queue_bytes_hex='00000000:00000000'))]
+        self.assertEqual(fixture_socket(receipts)['status'], 'pass')
+        for mutation in (dict(socket_drops=1), dict(error='unreadable'), dict(local='172.17.0.1:9001'),
+                         dict(receive_buffer_bytes=0), dict(queue_bytes_hex='00000000:00000001')):
+            changed = copy.deepcopy(receipts)
+            changed[1]['socket'].update(mutation)
+            with self.assertRaises(AssertionError): fixture_socket(changed)
+        for changed in (receipts[:1], receipts + receipts[1:]):
+            with self.assertRaises(AssertionError): fixture_socket(changed)
 
     def test_positive(self):
         for kind in ('raw', 'normal', 'segmented', 'concurrent', 'loopback'):
