@@ -125,7 +125,7 @@ type flow struct {
 	first   int64
 }
 
-func server(listen string) {
+func server(listen string, tcpMode bool) {
 	host, port, e := net.SplitHostPort(listen)
 	ip := net.ParseIP(host)
 	require(e == nil && ip != nil && ip.To4() != nil && ip.IsPrivate() && port == "0", "private bridge and ephemeral port required")
@@ -137,7 +137,13 @@ func server(listen string) {
 	defer c.Close()
 	require(c.SetReadBuffer(4<<20) == nil, "receive buffer")
 	c.SetDeadline(time.Now().Add(90 * time.Second))
-	emit(map[string]any{"event": "ready", "address": c.LocalAddr().String(), "nonce": hex.EncodeToString(nonce[:])})
+	tcpAddress := ""
+	if tcpMode {
+		listener := startTCPServer(ip, nonce[:])
+		defer listener.Close()
+		tcpAddress = listener.Addr().String()
+	}
+	emit(map[string]any{"event": "ready", "address": c.LocalAddr().String(), "tcp_address": tcpAddress, "nonce": hex.EncodeToString(nonce[:])})
 	flows := map[string]*flow{}
 	for {
 		data := make([]byte, size+1)
@@ -199,11 +205,8 @@ func rawPacket(c *net.UDPConn, destination *net.UDPAddr, data []byte, sequence i
 	// Linux supplies the IP checksum; UDP checksum zero is permitted for IPv4.
 	return p
 }
-func worker(address, nonceText string, phase, uid, count int, segmented, rawMode, loopback bool) {
-	require(os.Getuid() == uid && os.Geteuid() == uid && os.Getgid() == uid, "worker UID/GID mismatch")
-	require((uid == 0 || uid == 1000) && count > 0 && count <= 1024 && (!segmented || count%batch == 0) && (!rawMode || uid == 0 && !segmented), "worker options")
-	nonce, e := hex.DecodeString(nonceText)
-	require(e == nil && len(nonce) == 16, "nonce")
+func workerReady(uid int) {
+	require((uid == 0 || uid == 1000) && os.Getuid() == uid && os.Geteuid() == uid && os.Getgid() == uid, "worker UID/GID mismatch")
 	status, e := os.ReadFile("/proc/self/status")
 	require(e == nil, "process status")
 	capabilities := ""
@@ -217,6 +220,13 @@ func worker(address, nonceText string, phase, uid, count int, segmented, rawMode
 	emit(map[string]any{"event": "ready", "uid": os.Getuid(), "gid": os.Getgid(), "pid": os.Getpid(), "cap_eff": capabilities, "cgroup": string(cgroup)})
 	command, e := bufio.NewReader(os.Stdin).ReadString('\n')
 	require(e == nil && command == "start\n", "start barrier")
+}
+func worker(address, nonceText string, phase, uid, count int, segmented, rawMode, loopback bool) {
+	require(os.Getuid() == uid && os.Geteuid() == uid && os.Getgid() == uid, "worker UID/GID mismatch")
+	require((uid == 0 || uid == 1000) && count > 0 && count <= 1024 && (!segmented || count%batch == 0) && (!rawMode || uid == 0 && !segmented), "worker options")
+	nonce, e := hex.DecodeString(nonceText)
+	require(e == nil && len(nonce) == 16, "nonce")
+	workerReady(uid)
 	destination := endpoint(address)
 	if loopback {
 		local, e := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
@@ -308,11 +318,17 @@ func main() {
 	seg := flag.Bool("segmented", false, "real UDP_SEGMENT")
 	rawMode := flag.Bool("raw", false, "root IPv4 raw socket")
 	loop := flag.Bool("loopback", false, "owned loopback echo")
+	tcpMode := flag.Bool("tcp", false, "controlled bidirectional TCP stream")
 	flag.Parse()
 	if *mode == "server" {
-		server(*listen)
+		server(*listen, *tcpMode)
 	} else {
 		require(*mode == "worker", "mode")
-		worker(*address, *nonce, *phase, *uid, *count, *seg, *rawMode, *loop)
+		if *tcpMode {
+			require(!*seg && !*rawMode && !*loop, "TCP options")
+			tcpWorker(*address, *nonce, *phase, *uid)
+		} else {
+			worker(*address, *nonce, *phase, *uid, *count, *seg, *rawMode, *loop)
+		}
 	}
 }

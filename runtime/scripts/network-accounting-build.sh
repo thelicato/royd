@@ -8,4 +8,4 @@ compiler=${ROYD_ACCOUNTING_CLANG:-$root/.work/android-src-15/prebuilts/clang/hos
 mkdir "$out"
 "$compiler" -O2 -g -target bpfel -I/usr/include/x86_64-linux-gnu -c "$root/runtime/tests/network-accounting/observe.bpf.c" -o "$out/observe.bpf.o"
 cc -O2 -Wall -Wextra -Werror "$root/runtime/tests/network-accounting/observe.c" -Wl,-l:libbpf.so.1 -o "$out/observe"
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$out/traffic" "$root/runtime/tests/network-accounting/traffic.go"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$out/traffic" "$root/runtime/tests/network-accounting/traffic.go" "$root/runtime/tests/network-accounting/tcp.go"

@@ -5,8 +5,7 @@ from pathlib import Path
 
 PAYLOAD = 1200
 
-def assess(before, after, workers, receipts, phase, kind):
-    assert kind in ('raw', 'normal', 'segmented', 'concurrent', 'loopback')
+def snapshots(before, after):
     for snapshot in (before, after):
         assert len(snapshot['counters']) == 4 and len(snapshot['observed']) == 2
         assert len(snapshot['production_links']) == len(snapshot['query']) == 2
@@ -18,6 +17,10 @@ def assess(before, after, workers, receipts, phase, kind):
     assert before['map_id'] == after['map_id'] > 0
     assert before['production_links'] == after['production_links']
     assert before['query'] == after['query']
+
+def assess(before, after, workers, receipts, phase, kind):
+    assert kind in ('raw', 'normal', 'segmented', 'concurrent', 'loopback')
+    snapshots(before, after)
     loopback = kind == 'loopback'
     segmented = kind in ('segmented', 'concurrent')
     expected_uids = [0, 1000] if kind == 'concurrent' else [0] if kind == 'raw' else [1000]

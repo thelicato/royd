@@ -4,6 +4,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 image=${1:-${ROYD_IMAGE:-$($script_dir/default-image.sh standard x86_64)}}
 output=${ROYD_ACCOUNTING_OUTPUT_DIR:-$root/.work/network-accounting-$(date -u +%Y%m%dT%H%M%SZ)-$$}
+tcp_mode=${ROYD_ACCOUNTING_TCP:-0}
+case "$tcp_mode" in 0|1) ;; *) exit 2 ;; esac
+tcp_status=not-tested
 container=royd-accounting-$$
 volume=$container-data
 owned=0 volume_owned=0 pre=0 observer_pid= fixture_pid= host_pid= ns= bpf_root=
@@ -61,7 +64,7 @@ PY
  if [ "$owned" = 1 ]; then "$script_dir/container-evidence.sh" "$container" "$output/container" >"$output/capture.log" 2>&1 || status=1; fi
  result=fail
  [ "$status" != 0 ] || result=pass
- printf 'ROYD_ACCOUNTING_EVIDENCE_FORMAT=1\nRESULT_STATUS=%s\nWORKLOAD_STATUS=%s\nRUNTIME_STATUS=%s\nDETACH_STATUS=%s\nIMAGE_ID=%s\nCOMMAND_EXIT_STATUS=%s\n' "$result" "$workload" "$runtime" "$detached" "$image_id" "$status" >"$output/manifest.env"
+ printf 'ROYD_ACCOUNTING_EVIDENCE_FORMAT=2\nRESULT_STATUS=%s\nWORKLOAD_STATUS=%s\nTCP_ENABLED=%s\nTCP_STATUS=%s\nRUNTIME_STATUS=%s\nDETACH_STATUS=%s\nIMAGE_ID=%s\nCOMMAND_EXIT_STATUS=%s\n' "$result" "$workload" "$tcp_mode" "$tcp_status" "$runtime" "$detached" "$image_id" "$status" >"$output/manifest.env"
  if [ "$owned" = 1 ]; then docker rm -f "$container" >"$output/cleanup.log"; fi
  if [ "$volume_owned" = 1 ]; then docker volume rm "$volume" >>"$output/cleanup.log"; fi
  exit "$status"
@@ -104,18 +107,22 @@ inspect_accounting >"$output/initial.json"
 docker exec "$container" test ! -e /data/local/tmp/royd-accounting-probe
 docker cp "$output/build/traffic" "$container:/data/local/tmp/royd-accounting-probe"
 gateway=$(docker inspect --format '{{(index .NetworkSettings.Networks "bridge").Gateway}}' "$container")
-"$output/build/traffic" -mode server -listen "$gateway:0" >"$output/fixture.log" 2>&1 &
+tcp_options=()
+[ "$tcp_mode" = 0 ] || tcp_options=(-tcp)
+"$output/build/traffic" -mode server -listen "$gateway:0" "${tcp_options[@]}" >"$output/fixture.log" 2>&1 &
 fixture_pid=$!
 for attempt in $(seq 1 100); do grep -q '"event":"ready"' "$output/fixture.log" && break; kill -0 "$fixture_pid"; sleep 0.05; done
 readarray -t fixture < <(python3 - "$output/fixture.log" <<'PY'
 import json,sys
 r=json.loads(open(sys.argv[1]).readline());assert r['event']=='ready'
-print(r['address']);print(r['nonce']);print(r['address'].rsplit(':',1)[1])
+print(r['address']);print(r['nonce']);print(r['address'].rsplit(':',1)[1]);print(r['tcp_address'])
 PY
 )
-[ "${#fixture[@]}" = 3 ]
+[ "${#fixture[@]}" = 4 ]
+observer_options=()
+if [ "$tcp_mode" = 1 ]; then observer_options=("${fixture[3]##*:}"); fi
 mkdir "$output/observer"
-nsenter --net="/proc/$host_pid/ns/net" "$output/build/observe" observe "$bpf_root" "$ns" "$output/build/observe.bpf.o" "$output/observer" "${fixture[2]}" >"$output/observer.log" 2>&1 &
+nsenter --net="/proc/$host_pid/ns/net" "$output/build/observe" observe "$bpf_root" "$ns" "$output/build/observe.bpf.o" "$output/observer" "${fixture[2]}" "${observer_options[@]}" >"$output/observer.log" 2>&1 &
 observer_pid=$!
 wait_file() {
  for attempt in $(seq 1 100); do [ -f "$1" ] && return 0; kill -0 "$observer_pid"; sleep 0.05; done
@@ -130,21 +137,25 @@ observe_snapshot() {
  wait_file "$output/observer/$1.json"
 }
 workload=fail
-for phase in 1 2 3 4 5; do
+phases=(1 2 3 4 5)
+if [ "$tcp_mode" = 1 ]; then phases+=(6 7); tcp_status=fail; fi
+for phase in "${phases[@]}"; do
  mkdir "$output/phase-$phase"
  children=() inputs=()
- uids=(1000); options=(); count=64
+ uids=(1000); options=(); count=64; address=${fixture[0]}
  case "$phase" in
   1) uids=(0); options=(-raw) ;;
   3) options=(-segmented); count=256 ;;
   4) uids=(0 1000); options=(-segmented); count=256 ;;
   5) options=(-loopback) ;;
+  6) options=(-tcp); address=${fixture[3]} ;;
+  7) uids=(0 1000); options=(-tcp); address=${fixture[3]} ;;
  esac
  for uid in "${uids[@]}"; do
   pipe=$output/phase-$phase/input-$uid
   mkfifo "$pipe"
   timeout 25 docker exec -i --user "$uid:$uid" "$container" /data/local/tmp/royd-accounting-probe \
-   -address "${fixture[0]}" -nonce "${fixture[1]}" -phase "$phase" -uid "$uid" -count "$count" "${options[@]}" <"$pipe" >"$output/phase-$phase/worker-$uid.log" 2>&1 &
+   -address "$address" -nonce "${fixture[1]}" -phase "$phase" -uid "$uid" -count "$count" "${options[@]}" <"$pipe" >"$output/phase-$phase/worker-$uid.log" 2>&1 &
   children+=("$!")
   exec {input_fd}>"$pipe"
   inputs+=("$input_fd")
@@ -162,3 +173,7 @@ for phase in 1 2 3 4 5; do
 done
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/runtime/tests/network-accounting/assess.py" "$output" >"$output/assessment.jsonl" 2>"$output/assessment.log"
 workload=pass
+if [ "$tcp_mode" = 1 ]; then
+ PYTHONDONTWRITEBYTECODE=1 python3 "$root/runtime/tests/network-accounting/assess_tcp.py" "$output" >"$output/tcp-assessment.jsonl" 2>"$output/tcp-assessment.log"
+ tcp_status=pass
+fi

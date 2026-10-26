@@ -102,7 +102,10 @@ runtime-network-http-test:
 runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
-.PHONY: runtime-network-accounting-test runtime-network-accounting-contract-test
+.PHONY: runtime-network-accounting-test runtime-network-accounting-tcp-test runtime-network-accounting-contract-test
+runtime-network-accounting-tcp-test:
+	ROYD_ACCOUNTING_TCP=1 ./runtime/scripts/network-accounting-test.sh
+
 runtime-network-accounting-test:
 	./runtime/scripts/network-accounting-test.sh
 
