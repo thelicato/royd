@@ -102,8 +102,21 @@ grep -Fq "Internal storage (null) total size: $pool_bytes (" "$output/mount.log"
 ui=fail
 settings_before=$(docker exec "$container" pidof com.android.settings)
 numeric "$settings_before"
+docker exec "$container" input keyevent KEYCODE_WAKEUP
+docker exec "$container" wm dismiss-keyguard
+docker exec "$container" timeout 15 dumpsys power >"$output/storage-power-before.log"
 docker exec "$container" timeout 20 am start -W -a android.settings.INTERNAL_STORAGE_SETTINGS >"$output/settings-launch.log" 2>&1
 grep -Fxq 'Status: ok' "$output/settings-launch.log"
+# A programmatic launch does not renew the display inactivity timer. Use normal
+# touch input and retain proof that it refreshed activity on this owned instance.
+docker exec "$container" input swipe 270 800 270 400 200
+docker exec "$container" timeout 15 dumpsys power >"$output/storage-power-after.log"
+grep -Eq '^[[:space:]]*mWakefulness=Awake$' "$output/storage-power-after.log"
+activity_time() { sed -n 's/^[[:space:]]*mLastUserActivityTime(excludingAttention)=\([0-9][0-9]*\).*$/\1/p' "$1"; }
+before_activity=$(activity_time "$output/storage-power-before.log")
+after_activity=$(activity_time "$output/storage-power-after.log")
+numeric "$before_activity"; numeric "$after_activity"
+[ "$after_activity" -gt "$before_activity" ]
 # Give asynchronous volume-size loaders time to complete; a launch response is not success.
 sleep 15
 docker exec "$container" timeout 15 dumpsys activity activities >"$output/settings-activities.log"

@@ -96,6 +96,20 @@ case "$1" in
       'am force-stop org.royd.storageprobe') rm "$MOCK_STATE/app" ;;
       'timeout 15 dumpsys mount') printf '%s\n' 'Internal storage (null) total size: 518933680128 (494893 MiB)' ;;
       'timeout 20 am start -W -a '*) : >"$MOCK_STATE/settings"; printf '%s\n' 'Status: ok' ;;
+      'input keyevent KEYCODE_WAKEUP')
+        [ "$MOCK_CASE" != wake_failure ]; : >"$MOCK_STATE/awake" ;;
+      'wm dismiss-keyguard')
+        [ -f "$MOCK_STATE/awake" ]; : >"$MOCK_STATE/unlocked" ;;
+      'input swipe 270 800 270 400 200')
+        [ "$MOCK_CASE" != touch_failure ]
+        [ -f "$MOCK_STATE/awake" ] && [ -f "$MOCK_STATE/unlocked" ] && [ -f "$MOCK_STATE/settings" ]
+        : >"$MOCK_STATE/touched" ;;
+      'timeout 15 dumpsys power')
+        activity=100
+        if [ -f "$MOCK_STATE/touched" ] && [ "$MOCK_CASE" != no_user_activity ]; then activity=200; fi
+        if [ -f "$MOCK_STATE/touched" ] && [ "$MOCK_CASE" = asleep_after_touch ]; then wakefulness=Asleep
+        else wakefulness=Awake; fi
+        printf '  mWakefulness=%s\n mLastUserActivityTime(excludingAttention)=%s\n' "$wakefulness" "$activity" ;;
       'timeout 15 dumpsys activity activities')
         if [ "$MOCK_CASE" = wrong_activity ]; then printf '%s\n' 'topResumedActivity=com.android.settings/.Settings$MyDeviceInfoActivity'
         else printf '%s\n' 'topResumedActivity=com.android.settings/.Settings$StorageDashboardActivity'; fi ;;
@@ -108,6 +122,7 @@ MOCK
 chmod +x "$tmp/bin/"*
 for mode in good bad_api recovered_crash marker_missing marker_duplicate settings_replaced wrong_activity \
     post_runtime_failure system_replaced identity_changed privileged_uid same_pid missing_result \
+    wake_failure touch_failure no_user_activity asleep_after_touch \
     existing_volume existing_container existing_evidence; do
   state=$tmp/$mode
   mkdir "$state"
