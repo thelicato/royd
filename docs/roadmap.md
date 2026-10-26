@@ -20,7 +20,11 @@ The `0065`/`0066` image `f14a08bffee0` has real ordinary-UID IPv4 interface/publ
 
 The `0067`/`0068` image `618fa11930c9` restores real RCU-protected stats-map rotation and recorded ordinary-UID Ethernet history in both DNS modes. Both history commands, saved assessment replay, fresh baseline, UID/metered/Data Saver policies, link recovery, native/WebView HTTPS and container/framework restart checks pass. History durability, broader accounting and quotas/alerts remain open. A valid 15-digit Android ID exposed a restart-fixture width assumption; focused contracts, full CI and a fresh framework-restart run pass after accepting the actual unpadded representation.
 
-Current graphical acceptance remains blocked: the five-minute scrcpy workload records eight `mediaextractor` seccomp aborts at the libcutils memfd probe and then a Settings ringtone-preparation crash. Its complete MP4 decodes, but the workload stays failed. The next image fix must address the exact media shared-memory/sandbox contract, retain sandbox enforcement and requalify the failed workload. No support or comparison-readiness claim follows from the passing network tests.
+The `618fa11930c9` five-minute scrcpy workload remains failed: it records eight `mediaextractor` seccomp aborts at the libcutils memfd probe and then a Settings ringtone-preparation crash, despite a decodable MP4.
+
+The rebuilt `0069` image `787018adad5f` closes that scoped media blocker locally. Five own-asset media preparations and five Sound Settings entries pass with stable service identity and active seccomp/no-new-privileges. Fresh persisted qualification and a five-minute scrcpy workload pass, including full post-runtime checks and complete recording decode. Recorded UID history, OEM UID policy and native/WebView HTTPS checks pass in both DNS modes; storage and container/framework restarts also pass. An initial display-timeout storage fixture failure stays failed; a host-only activity-refresh correction passes focused contracts, full CI and fresh storage validation. See [media shared memory](media-sandbox.md) for scope and retained evidence.
+
+Broader graphical acceptance remains open: the original bridge-history log contains one WebView-shell focus timeout near an intentional force-stop, although the script manifest passes and no formal `am_anr` follows. A fresh sequential bridge-history confirmation passes without reproducing it. The exact cause is unestablished; retain the raw diagnostic and investigate lifecycle responsiveness without generic filtering. Existing media/scrcpy success does not close this independent issue or establish support/comparison readiness.
 
 ## 1. Independent AOSP baseline
 
@@ -128,8 +132,9 @@ Current graphical acceptance remains blocked: the five-minute scrcpy workload re
 - [x] Implement private, strictly container-gated `eth0` ingress/egress IP accounting with attachment ownership, duplicate-update prevention and focused packet/native contracts. Rebuilt-image and broader accounting acceptance remain separate from this source milestone.
 - [x] Restore real RCU-protected detailed stats-map rotation and locally qualify recorded ordinary-UID Ethernet history in both DNS modes, with access denial, repeated polls and independent runtime evidence.
 - [ ] Qualify recorded UID-history durability across restarts; generic persisted-state checks do not establish this.
-- [ ] Fix and qualify the reproduced mediaextractor memfd sandbox failure and resulting Sound Settings crash, preserving scoped syscall restrictions and full crash-history assertions.
+- [x] Fix and qualify the reproduced mediaextractor memfd sandbox failure and resulting Sound Settings crash, preserving scoped syscall restrictions and full crash-history assertions.
 - [x] Implement a strictly gated, required media shared-memory policy addition with stock/vendor composition, real Minijail/kernel contracts and a zero-permission application/Sound Settings qualification runner. Rebuilt-image and scrcpy qualification remain separate from this source milestone.
+- [ ] Diagnose the retained WebView-shell focus-event timeout near lifecycle force-stop and qualify responsiveness; passing command manifests and absence of a formal ANR event do not resolve it.
 - [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
 - [ ] Validate the multiple-instance example on a documented reference host.
 - [ ] Record the minimum known-good host kernel configuration.
