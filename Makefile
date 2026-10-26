@@ -103,7 +103,10 @@ runtime-network-http-contract-test:
 	./runtime/scripts/network-http-contract-test.sh
 
 .PHONY: runtime-network-dns-test runtime-network-dns-contract-test
-.PHONY: runtime-network-history-test runtime-network-history-contract-test
+.PHONY: runtime-network-history-test runtime-network-history-contract-test runtime-network-history-restart-test
+runtime-network-history-restart-test:
+	./runtime/scripts/network-history-restart-test.sh
+
 runtime-network-history-test:
 	./runtime/scripts/network-history-test.sh
 

@@ -10,6 +10,7 @@ set -eu
 printf '%s\n' "$*" >>"$MOCK_STATE/docker.log"
 current=$(cat "$MOCK_STATE/phase" 2>/dev/null || printf fresh)
 case "$1" in
+  context) printf '%s\n' unix:///var/run/docker.sock ;;
   image) printf 'sha256:%064d\n' 1 ;;
   volume)
     case "$2" in
@@ -111,6 +112,7 @@ set -eu
 current=$(cat "$MOCK_STATE/phase")
 stage=${0##*/}
 printf '%s %s\n' "$current" "$stage" >>"$MOCK_STATE/checks.log"
+if [ "$MOCK_CASE" = history_post_failure ] && [ "$stage" = assert ] && [ -f "$MOCK_STATE/history-$current" ]; then exit 1; fi
 if [ "$MOCK_CASE" = "${stage}_failure" ]; then
   case "$current" in restart|framework) exit 1 ;; esac
 fi
@@ -122,13 +124,26 @@ printf '%s\n' framework >"$MOCK_STATE/phase"
 [ "$MOCK_CASE" != framework_failure ]
 "$ROYD_RESTART_ASSERT_RUNNER" "$1" >"$2/runtime.log" 2>&1
 MOCK
-chmod +x "$tmp/bin/docker" "$tmp/bin/runner" "$tmp/bin/framework"
+cat >"$tmp/bin/history" <<'MOCK'
+#!/bin/sh
+set -eu
+[ "$#" = 3 ]
+current=$(cat "$MOCK_STATE/phase")
+[ "$3" = "$current" ]
+test -s "$2/$3/persistence.txt"
+test -s "$2/$3/identity.txt"
+printf '%s history\n' "$3" >>"$MOCK_STATE/checks.log"
+: >"$MOCK_STATE/history-$3"
+[ "${MOCK_HISTORY_FAILURE:-}" != "$3" ]
+MOCK
+chmod +x "$tmp/bin/docker" "$tmp/bin/runner" "$tmp/bin/framework" "$tmp/bin/history"
 for stage in wait health security assert; do ln -s runner "$tmp/bin/$stage"; done
 
 run_case() {
   PATH="$tmp/bin:$PATH" MOCK_STATE="$state" MOCK_CASE="$mode" \
     ROYD_RESTART_OUTPUT_DIR="$state/evidence" \
     ROYD_RESTART_MODE="${restart_mode:-container}" ROYD_RESTART_FRAMEWORK_RUNNER="$tmp/bin/framework" \
+    ROYD_RESTART_HISTORY="${history_enabled:-0}" ROYD_RESTART_HISTORY_RUNNER="$tmp/bin/history" \
     ROYD_RESTART_WAIT_RUNNER="$tmp/bin/wait" ROYD_RESTART_HEALTH_RUNNER="$tmp/bin/health" \
     ROYD_RESTART_SECURITY_RUNNER="$tmp/bin/security" ROYD_RESTART_ASSERT_RUNNER="$tmp/bin/assert" \
     "$script_dir/restart-test.sh" royd:test >"$state/result.log" 2>&1
@@ -211,5 +226,32 @@ for mode in good short_identity minimum_identity file_changed setting_changed id
   [ -s "$state/evidence/framework/container-inspect.json" ]
   [ ! -e "$state/container" ]
   [ ! -e "$state/volume" ]
+done
+history_enabled=1
+for restart_mode in container framework; do
+  for failure in none fresh restart recreate framework post; do
+    case "$restart_mode:$failure" in container:framework|framework:restart|framework:recreate) continue ;; esac
+    state="$tmp/history-$restart_mode-$failure"
+    mkdir "$state"
+    mode=good
+    [ "$failure" != post ] || mode=history_post_failure
+    status=0
+    MOCK_HISTORY_FAILURE="$failure" run_case || status=$?
+    grep -Fxq HISTORY_ENABLED=1 "$state/evidence/manifest.env"
+    if [ "$failure" = none ]; then
+      [ "$status" = 0 ]
+      grep -Fxq HISTORY_STATUS=pass "$state/evidence/manifest.env"
+      expected=3
+      [ "$restart_mode" = container ] || expected=2
+      [ "$(grep -c ' history$' "$state/checks.log")" = "$expected" ]
+      [ "$(grep -c ' assert$' "$state/checks.log")" = "$((expected * 2))" ]
+    else
+      [ "$status" != 0 ]
+      grep -Fxq HISTORY_STATUS=fail "$state/evidence/manifest.env"
+      grep -Fxq RESULT_STATUS=fail "$state/evidence/manifest.env"
+    fi
+    [ ! -e "$state/container" ]
+    [ ! -e "$state/volume" ]
+  done
 done
 printf '%s\n' 'Android 15 persistent-data restart contract test passed'

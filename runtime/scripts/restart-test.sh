@@ -13,6 +13,8 @@ security_mode=${ROYD_SECURITY_MODE:-privileged}
 graphics_backend=${ROYD_GRAPHICS_BACKEND:-software}
 arch=${ROYD_ARCH:-x86_64}
 mode=${ROYD_RESTART_MODE:-container}
+history=${ROYD_RESTART_HISTORY:-0}
+history_runner=${ROYD_RESTART_HISTORY_RUNNER:-$script_dir/network-history-restart-phase.sh}
 timeout=${ROYD_BOOT_TIMEOUT:-180}
 health_timeout=${ROYD_HEALTH_TIMEOUT:-240}
 wait_runner=${ROYD_RESTART_WAIT_RUNNER:-$script_dir/wait-for-boot.sh}
@@ -33,6 +35,15 @@ started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 command -v docker >/dev/null 2>&1 || { printf '%s\n' 'error: docker is required' >&2; exit 1; }
 case "$mode" in container|framework) ;; *) printf '%s\n' 'error: invalid restart mode' >&2; exit 2 ;; esac
+case "$history" in 0|1) ;; *) printf '%s\n' 'error: invalid restart history mode' >&2; exit 2 ;; esac
+if [ "$history" = 1 ]; then
+  [ "$arch:$graphics_backend:$security_mode:$resource_profile" = x86_64:software:privileged:low-memory ] || {
+    printf '%s\n' 'error: history restart validation requires the privileged x86_64 software low-memory baseline' >&2
+    exit 2
+  }
+  case "${DOCKER_HOST:-unix:///var/run/docker.sock}" in unix://*) ;; *) exit 2 ;; esac
+  case "$(docker context inspect --format '{{.Endpoints.docker.Host}}')" in unix://*) ;; *) exit 2 ;; esac
+fi
 if [ "$mode" = framework ]; then
   [ "$arch:$graphics_backend:$security_mode" = x86_64:software:privileged ] || {
     printf '%s\n' 'error: framework restart validation requires the privileged x86_64 software baseline' >&2
@@ -71,6 +82,8 @@ FRESH_STATUS=$fresh_status
 RESTART_STATUS=$restart_status
 RECREATE_STATUS=$recreate_status
 FRAMEWORK_STATUS=$framework_status
+HISTORY_ENABLED=$history
+HISTORY_STATUS=$(if [ "$history" = 0 ]; then printf not-requested; elif [ "$result" = pass ]; then printf pass; else printf fail; fi)
 IMAGE=$image
 IMAGE_ID=$image_id
 ARCH=$arch
@@ -102,6 +115,7 @@ create_container() {
   # Word splitting is intentional for trusted repository-generated arguments.
   # shellcheck disable=SC2086
   docker create $security_args $gpu_args $container_args --name "$container" \
+    --label org.royd.test=restart --label "org.royd.test.owner=$container" \
     -v "$volume:/data" "$image_id" $profile_args >"$output/$phase/create.log"
   container_owned=1
   docker start "$container" >>"$output/$phase/create.log"
@@ -126,6 +140,13 @@ read_persistence() {
     settings get secure android_id
     cmd package list packages -U org.chromium.webview_shell
   '
+}
+
+check_history() {
+  [ "$history" = 1 ] || return 0
+  "$history_runner" "$container" "$output" "$phase" >"$output/$phase/history.log" 2>&1
+  ROYD_HAL_PROFILE=graphical ROYD_GRAPHICS_BACKEND="$graphics_backend" \
+    ROYD_RESOURCE_PROFILE="$resource_profile" "$assert_runner" "$container" >"$output/$phase/history-runtime.log" 2>&1
 }
 
 mkdir "$output/$phase"
@@ -155,6 +176,7 @@ sed -n '3p' "$output/$phase/persistence.txt" | grep -Eq '^[0-9a-f]{1,16}$'
 sed -n '4p' "$output/$phase/persistence.txt" | grep -Eq '^package:org.chromium.webview_shell uid:[0-9]+$'
 [ "$(wc -l <"$output/$phase/persistence.txt")" -eq 4 ]
 docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
+check_history
 capture
 fresh_status=pass
 
@@ -170,6 +192,7 @@ if [ "$mode" = framework ]; then
   cmp "$output/fresh/persistence.txt" "$output/$phase/persistence.txt"
   docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
   cmp "$output/fresh/identity.txt" "$output/$phase/identity.txt"
+  check_history
   capture
   framework_status=pass
   result=pass
@@ -186,6 +209,7 @@ cmp "$output/fresh/persistence.txt" "$output/$phase/persistence.txt"
 docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
 [ "$(cut -d ' ' -f 1 "$output/fresh/identity.txt")" = "$(cut -d ' ' -f 1 "$output/$phase/identity.txt")" ]
 [ "$(cut -d ' ' -f 2 "$output/fresh/identity.txt")" != "$(cut -d ' ' -f 2 "$output/$phase/identity.txt")" ]
+check_history
 capture
 restart_status=pass
 
@@ -200,6 +224,7 @@ read_persistence >"$output/$phase/persistence.txt"
 cmp "$output/fresh/persistence.txt" "$output/$phase/persistence.txt"
 docker inspect --format '{{.Id}} {{.State.StartedAt}}' "$container" >"$output/$phase/identity.txt"
 [ "$(cut -d ' ' -f 1 "$output/fresh/identity.txt")" != "$(cut -d ' ' -f 1 "$output/$phase/identity.txt")" ]
+check_history
 capture
 recreate_status=pass
 result=pass
