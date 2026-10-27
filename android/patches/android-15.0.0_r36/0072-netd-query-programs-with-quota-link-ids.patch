@@ -1,0 +1,18 @@
+diff --git a/system/netd/server/RoydInterfaceQuota.h b/system/netd/server/RoydInterfaceQuota.h
+--- a/system/netd/server/RoydInterfaceQuota.h
++++ b/system/netd/server/RoydInterfaceQuota.h
+@@ -46,11 +46,13 @@
+     }
+     if (!validLink(fd.get(), program.get(), index, direction)) return false;
+     struct bpf_link_info own = {};
+-    uint32_t ids[64] = {};
++    uint32_t ids[64] = {}, programs[64] = {};
+     union bpf_attr query = {};
+     query.query.target_ifindex = index;
+     query.query.attach_type = direction;
+     query.query.prog_cnt = 64;
++    // Without prog_ids the kernel returns only a count, leaving link_ids empty.
++    query.query.prog_ids = reinterpret_cast<uintptr_t>(programs);
+     query.query.link_ids = reinterpret_cast<uintptr_t>(ids);
+     if (!info(fd.get(), own, offsetof(bpf_link_info, id) + sizeof(own.id))
+             || bpfCall(BPF_PROG_QUERY, query) || query.query.prog_cnt > 64) return false;

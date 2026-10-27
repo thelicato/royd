@@ -82,8 +82,14 @@ static int bpfCall(enum bpf_cmd cmd, union bpf_attr& attr) {
     if (cmd == BPF_PROG_QUERY) {
         if (fault == 13) return -1;
         int direction = attr.query.attach_type == BPF_TCX_EGRESS;
+        const unsigned capacity = attr.query.prog_cnt;
+        attr.query.prog_cnt = 2;
+        // Linux returns the count without filling either array in this case.
+        if (!capacity || !attr.query.prog_ids) return 0;
+        auto* programs = reinterpret_cast<uint32_t*>(attr.query.prog_ids);
+        programs[0] = 10+direction;programs[1] = 20+direction;
         auto* ids = reinterpret_cast<uint32_t*>(attr.query.link_ids);
-        ids[0] = 30+direction;ids[1] = 40+direction;attr.query.prog_cnt = 2;
+        ids[0] = 30+direction;ids[1] = 40+direction;
         if (fault == 14) { ids[0] = 40+direction;ids[1] = 30+direction; }
         return 0;
     }
