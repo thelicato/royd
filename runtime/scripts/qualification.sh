@@ -48,6 +48,11 @@ started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 case "$arch" in x86_64|arm64) ;; *) printf 'error: unsupported qualification architecture: %s\n' "$arch" >&2; exit 2 ;; esac
 case "$require_adb" in 0|1) ;; *) printf '%s\n' 'error: ROYD_QUALIFY_REQUIRE_ADB must be 0 or 1' >&2; exit 2 ;; esac
 
+# Refuse reuse before opening the result/log or touching retained companions.
+if [ -e "$evidence_dir/binder-isolation" ] || [ -L "$evidence_dir/binder-isolation" ]; then
+  printf '%s\n' 'error: Binder evidence already exists; choose a fresh ROYD_RUNTIME_RESULT_FILE or evidence directory' >&2
+  exit 2
+fi
 mkdir -p "$(dirname -- "$result_file")" "$(dirname -- "$log_file")" "$evidence_dir"
 rm -f "$evidence_dir/container-inspect.json" "$evidence_dir/container.log" "$evidence_dir/state.txt"
 : > "$log_file"
@@ -197,6 +202,7 @@ else
 fi
 
 run_stage binder_isolation env \
+  ROYD_BINDER_OUTPUT_DIR="$evidence_dir/binder-isolation" \
   ROYD_ANDROID_VERSION="$android_version" \
   ROYD_HAL_PROFILE="$hal_profile" \
   ROYD_ANDROID_PROFILE="$image_profile" \

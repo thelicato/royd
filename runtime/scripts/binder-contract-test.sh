@@ -21,4 +21,6 @@ grep -F '/dev/royd-binderfs' "$diagnostics" >/dev/null
 grep -F " /dev/royd-binderfs binder " "$assert_runtime" >/dev/null
 grep -F '/dev/royd-binderfs/binder-control' "$identity" >/dev/null
 
+PYTHONDONTWRITEBYTECODE=1 python3 "$root/runtime/tests/binder/runner_test.py"
+
 printf '%s\n' 'Binder private-mount contract test passed'

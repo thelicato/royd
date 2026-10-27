@@ -46,6 +46,8 @@ The gate records these stages independently:
 
 The Binder isolation stage starts two disposable Android containers and compares the kernel character-device identities returned by the repository-owned `royd-binder-info` helper. Each private binderfs mount must expose different `binder-control`, `binder`, `hwbinder`, and `vndbinder` device identities. Linux binderfs defines devices in separate binderfs instances as independent Binder contexts, so this gives royd a concrete runtime check that each container received a distinct private device set.
 
+The stage retains both containers under `<result>.evidence/binder-isolation/`: format-1 `manifest.env`, separate boot/runtime outputs, raw device identities when reached, and `a/`/`b/` full timestamped logs, inspect and state. Copy available `/data/anr` watchdog/thread dumps before removing their disposable volumes; an unavailable directory probe is recorded, not evidence of no ANR. Capture precedes deletion even on failure or interruption. A failed capture or changed ownership fails the gate and leaves the affected resources for inspection; the manifest records capture/cleanup separately from runtime/identity. Existing names, volumes and evidence are never adopted or replaced. Standalone `make runtime-binder-isolation-test` generates a fresh `.work/binder-isolation-<timestamp>-<pid>` directory; set `ROYD_BINDER_OUTPUT_DIR` to select another new directory.
+
 ## Result files
 
 Results are stored under:
@@ -57,6 +59,10 @@ Results are stored under:
 ```
 
 The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains detailed stage output. The companion evidence directory persists `container.log` from full timestamped `docker logs`, `container-inspect.json`, and `state.txt` before the qualification container is removed. This makes boot-watchdog and early-init diagnostics reviewable after a failed run.
+
+When a Binder companion directory already exists, qualification refuses reuse before opening the previous result or log. Select a fresh `ROYD_RUNTIME_RESULT_FILE` (or fresh results directory for a matrix rerun) to retain earlier attempts.
+
+Task155's rebuilt image `79568439e907` passes one full evidenced qualification after an earlier companion pre-watchdog failure. Five-minute scrcpy, global callbacks and bridge-DNS native/WebView HTTPS also pass locally. A later embedded-DNS run fails before workload on another startup pre-watchdog, this time with only one instance. Its retained log shows startup continuing and `StartServices` taking 33.746 seconds, but its TLS cleanup lost the thread dump. Keep the failed qualification and failed TLS manifest independently; neither a healthy eventual boot nor a later pass explains the wait. Watchdog diagnosis and that mode's new-image HTTPS witness remain open, separately from the Binder capture correction.
 
 Docker can omit health state for a never-started container or an image without a health check. The collector records `health=none` and still captures logs/inspect; an empty log is valid only when `docker logs` succeeds. Present `starting`/`unhealthy` states and Docker errors remain visible, and unavailable inspect/log commands still fail capture. Evidence capture is not boot or health qualification: a failed start remains failed. `make runtime-container-evidence-test` uses Go to execute the production template with strict missing-key checks, plus mocked collection failures; the collector itself requires only Docker and the shell.
 
