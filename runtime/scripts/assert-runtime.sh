@@ -199,6 +199,15 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 interface IP accounting is unavailable in %s\n' "$container" >&2
     exit 1
   fi
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: enforcing OCI eth0 byte quotas through private BPF links'; then
+    printf 'error: Android 15 interface quota backend is missing in %s\n' "$container" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "$accounting" | awk -f "$script_dir/assert-interface-quota.awk"; then
+    printf 'error: Android 15 interface quota state is unavailable or inconsistent in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "$metered_map" | grep -Eq "^[[:space:]]*sRoydMeteredIfaceMap: $metered_ifindex$"; then
     printf 'error: Android 15 OCI metered deny interface does not match eth0 in %s\n' "$container" >&2
     exit 1

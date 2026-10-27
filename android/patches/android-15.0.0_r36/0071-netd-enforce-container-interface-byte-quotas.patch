@@ -1,0 +1,361 @@
+diff --git a/packages/modules/Connectivity/Tethering/apex/Android.bp b/packages/modules/Connectivity/Tethering/apex/Android.bp
+--- a/packages/modules/Connectivity/Tethering/apex/Android.bp
++++ b/packages/modules/Connectivity/Tethering/apex/Android.bp
+@@ -101,6 +101,7 @@
+         "clatd.o",
+         "dscpPolicy.o",
+         "netd.o",
++        "roydquota.o",
+         "offload.o",
+         "offload@mainline.o",
+         "test.o",
+diff --git a/packages/modules/Connectivity/bpf/progs/Android.bp b/packages/modules/Connectivity/bpf/progs/Android.bp
+--- a/packages/modules/Connectivity/bpf/progs/Android.bp
++++ b/packages/modules/Connectivity/bpf/progs/Android.bp
+@@ -110,3 +110,12 @@
+     // WARNING: Android T's non-updatable netd depends on 'netd_shared' string for xt_bpf programs
+     sub_dir: "netd_shared",
+ }
++
++// Private royd packet quotas require actual atomic-CAS verifier support.
++// Keep the stock netd.o instruction target unchanged.
++bpf {
++    name: "roydquota.o",
++    srcs: ["roydquota.c"],
++    sub_dir: "netd_shared",
++    cflags: ["-mcpu=v3"],
++}
+diff --git a/packages/modules/Connectivity/bpf/progs/royd_quota.h b/packages/modules/Connectivity/bpf/progs/royd_quota.h
+--- /dev/null
++++ b/packages/modules/Connectivity/bpf/progs/royd_quota.h
+@@ -0,0 +1,28 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++// Immutable metadata and one aligned shared budget. Replace the entire hash
++// element on update; never copy new fields over an element used by a packet.
++struct RoydQuota { uint64_t remaining, limit, generation; };
++struct RoydQuotaDrops { uint64_t invalid, contention; };
++
++// 1 admits the complete skb, 0 exhausts it, -1 rejects invalid state, and -2
++// refuses this skb after bounded contention. No path grants a separate allowance.
++static __always_inline inline int royd_quota_take(struct RoydQuota* quota, uint64_t bytes) {
++    // CAS(0, 0) is an atomic snapshot, including on the pinned BPF compiler.
++    uint64_t left = __sync_val_compare_and_swap(&quota->remaining, 0, 0);
++    if (!bytes || bytes > INT64_MAX || !quota->limit || quota->limit > INT64_MAX
++            || !quota->generation) return -1;
++#ifdef __clang__
++#pragma clang loop unroll(disable)
++#endif
++    for (unsigned attempt = 0; attempt < 64; ++attempt) {
++        if (left > quota->limit) return -1;
++        if (!left) return 0;
++        uint64_t next = bytes <= left ? left - bytes : 0;
++        uint64_t observed = __sync_val_compare_and_swap(&quota->remaining, left, next);
++        if (observed == left) return bytes <= left;
++        left = observed;
++    }
++    return -2;
++}
+diff --git a/packages/modules/Connectivity/bpf/progs/roydquota.c b/packages/modules/Connectivity/bpf/progs/roydquota.c
+--- /dev/null
++++ b/packages/modules/Connectivity/bpf/progs/roydquota.c
+@@ -0,0 +1,42 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_T_VERSION
++#include "bpf_net_helpers.h"
++#include "royd_quota.h"
++#include "royd_iface_account.h"
++
++// Non-per-CPU, non-LRU hash replacement publishes a new immutable generation.
++// NO_PREALLOC gives old packet references their own RCU-retired allocation.
++const struct bpf_map_def SECTION("maps") quota_budget = {
++    .type = BPF_MAP_TYPE_HASH, .key_size = sizeof(uint32_t),
++    .value_size = sizeof(struct RoydQuota), .max_entries = 1,
++    .map_flags = BPF_F_NO_PREALLOC, .uid = AID_ROOT, .gid = AID_NET_BW_ACCT,
++    .mode = 0660, .bpfloader_min_ver = BPFLOADER_MIN_VER,
++    .bpfloader_max_ver = BPFLOADER_MAX_VER, .max_kver = 0xffffffffU,
++};
++DEFINE_BPF_MAP_UGM(quota_drops, ARRAY, uint32_t, struct RoydQuotaDrops, 1,
++                   AID_ROOT, AID_NET_BW_ACCT, 0660)
++
++static __always_inline inline int royd_quota_packet(struct __sk_buff* skb) {
++    uint32_t key = skb->ifindex;
++    struct RoydQuota* quota = bpf_map_lookup_elem_unsafe(&quota_budget, &key);
++    if (!quota) return TC_ACT_UNSPEC;  // No registered quota, not measured zero use.
++    uint64_t bytes = 0, packets = 0;
++    int parsed = royd_ip_counters(skb, &bytes, &packets);
++    if (!parsed) return TC_ACT_UNSPEC;  // ARP and other L2 traffic have no IP budget.
++    int result = parsed < 0 ? -1 : royd_quota_take(quota, bytes);
++    if (result < 0) {
++        uint32_t zero = 0;
++        struct RoydQuotaDrops* drops = bpf_quota_drops_lookup_elem(&zero);
++        if (drops) {
++            if (result == -2) __sync_fetch_and_add(&drops->contention, 1);
++            else __sync_fetch_and_add(&drops->invalid, 1);
++        }
++    }
++    return result == 1 ? TC_ACT_UNSPEC : TC_ACT_SHOT;
++}
++
++DEFINE_OPTIONAL_BPF_PROG("schedcls/ingress", AID_ROOT, AID_ROOT, quota_ingress)
++(struct __sk_buff* skb) { return royd_quota_packet(skb); }
++DEFINE_OPTIONAL_BPF_PROG("schedcls/egress", AID_ROOT, AID_ROOT, quota_egress)
++(struct __sk_buff* skb) { return royd_quota_packet(skb); }
++LICENSE("Apache 2.0");
+diff --git a/system/netd/server/BandwidthController.cpp b/system/netd/server/BandwidthController.cpp
+--- a/system/netd/server/BandwidthController.cpp
++++ b/system/netd/server/BandwidthController.cpp
+@@ -53,6 +53,7 @@
+ #include "FirewallController.h" /* For makeCriticalCommands */
+ #include "Fwmark.h"
+ #include "RoydGlobalAlertSource.h"
++#include "RoydInterfaceQuota.h"
+ #include <netdutils/DumpWriter.h>
+ #include "NetdConstants.h"
+ #include "android/net/INetd.h"
+@@ -446,6 +447,10 @@
+ }
+
+ int BandwidthController::setInterfaceQuota(const std::string& iface, int64_t maxBytes) {
++    if (android::net::royd::enabled() && iface == "eth0") {
++        using namespace android::net;
++        return maxBytes == -1 ? royd::removeQuota() : royd::setQuota(maxBytes);
++    }
+     const std::string& cost = iface;
+
+     if (!isIfaceName(iface)) return -EINVAL;
+@@ -501,6 +506,17 @@
+ }
+
+ int BandwidthController::getInterfaceQuota(const std::string& iface, int64_t* bytes) {
++    if (android::net::royd::enabled() && iface == "eth0") {
++        using namespace android::net;
++        royd::QuotaValue value = {};
++        royd::QuotaDrops drops = {};
++        bool present = false;
++        const int result = royd::readQuota(value, drops, present);
++        if (result) return result;
++        if (!present) return -ENODEV;
++        *bytes = value.remaining;
++        return 0;
++    }
+     const auto& sys = android::netdutils::sSyscalls.get();
+     const std::string fname = "/proc/net/xt_quota/" + iface;
+
+@@ -521,6 +537,10 @@
+ }
+
+ int BandwidthController::removeInterfaceQuota(const std::string& iface) {
++    if (android::net::royd::enabled() && iface == "eth0") {
++        using namespace android::net;
++        return royd::removeQuota();
++    }
+     if (!isIfaceName(iface)) return -EINVAL;
+
+     auto it = mQuotaIfaces.find(iface);
+@@ -644,6 +664,17 @@
+ }
+
+ int BandwidthController::setInterfaceAlert(const std::string& iface, int64_t bytes) {
++    if (android::net::royd::enabled() && iface == "eth0") {
++        using namespace android::net;
++        if (bytes <= 0) return -ERANGE;
++        royd::QuotaValue value = {};
++        royd::QuotaDrops drops = {};
++        bool present = false;
++        const int result = royd::readQuota(value, drops, present);
++        if (result) return result;
++        // Do not report a missing quota when only its notification backend is absent.
++        return present ? -EOPNOTSUPP : -ENOENT;
++    }
+     if (!isIfaceName(iface)) {
+         ALOGE("setInterfaceAlert: Invalid iface \"%s\"", iface.c_str());
+         return -EINVAL;
+diff --git a/system/netd/server/NetdNativeService.cpp b/system/netd/server/NetdNativeService.cpp
+--- a/system/netd/server/NetdNativeService.cpp
++++ b/system/netd/server/NetdNativeService.cpp
+@@ -45,6 +45,7 @@
+ #include "Process.h"
+ #include "RouteController.h"
+ #include "RoydInterfaceAccounting.h"
++#include "RoydInterfaceQuota.h"
+ #include "SockDiag.h"
+ #include "UidRanges.h"
+ #include "android/net/BnNetd.h"
+@@ -161,6 +162,15 @@
+         const bool ready = royd::ready(ifindex, errors);
+         dw.println("royd interface accounting: ifindex=%u errors=%u links=%s",
+                    ifindex, errors, ready ? "ready" : "unavailable");
++        royd::QuotaValue quota = {};
++        royd::QuotaDrops drops = {};
++        bool present = false;
++        const int result = royd::readQuota(quota, drops, present);
++        dw.println("royd interface quota: error=%d active=%s generation=%" PRIu64
++                   " limit=%" PRIu64 " remaining=%" PRIu64
++                   " invalid_drops=%" PRIu64 " contention_drops=%" PRIu64,
++                   result, present ? "yes" : "no", quota.generation, quota.limit,
++                   quota.remaining, drops.invalid, drops.contention);
+     }
+
+     if (!args.isEmpty() && args[0] == TcpSocketMonitor::DUMP_KEYWORD) {
+diff --git a/system/netd/server/RoydInterfaceQuota.h b/system/netd/server/RoydInterfaceQuota.h
+--- /dev/null
++++ b/system/netd/server/RoydInterfaceQuota.h
+@@ -0,0 +1,130 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++#include <limits>
++#include <mutex>
++#include <time.h>
++#include "RoydInterfaceAccounting.h"
++
++namespace android::net::royd {
++struct QuotaValue { uint64_t remaining, limit, generation; };
++struct QuotaDrops { uint64_t invalid, contention; };
++static_assert(sizeof(QuotaValue) == 24 && sizeof(QuotaDrops) == 16);
++inline std::mutex& quotaMutex() { static std::mutex mutex; return mutex; }
++
++inline bool quotaMap(int fd) {
++    struct bpf_map_info map = {};
++    return info(fd, map, offsetof(bpf_map_info, map_flags) + sizeof(map.map_flags))
++            && map.type == BPF_MAP_TYPE_HASH && map.key_size == sizeof(uint32_t)
++            && map.value_size == sizeof(QuotaValue) && map.max_entries == 1
++            && map.map_flags == BPF_F_NO_PREALLOC;
++}
++inline bool quotaLink(uint32_t index, bool ingress, bool create) {
++    const uint32_t direction = ingress ? BPF_TCX_INGRESS : BPF_TCX_EGRESS;
++    const char* pin = ingress ? "link_royd_quota_ingress" : "link_royd_quota_egress";
++    unique_fd program(object(ingress ? "prog_roydquota_schedcls_ingress"
++                                    : "prog_roydquota_schedcls_egress"));
++    unique_fd accounting(object(ingress ? "link_royd_iface_ingress" : "link_royd_iface_egress"));
++    struct bpf_link_info prior = {};
++    if (!program.ok() || !accounting.ok()
++            || !info(accounting.get(), prior, offsetof(bpf_link_info, id) + sizeof(prior.id))) return false;
++    unique_fd fd(object(pin));
++    if (!fd.ok()) {
++        if (!create || errno != ENOENT) return false;
++        union bpf_attr attr = {};
++        attr.link_create.prog_fd = program.get();
++        attr.link_create.target_ifindex = index;
++        attr.link_create.attach_type = direction;
++        attr.link_create.flags = BPF_F_AFTER | BPF_F_LINK | BPF_F_ID;
++        attr.link_create.tcx.relative_id = prior.id;
++        fd.reset(bpfCall(BPF_LINK_CREATE, attr));
++        if (!fd.ok()) return false;
++        std::string path = std::string(kRoot) + pin;
++        attr = {};
++        attr.bpf_fd = fd.get();
++        attr.pathname = reinterpret_cast<uintptr_t>(path.c_str());
++        if (bpfCall(BPF_OBJ_PIN, attr)) return false;
++    }
++    if (!validLink(fd.get(), program.get(), index, direction)) return false;
++    struct bpf_link_info own = {};
++    uint32_t ids[64] = {};
++    union bpf_attr query = {};
++    query.query.target_ifindex = index;
++    query.query.attach_type = direction;
++    query.query.prog_cnt = 64;
++    query.query.link_ids = reinterpret_cast<uintptr_t>(ids);
++    if (!info(fd.get(), own, offsetof(bpf_link_info, id) + sizeof(own.id))
++            || bpfCall(BPF_PROG_QUERY, query) || query.query.prog_cnt > 64) return false;
++    unsigned before = 64, after = 64;
++    for (unsigned n = 0; n < query.query.prog_cnt; ++n) {
++        if (ids[n] == prior.id) before = n;
++        if (ids[n] == own.id) after = n;
++    }
++    return before < after && after < 64;
++}
++inline bool quotaReady(uint32_t& index, bool create = false) {
++    uint32_t error = 0;
++    unique_fd map(object("map_roydquota_quota_budget"));
++    unique_fd drops(object("map_roydquota_quota_drops"));
++    if (!ready(index, error) || !map.ok() || !quotaMap(map.get()) || !drops.ok()
++            || !mapLayout(drops.get(), BPF_MAP_TYPE_ARRAY, sizeof(QuotaDrops))) return false;
++    uint32_t existing = 0;
++    union bpf_attr first = {};
++    first.map_fd = map.get();
++    first.next_key = reinterpret_cast<uintptr_t>(&existing);
++    if (bpfCall(BPF_MAP_GET_NEXT_KEY, first)) {
++        if (errno != ENOENT) return false;
++    } else if (existing != index) return false;
++    return quotaLink(index, true, create) && quotaLink(index, false, create);
++}
++inline bool initialiseQuota() {
++    if (!enabled()) return true;
++    uint32_t index = 0;
++    return quotaReady(index, true);  // Preserve any existing generation and remainder.
++}
++inline int readQuota(QuotaValue& value, QuotaDrops& drops, bool& present) {
++    std::lock_guard guard(quotaMutex());
++    uint32_t index = 0;
++    if (!quotaReady(index)) return -EIO;
++    unique_fd map(object("map_roydquota_quota_budget"));
++    unique_fd counts(object("map_roydquota_quota_drops"));
++    if (!map.ok() || !counts.ok() || !lookup(counts.get(), 0, drops)) return -EIO;
++    present = lookup(map.get(), index, value);
++    if (!present) return errno == ENOENT ? 0 : -EIO;
++    if (!value.generation || !value.limit || value.limit > INT64_MAX
++            || value.remaining > value.limit) return -EIO;
++    return 0;
++}
++inline int setQuota(int64_t bytes) {
++    if (bytes <= 0) return -ERANGE;
++    std::lock_guard guard(quotaMutex());
++    uint32_t index = 0;
++    if (!quotaReady(index)) return -EIO;
++    unique_fd map(object("map_roydquota_quota_budget"));
++    if (!map.ok()) return -EIO;
++    QuotaValue old = {};
++    if (lookup(map.get(), index, old)) {
++        if (!old.generation || !old.limit || old.limit > INT64_MAX
++                || old.remaining > old.limit) return -EIO;
++    } else if (errno != ENOENT) return -EIO;
++    struct timespec now = {};
++    if (clock_gettime(CLOCK_MONOTONIC, &now)) return -errno;
++    const uint64_t tick = uint64_t(now.tv_sec) * 1000000000 + now.tv_nsec;
++    if (old.generation == UINT64_MAX) return -EOVERFLOW;
++    QuotaValue fresh = {uint64_t(bytes), uint64_t(bytes),
++                       tick > old.generation ? tick : old.generation + 1};
++    if (update(map.get(), index, fresh, BPF_ANY)) return -errno;
++    return 0;
++}
++inline int removeQuota() {
++    std::lock_guard guard(quotaMutex());
++    uint32_t index = 0;
++    if (!quotaReady(index)) return -EIO;
++    unique_fd map(object("map_roydquota_quota_budget"));
++    if (!map.ok()) return -EIO;
++    union bpf_attr attr = {};
++    attr.map_fd = map.get();
++    attr.key = reinterpret_cast<uintptr_t>(&index);
++    if (bpfCall(BPF_MAP_DELETE_ELEM, attr)) return errno == ENOENT ? -ENODEV : -errno;
++    return 0;
++}
++}  // namespace android::net::royd
+diff --git a/system/netd/server/main.cpp b/system/netd/server/main.cpp
+--- a/system/netd/server/main.cpp
++++ b/system/netd/server/main.cpp
+@@ -51,6 +51,7 @@
+ #include "NetlinkManager.h"
+ #include "Process.h"
+ #include "RoydInterfaceAccounting.h"
++#include "RoydInterfaceQuota.h"
+
+ #include "NetdUpdatablePublic.h"
+ #include "netd_resolv/resolv.h"
+@@ -158,6 +159,14 @@
+         ALOGI("ROYD: accounting OCI eth0 IP traffic through private BPF links");
+     }
+
++    if (!android::net::royd::initialiseQuota()) {
++        ALOGE("ROYD: cannot establish private interface quota links and atomic budget maps");
++        exit(1);
++    }
++    if (android::net::royd::enabled()) {
++        ALOGI("ROYD: enforcing OCI eth0 byte quotas through private BPF links");
++    }
++
+     NetlinkManager *nm = NetlinkManager::Instance();
+     if (nm == nullptr) {
+         ALOGE("Unable to create NetlinkManager");

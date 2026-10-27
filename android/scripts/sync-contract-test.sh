@@ -87,6 +87,11 @@ SRC
     fi
     mkdir -p packages/modules/NetworkStack/src/com/android/server/connectivity
     mkdir -p packages/modules/Connectivity/bpf/progs
+    mkdir -p packages/modules/Connectivity/Tethering/apex
+    if [ ! -f packages/modules/Connectivity/bpf/progs/Android.bp ]; then
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/quota-bpf-Android.bp" packages/modules/Connectivity/bpf/progs/Android.bp
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/quota-apex-Android.bp" packages/modules/Connectivity/Tethering/apex/Android.bp
+    fi
     if [ ! -f packages/modules/Connectivity/bpf/progs/netd.c ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/metered-netd.c" packages/modules/Connectivity/bpf/progs/netd.c
     fi
@@ -3268,6 +3273,8 @@ ROYD_ANDROID15_UID_CPU_SOURCE="$tmp/src/frameworks/base/core/java/com/android/in
   "$android_dir/scripts/android15-uid-cpu-cleanup-container-test.sh"
 ROYD_ANDROID15_ACCOUNTING_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-interface-accounting-container-test.sh"
+ROYD_ANDROID15_QUOTA_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-interface-quota-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

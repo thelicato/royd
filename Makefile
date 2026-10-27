@@ -583,6 +583,13 @@ android15-metered-deny-container-test:
 android15-global-alert-container-test:
 	./android/scripts/android15-global-alert-container-test.sh
 
+.PHONY: android15-interface-quota-container-test android15-interface-quota-kernel-test
+android15-interface-quota-container-test:
+	./android/scripts/android15-interface-quota-container-test.sh
+
+android15-interface-quota-kernel-test:
+	ROYD_QUOTA_KERNEL_TEST=1 ./android/scripts/android15-interface-quota-container-test.sh
+
 .PHONY: android15-interface-accounting-container-test
 android15-interface-accounting-container-test:
 	./android/scripts/android15-interface-accounting-container-test.sh

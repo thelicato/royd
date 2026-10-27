@@ -29,6 +29,7 @@ case "$1" in
     fi
     if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = netd ]; then
       printf '%s\n' "${MOCK_ACCOUNTING_STATUS:-royd interface accounting: ifindex=42 errors=0 links=ready}"
+      printf '%s\n' "${MOCK_QUOTA_STATUS:-royd interface quota: error=0 active=yes generation=1 limit=9223372036854775807 remaining=9223372036854775806 invalid_drops=0 contention_drops=0}"
       exit 0
     fi
     if [ "$1" = cat ] && [ "$2" = /sys/class/net/eth0/ifindex ]; then
@@ -358,6 +359,9 @@ case "$1" in
     fi
     if [ "${MOCK_NO_ACCOUNTING_BACKEND:-0}" != 1 ]; then
       printf '%s\n' 'Netd: ROYD: accounting OCI eth0 IP traffic through private BPF links'
+    fi
+    if [ "${MOCK_NO_QUOTA_BACKEND:-0}" != 1 ]; then
+      printf '%s\n' 'Netd: ROYD: enforcing OCI eth0 byte quotas through private BPF links'
     fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1453,4 +1457,16 @@ for failure in syscall death sigsys; do
 done
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MEDIA_FAILURE=shutdown \
   "$script_dir/assert-runtime.sh" media-shutdown >"$tmp/error" 2>&1
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_QUOTA_BACKEND=1 \
+    "$script_dir/assert-runtime.sh" quota-missing >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing interface quota backend' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 interface quota backend is missing' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_QUOTA_STATUS=missing \
+    "$script_dir/assert-runtime.sh" quota-invalid >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing interface quota dump' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 interface quota state is unavailable or inconsistent' "$tmp/error"
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

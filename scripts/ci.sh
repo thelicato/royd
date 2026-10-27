@@ -40,6 +40,7 @@ run ./android/scripts/android15-mediaextractor-memfd-container-test.sh
 run ./android/scripts/android15-netd-iptables-container-test.sh
 run ./android/scripts/android15-interface-accounting-container-test.sh
 run ./android/scripts/android15-global-alert-container-test.sh
+run ./android/scripts/android15-interface-quota-container-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/android15-network-stats-rcu-container-test.sh
 run ./android/scripts/android15-packet-rcu-container-test.sh
