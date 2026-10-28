@@ -570,6 +570,24 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  watchdog_dump=$(docker exec "$container" timeout 15 dumpsys system_server_dumper --name Watchdog) || {
+    printf 'error: Android 15 Watchdog state is unavailable in %s\n' "$container" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$watchdog_dump" | awk '
+      /^[[:space:]]*RoydHostSysRq=/ {
+        count++
+        if ($0 !~ /^[[:space:]]*RoydHostSysRq=disabled$/) bad=1
+      }
+      END { exit (!bad && count == 1) ? 0 : 1 }
+    '; then
+    printf 'error: Android 15 Watchdog host SysRq diagnostics are not disabled in %s\n' "$container" >&2
+    exit 1
+  fi
+  if docker logs "$container" 2>&1 | grep -Fq 'Watchdog: Failed to write to /proc/sysrq-trigger'; then
+    printf 'error: Android 15 Watchdog attempted host SysRq diagnostics in %s\n' "$container" >&2
+    exit 1
+  fi
   if docker logs "$container" 2>&1 | grep -Fq 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'; then
     printf 'error: Android 15 triggered a SystemServer pre-watchdog in %s\n' "$container" >&2
     exit 1

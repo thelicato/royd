@@ -192,6 +192,10 @@ SRC
     if [ ! -f frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/KernelCpuUidTimeReader.java" frameworks/base/core/java/com/android/internal/os/KernelCpuUidTimeReader.java
     fi
+    if [ ! -f frameworks/base/services/core/java/com/android/server/Watchdog.java ]; then
+      mkdir -p frameworks/base/services/core/java/com/android/server
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/Watchdog.java" frameworks/base/services/core/java/com/android/server/Watchdog.java
+    fi
     if [ ! -f frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp ]; then
       cat > frameworks/native/services/gpuservice/gpuwork/GpuWork.cpp <<'SRC'
 #include <bit>

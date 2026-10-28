@@ -44,6 +44,7 @@
 .PHONY: android15-installer-frp-container-test
 .PHONY: android15-oci-network-container-test
 .PHONY: android15-host-clock-container-test
+.PHONY: android15-watchdog-container-test
 .PHONY: android15-networkmonitor-wifi-container-test
 .PHONY: android15-netpolicy-wifi-container-test
 .PHONY: android15-metered-deny-container-test
@@ -569,6 +570,9 @@ android15-oci-network-container-test:
 
 android15-host-clock-container-test:
 	./android/scripts/android15-host-clock-container-test.sh
+
+android15-watchdog-container-test:
+	./android/scripts/android15-watchdog-container-test.sh
 
 android15-networkmonitor-wifi-container-test:
 	./android/scripts/android15-networkmonitor-wifi-container-test.sh

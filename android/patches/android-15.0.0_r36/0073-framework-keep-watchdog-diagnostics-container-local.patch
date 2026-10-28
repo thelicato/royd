@@ -1,0 +1,53 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/Watchdog.java b/frameworks/base/services/core/java/com/android/server/Watchdog.java
+--- a/frameworks/base/services/core/java/com/android/server/Watchdog.java
++++ b/frameworks/base/services/core/java/com/android/server/Watchdog.java
+@@ -87,4 +87,7 @@
+ public class Watchdog implements Dumpable {
+     static final String TAG = "Watchdog";
++    private static final boolean sRoydLocalDiagnostics = detectRoydLocalDiagnostics();
++    private static final java.util.concurrent.atomic.AtomicBoolean sRoydSysRqReported =
++            new java.util.concurrent.atomic.AtomicBoolean();
+
+     /** Debug flag. */
+@@ -893,4 +896,5 @@
+                         blockedCheckers = getCheckersWithStateLocked(WAITED_UNTIL_PRE_WATCHDOG);
+                         subject = describeCheckersLocked(blockedCheckers);
++                        logRoydPreWatchdog(subject);
+                         pids = new ArrayList<>(mInterestingJavaPids);
+                         doWaitedPreDump = true;
+@@ -1042,5 +1046,27 @@
+     }
+
++    private static boolean detectRoydLocalDiagnostics() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
++
++    private static void logRoydPreWatchdog(String subject) {
++        if (sRoydLocalDiagnostics) {
++            Slog.i(TAG, "ROYD: pre-watchdog blocked checkers: " + subject);
++        }
++    }
++
+     private void doSysRq(char c) {
++        if (sRoydLocalDiagnostics) {
++            if (sRoydSysRqReported.compareAndSet(false, true)) {
++                Slog.i(TAG, "ROYD: skipping host-global SysRq watchdog diagnostics");
++            }
++            return;
++        }
+         try {
+             FileWriter sysrq_trigger = new FileWriter("/proc/sysrq-trigger");
+@@ -1159,4 +1185,7 @@
+         pw.print("WatchdogTimeoutMillis=");
+         pw.println(mWatchdogTimeoutMillis);
++        if (sRoydLocalDiagnostics) {
++            pw.println("RoydHostSysRq=disabled");
++        }
+     }
+ }

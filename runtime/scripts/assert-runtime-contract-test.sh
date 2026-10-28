@@ -194,6 +194,17 @@ case "$1" in
       esac
       exit 0
     fi
+    if [ "$1" = timeout ] && [ "$2" = 15 ] && [ "$3" = dumpsys ] && [ "$4" = system_server_dumper ]; then
+      [ "$5" = --name ] && [ "$6" = Watchdog ] || exit 1
+      case "${MOCK_WATCHDOG_DUMP:-good}" in
+        good) printf '%s\n' 'WatchdogTimeoutMillis=60000' '  RoydHostSysRq=disabled' ;;
+        failed) exit 1 ;;
+        missing) printf '%s\n' 'WatchdogTimeoutMillis=60000' ;;
+        invalid) printf '%s\n' 'RoydHostSysRq=enabled' ;;
+        duplicate) printf '%s\n' 'RoydHostSysRq=disabled' 'RoydHostSysRq=disabled' ;;
+      esac
+      exit 0
+    fi
     if [ "$1" = dumpsys ] && [ "$2" = cpuinfo ]; then
       case "${MOCK_CPU_TIME_DUMP:-good}" in
         good) printf '%s\n' 'CPU usage from 1000ms to 0ms ago:' '40% TOTAL: 17% user + 23% kernel' ;;
@@ -578,6 +589,9 @@ case "$1" in
     fi
     if [ "${MOCK_SYSTEM_SERVER_PRE_WATCHDOG:-0}" = 1 ]; then
       printf '%s\n' 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'
+    fi
+    if [ "${MOCK_WATCHDOG_SYSRQ_WRITE:-0}" = 1 ]; then
+      printf '%s\n' 'Watchdog: Failed to write to /proc/sysrq-trigger'
     fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
@@ -984,12 +998,27 @@ for pid in '' 0 '237 238' invalid; do
   grep -Fq 'audioserver PID is unavailable' "$tmp/error"
 done
 
+for mode in failed missing invalid duplicate; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_WATCHDOG_DUMP="$mode" \
+      "$script_dir/assert-runtime.sh" watchdog-state >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted unavailable or ambiguous Watchdog state' >&2
+    exit 1
+  fi
+  grep -Eq 'Watchdog state is unavailable|Watchdog host SysRq diagnostics are not disabled' "$tmp/error"
+done
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_SYSTEM_SERVER_PRE_WATCHDOG=1 \
     "$script_dir/assert-runtime.sh" pre-watchdog >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted an Android 15 SystemServer pre-watchdog' >&2
   exit 1
 fi
 grep -Fq 'Android 15 triggered a SystemServer pre-watchdog' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_WATCHDOG_SYSRQ_WRITE=1 \
+    "$script_dir/assert-runtime.sh" watchdog-sysrq >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a Watchdog SysRq write attempt' >&2
+  exit 1
+fi
+grep -Fq 'Watchdog attempted host SysRq diagnostics' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=media.audio_policy \
     "$script_dir/assert-runtime.sh" missing-audio-policy >"$tmp/error" 2>&1; then
