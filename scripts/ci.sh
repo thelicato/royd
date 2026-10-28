@@ -122,6 +122,7 @@ run ./runtime/scripts/network-dns-contract-test.sh
 run ./runtime/scripts/network-history-contract-test.sh
 run ./runtime/scripts/network-accounting-contract-test.sh
 run ./runtime/scripts/network-alert-contract-test.sh
+run ./runtime/scripts/network-quota-contract-test.sh
 run ./runtime/scripts/storage-contract-test.sh
 run ./runtime/scripts/mediaextractor-contract-test.sh
 run ./runtime/scripts/network-tls-contract-test.sh

@@ -7,6 +7,8 @@
         <activity android:name="org.royd.networkprobe.MeteredProbeLauncher" android:exported="true" android:turnScreenOn="true" android:showWhenLocked="true" />
         <activity android:name="org.royd.networkprobe.AccountingProbeLauncher" android:exported="true" android:turnScreenOn="true" android:showWhenLocked="true" />
         <service android:name="org.royd.networkprobe.AccountingProbeService" android:exported="false" />
+        <activity android:name="org.royd.networkprobe.QuotaProbeLauncher" android:exported="true" android:turnScreenOn="true" android:showWhenLocked="true" />
+        <service android:name="org.royd.networkprobe.QuotaProbeService" android:exported="false" />
         <service android:name="org.royd.networkprobe.MeteredProbeService" android:exported="false" />
     </application>
 </manifest>

@@ -117,6 +117,13 @@ runtime-network-accounting-test:
 runtime-network-accounting-contract-test:
 	./runtime/scripts/network-accounting-contract-test.sh
 
+.PHONY: runtime-network-quota-test runtime-network-quota-contract-test
+runtime-network-quota-test:
+	./runtime/scripts/network-quota-test.sh
+
+runtime-network-quota-contract-test:
+	./runtime/scripts/network-quota-contract-test.sh
+
 .PHONY: runtime-network-alert-test runtime-network-alert-contract-test
 runtime-network-alert-test:
 	./runtime/scripts/network-alert-test.sh

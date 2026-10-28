@@ -68,8 +68,33 @@ static void tcp_json(FILE* f, int records, unsigned direction, uint64_t count) {
     }
     fprintf(f,"]");
 }
+static void quota_json(FILE* f, const char* root, unsigned index) {
+    struct quota_value { uint64_t remaining, limit, generation; } value = {};
+    struct quota_drops { uint64_t invalid, contention; } drops = {};
+    int budget=object(root,"map_roydquota_quota_budget",BPF_F_RDONLY);
+    int counts=object(root,"map_roydquota_quota_drops",BPF_F_RDONLY);
+    layout(budget,BPF_MAP_TYPE_HASH,sizeof(value));layout(counts,BPF_MAP_TYPE_ARRAY,sizeof(drops));
+    struct bpf_map_info map = {}, drop_map = {};
+    info(budget,&map,sizeof(map),offsetof(struct bpf_map_info,map_flags)+sizeof(map.map_flags));
+    info(counts,&drop_map,sizeof(drop_map),offsetof(struct bpf_map_info,id)+sizeof(drop_map.id));
+    check(map.max_entries==1 && (map.map_flags & BPF_F_NO_PREALLOC),"shared quota layout");
+    union bpf_attr a = {};uint32_t key=0;
+    a.map_fd=budget;a.next_key=(uintptr_t)&key;
+    int next=call(BPF_MAP_GET_NEXT_KEY,&a);
+    check(!next || errno==ENOENT,"quota key enumeration");
+    int present=!next;
+    if(present) {
+        check(key==index,"foreign quota key");
+        read_map(budget,key,&value);
+    }
+    read_map(counts,0,&drops);
+    fprintf(f,"{\"present\":%s,\"map_id\":%u,\"drops_map_id\":%u,\"remaining\":%"PRIu64",\"limit\":%"PRIu64",\"generation\":%"PRIu64",\"invalid\":%"PRIu64",\"contention\":%"PRIu64"}",
+            present ? "true":"false",map.id,drop_map.id,value.remaining,value.limit,value.generation,drops.invalid,drops.contention);
+    close(budget);close(counts);
+}
 static void snapshot(FILE* f, unsigned index, int stats, int selector, int errors,
-                     struct bpf_link_info* links, int observed, int tcp_counts, int tcp_records) {
+                     struct bpf_link_info* links, int observed, int tcp_counts, int tcp_records,
+                     const char* quota_root) {
     struct counters c; struct observe_stats before[2] = {}, after[2] = {};
     unsigned state[2], error; uint64_t tcp_before[2] = {}, tcp_after[2] = {};
     int stable = 0;
@@ -92,22 +117,30 @@ static void snapshot(FILE* f, unsigned index, int stats, int selector, int error
         fprintf(f,"%s[",n ? "," : ""); for (unsigned i=0;i<count;i++) fprintf(f,"%s%u",i ? "," : "",ids[i]); fprintf(f,"]");
     }
     fprintf(f,"],\"observed\":["); stats_json(f,&after[0]);fprintf(f,",");stats_json(f,&after[1]);fprintf(f,"],\"tcp\":[");
-    tcp_json(f,tcp_records,0,tcp_after[0]);fprintf(f,",");tcp_json(f,tcp_records,1,tcp_after[1]);fprintf(f,"]}\n");
+    tcp_json(f,tcp_records,0,tcp_after[0]);fprintf(f,",");tcp_json(f,tcp_records,1,tcp_after[1]);fprintf(f,"]");
+    if(quota_root) { fprintf(f,",\"quota\":");quota_json(f,quota_root,index); }
+    fprintf(f,"}\n");
     check(!ferror(f),"snapshot write");
 }
 static void publish(const char* dir, const char* name, unsigned index, int stats, int selector,
-                    int errors, struct bpf_link_info* links, int observed, int tcp_counts, int tcp_records) {
+                    int errors, struct bpf_link_info* links, int observed, int tcp_counts, int tcp_records,
+                    const char* quota_root) {
     char temporary[512], final[512];
     check(strlen(name) > 0 && strlen(name) < 64 && strspn(name,"abcdefghijklmnopqrstuvwxyz0123456789-") == strlen(name),"snapshot name");
     check(snprintf(temporary,sizeof(temporary),"%s/%s.tmp",dir,name)<(int)sizeof(temporary),"snapshot path");
     check(snprintf(final,sizeof(final),"%s/%s.json",dir,name)<(int)sizeof(final),"snapshot path");
     int fd=open(temporary,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);check(fd>=0,"new snapshot");
-    FILE* f=fdopen(fd,"w");check(f!=NULL,"snapshot stream");snapshot(f,index,stats,selector,errors,links,observed,tcp_counts,tcp_records);
+    FILE* f=fdopen(fd,"w");check(f!=NULL,"snapshot stream");snapshot(f,index,stats,selector,errors,links,observed,tcp_counts,tcp_records,quota_root);
     check(!fclose(f),"snapshot close");check(!link(temporary,final),"non-overwriting publication");check(!unlink(temporary),"temporary cleanup");
 }
 int main(int argc, char** argv) {
-    // inspect ROOT EXPECTED_NETNS, or observe ROOT EXPECTED_NETNS OBJECT OUTPUT UDP_PORT [TCP_PORT].
-    check((argc==4 && !strcmp(argv[1],"inspect")) || ((argc==7 || argc==8) && !strcmp(argv[1],"observe")),"arguments");
+    // Post-quota modes add read-only budget metadata; pre-quota anchors after accounting.
+    int quota=argc>1 && (!strcmp(argv[1],"inspect-quota") || !strcmp(argv[1],"observe-quota"));
+    int quota_trial=quota || (argc>1 && !strcmp(argv[1],"observe-quota-pre"));
+    check((argc==4 && (!strcmp(argv[1],"inspect") || !strcmp(argv[1],"inspect-quota")))
+            || ((argc==7 || argc==8) && !strcmp(argv[1],"observe"))
+            || (argc==7 && (!strcmp(argv[1],"observe-quota") || !strcmp(argv[1],"observe-quota-pre"))),"arguments");
+    const char* quota_root=quota ? argv[2]:NULL;
     char ns[128]={}; ssize_t size=readlink("/proc/self/ns/net",ns,sizeof(ns)-1);
     check(size>0 && !strcmp(ns,argv[3]),"owned network namespace");
     unsigned index=if_nametoindex("eth0");check(index>1,"eth0");
@@ -116,9 +149,10 @@ int main(int argc, char** argv) {
     int errors=object(argv[2],"map_netd_royd_iface_error_map",BPF_F_RDONLY);
     layout(stats,BPF_MAP_TYPE_HASH,sizeof(struct counters));layout(selector,BPF_MAP_TYPE_ARRAY,8);layout(errors,BPF_MAP_TYPE_ARRAY,4);
     struct bpf_link_info links[2] = {};
-    for(unsigned n=0;n<2;n++) { int fd=object(argv[2],n ? "link_royd_iface_egress":"link_royd_iface_ingress",0);info(fd,&links[n],sizeof(links[n]),offsetof(struct bpf_link_info,tcx)+sizeof(links[n].tcx));close(fd);
+    for(unsigned n=0;n<2;n++) { const char* pin=quota ? (n ? "link_royd_quota_egress":"link_royd_quota_ingress") : (n ? "link_royd_iface_egress":"link_royd_iface_ingress");
+        int fd=object(argv[2],pin,0);info(fd,&links[n],sizeof(links[n]),offsetof(struct bpf_link_info,tcx)+sizeof(links[n].tcx));close(fd);
         check(links[n].type==BPF_LINK_TYPE_TCX && links[n].tcx.ifindex==index && links[n].tcx.attach_type==(n ? BPF_TCX_EGRESS:BPF_TCX_INGRESS),"production link identity"); }
-    if(argc==4) { snapshot(stdout,index,stats,selector,errors,links,-1,-1,-1);return 0; }
+    if(argc==4) { snapshot(stdout,index,stats,selector,errors,links,-1,-1,-1,quota_root);return 0; }
     char* end; unsigned long port=strtoul(argv[6],&end,10);check(*argv[6] && !*end && port>0 && port<=65535,"UDP port");
     unsigned long tcp_port=0;
     if(argc==8) { tcp_port=strtoul(argv[7],&end,10);check(*argv[7] && !*end && tcp_port>0 && tcp_port<=65535,"TCP port"); }
@@ -136,12 +170,20 @@ int main(int argc, char** argv) {
     for(unsigned n=0;n<2;n++) { a=(union bpf_attr){};a.link_create.prog_fd=bpf_program__fd(programs[n]);a.link_create.target_ifindex=index;a.link_create.attach_type=n ? BPF_TCX_EGRESS:BPF_TCX_INGRESS;
         a.link_create.flags=BPF_F_AFTER|BPF_F_LINK|BPF_F_ID;a.link_create.tcx.relative_id=links[n].id;
         attached[n]=call(BPF_LINK_CREATE,&a);check(attached[n]>=0,"attach after owned production link"); }
-    publish(argv[5],"ready",index,stats,selector,errors,links,observed,tcp_counts,tcp_records);
+    publish(argv[5],"ready",index,stats,selector,errors,links,observed,tcp_counts,tcp_records,quota_root);
     char stop[512], request[512];snprintf(stop,sizeof(stop),"%s/stop",argv[5]);snprintf(request,sizeof(request),"%s/request",argv[5]);
-    for(unsigned tick=0;tick<18000;tick++) {
-        if(!access(stop,F_OK)) { publish(argv[5],"final",index,stats,selector,errors,links,observed,tcp_counts,tcp_records);close(attached[0]);close(attached[1]);bpf_object__close(obj);return 0; }
-        FILE* f=fopen(request,"r");if(f) { char name[64]={};check(fgets(name,sizeof(name),f)!=NULL,"snapshot request");check(!fclose(f),"request close");name[strcspn(name,"\n")]=0;check(!unlink(request),"request consumed");publish(argv[5],name,index,stats,selector,errors,links,observed,tcp_counts,tcp_records); }
+    // Quota trials coordinate three persistent workers through bounded Docker IPC.
+    // Keep the original accounting observer's three-minute bound unchanged.
+    struct timespec began = {};
+    check(!clock_gettime(CLOCK_MONOTONIC,&began),"observer clock");
+    for(unsigned tick=0;tick<(quota_trial ? 60000U:18000U);tick++) {
+        if(quota_trial) {
+            struct timespec now = {};check(!clock_gettime(CLOCK_MONOTONIC,&now),"observer clock");
+            if((now.tv_sec-began.tv_sec)*1000000000LL+now.tv_nsec-began.tv_nsec>=600000000000LL) break;
+        }
+        if(!access(stop,F_OK)) { publish(argv[5],"final",index,stats,selector,errors,links,observed,tcp_counts,tcp_records,quota_root);close(attached[0]);close(attached[1]);bpf_object__close(obj);return 0; }
+        FILE* f=fopen(request,"r");if(f) { char name[64]={};check(fgets(name,sizeof(name),f)!=NULL,"snapshot request");check(!fclose(f),"request close");name[strcspn(name,"\n")]=0;check(!unlink(request),"request consumed");publish(argv[5],name,index,stats,selector,errors,links,observed,tcp_counts,tcp_records,quota_root); }
         usleep(10000);
     }
-    fprintf(stderr,"error: observer lifetime exceeded three minutes\n");return 1;
+    fprintf(stderr,"error: observer lifetime exceeded %s minutes\n",quota_trial ? "ten":"three");return 1;
 }
