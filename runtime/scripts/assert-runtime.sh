@@ -570,7 +570,7 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
-  watchdog_dump=$(docker exec "$container" timeout 15 dumpsys system_server_dumper --name Watchdog) || {
+  watchdog_dump=$(docker exec "$container" timeout 15 dumpsys system_server_dumper --name com.android.server.Watchdog) || {
     printf 'error: Android 15 Watchdog state is unavailable in %s\n' "$container" >&2
     exit 1
   }

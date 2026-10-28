@@ -195,7 +195,7 @@ case "$1" in
       exit 0
     fi
     if [ "$1" = timeout ] && [ "$2" = 15 ] && [ "$3" = dumpsys ] && [ "$4" = system_server_dumper ]; then
-      [ "$5" = --name ] && [ "$6" = Watchdog ] || exit 1
+      [ "$5" = --name ] && [ "$6" = com.android.server.Watchdog ] || exit 1
       case "${MOCK_WATCHDOG_DUMP:-good}" in
         good) printf '%s\n' 'WatchdogTimeoutMillis=60000' '  RoydHostSysRq=disabled' ;;
         failed) exit 1 ;;
