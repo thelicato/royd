@@ -1,0 +1,208 @@
+package com.android.networkstack.netlink;
+
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
+import com.android.net.module.util.netlink.StructNlMsgHdr;
+import java.io.FileDescriptor;
+import java.io.InterruptedIOException;
+import java.net.InetSocketAddress;
+import java.net.SocketException;
+import java.nio.*;
+import java.util.*;
+
+/** Executes production polling/parsing/statistics methods against controlled kernel replies. */
+class TcpDiagContract {
+    @interface NonNull {}
+    @interface Nullable {}
+    static final int AF_INET=2, AF_INET6=10, NLMSG_DONE=3, NLMSG_ERROR=2;
+    static final int SOCK_DIAG_BY_FAMILY=20, SOCKDIAG_MSG_HEADER_SIZE=88;
+    static final int END_OF_PARSING=-1, DNS_OVER_TLS_PORT=853;
+    static final int[] ADDRESS_FAMILIES={AF_INET6,AF_INET};
+    static final String TAG="TcpSocketTracker";
+    static int notices, oldErrors, otherErrors, closes;
+    final Dependencies mDependencies=new Dependencies();
+    final RoydTcpDiag mRoydTcpDiag=new RoydTcpDiag();
+    final Map<Integer,byte[]> mSockDiagMsg=new HashMap<>();
+    final Sockets mSocketInfos=new Sockets();
+    final Set<Integer> mLatestReportedUids=new HashSet<>();
+    final Object mDozeModeLock=new Object();
+    final Object mNetwork="100";
+    boolean mInDozeMode, mInOpportunisticMode, mShouldIgnoreTcpInfoForBlockedUids;
+    final Object mLinkProperties=new Object();
+    final Capabilities mNetworkCapabilities=new Capabilities();
+    final Connectivity mCm=new Connectivity();
+    int mNetworkMark=1,mNetworkMask=1,mMinPacketsThreshold=5,mTcpPacketsFailRateThreshold=80;
+    int mSentSinceLastRecv=10,mLatestPacketFailPercentage=90,mLatestReceivedCount=20;
+    static void check(boolean value) { if(!value)throw new AssertionError(); }
+    static class SystemClock { static long now=100;static long elapsedRealtime(){return now++;} }
+    static class SocketUtils { static void closeSocketQuietly(FileDescriptor fd){if(fd!=null)closes++;} }
+    static class NetlinkUtils { static boolean enoughBytesRemainForValidNlMsg(ByteBuffer b){return b.remaining()>=16;} }
+    static class Capabilities { boolean hasCapability(int value){return true;} }
+    static class Connectivity { boolean isUidNetworkingBlocked(int uid,boolean metered){return false;} }
+    static class NetworkCapabilities { static final int NET_CAPABILITY_NOT_METERED=1; }
+    static class TcpInfo {
+        int mSegsOut=100,mSegsIn=0,mTotalRetrans=25;
+    }
+    static class SocketInfo {
+        TcpInfo tcpInfo;int ipFamily,fwmark,uid,dstPort;long cookie,updateTime;
+        SocketInfo(TcpInfo info,int family,int mark,long time,int uid,long cookie,int port){
+            tcpInfo=info;ipFamily=family;fwmark=mark;updateTime=time;
+            this.uid=uid;this.cookie=cookie;dstPort=port;
+        }
+    }
+    static class TcpStat {
+        int receivedCount,sentCount,retransCount;
+        void accumulate(TcpStat s){receivedCount+=s.receivedCount;sentCount+=s.sentCount;retransCount+=s.retransCount;}
+    }
+    static class Sockets extends LinkedHashMap<Long,SocketInfo> {
+        long keyAt(int n){return new ArrayList<Long>(keySet()).get(n);}
+    }
+    static class StructInetDiagMsg {
+        int idiag_uid=10054;Id id=new Id();
+        static class Id { long cookie;InetSocketAddress remSocketAddress=new InetSocketAddress("127.0.0.1",443); }
+        static StructInetDiagMsg parse(ByteBuffer b){
+            if(b.remaining()<72)return null;
+            StructInetDiagMsg result=new StructInetDiagMsg();result.id.cookie=b.get(b.position());
+            b.position(b.position()+72);return result;
+        }
+    }
+    SocketInfo parseSockInfo(ByteBuffer b,int family,int length,long time,int uid,long cookie,int port){
+        return new SocketInfo(new TcpInfo(),family,1,time,uid,cookie,port);
+    }
+    static boolean areAllPrivateDnsServersValidated(Object value){return true;}
+    int getMinPacketsThreshold(){return mMinPacketsThreshold;}
+    int getTcpPacketsFailRateThreshold(){return mTcpPacketsFailRateThreshold;}
+    void logd(String s){}
+    void log(String s){}
+    void logwtf(String s,Throwable e){otherErrors++;}
+    void loge(String s){loge(s,null);}
+    void loge(String s,Throwable e){if(s.startsWith("Expect to get family"))oldErrors++;else otherErrors++;}
+    static class Log {
+        static void i(String tag,String message){
+            check(tag.equals("TcpSocketTracker/100"));
+            check(message.equals("ROYD: TCP socket telemetry unavailable: SOCK_DIAG returned ENOENT"));notices++;
+        }
+    }
+    class Dependencies {
+        int opens,sends,receives;boolean failConnect;
+        final ArrayDeque<ByteBuffer> replies=new ArrayDeque<>();
+        FileDescriptor connectToKernel() throws ErrnoException,SocketException {
+            opens++;if(failConnect)throw new SocketException("connect");return new FileDescriptor();
+        }
+        void sendPollingRequest(FileDescriptor fd,byte[] request) throws ErrnoException,InterruptedIOException {sends++;}
+        ByteBuffer recvMessage(FileDescriptor fd) throws ErrnoException,InterruptedIOException {receives++;return replies.remove();}
+    }
+    TcpDiagContract(){
+        for(int family:ADDRESS_FAMILIES)mSockDiagMsg.put(family,request(family,ByteOrder.LITTLE_ENDIAN));
+        mSocketInfos.put(99L,new SocketInfo(new TcpInfo(),2,1,0,10054,99,443));
+    }
+
+    // PRODUCTION_METHODS
+
+    static byte[] request(int family,ByteOrder order){
+        ByteBuffer b=ByteBuffer.allocate(72).order(order);
+        b.putInt(72).putShort((short)20).putShort((short)0x301).putInt(13).putInt(0);
+        b.put((byte)family).put((byte)6).put((byte)2).put((byte)0).putInt(14);return b.array();
+    }
+    static ByteBuffer error(byte[] request,int errno,ByteOrder order){
+        ByteBuffer b=ByteBuffer.allocate(20+request.length).order(order);
+        b.putInt(b.capacity()).putShort((short)2).putShort((short)0).putInt(13).putInt(42);
+        b.putInt(errno).put(request).flip();return b;
+    }
+    static ByteBuffer valid(int family){
+        ByteBuffer b=ByteBuffer.allocate(108).order(ByteOrder.LITTLE_ENDIAN);
+        b.putInt(88).putShort((short)20).putShort((short)2).putInt(13).putInt(42);
+        b.put((byte)family);b.position(88);
+        b.putInt(20).putShort((short)3).putShort((short)2).putInt(13).putInt(42).putInt(0).flip();return b;
+    }
+    static ByteBuffer done(int family,int status,int flags,int sequence){
+        ByteBuffer b=ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN);
+        b.putInt(20).putShort((short)3).putShort((short)flags).putInt(sequence).putInt(42).putInt(status).flip();return b;
+    }
+    static void unknown(TcpDiagContract t){
+        check(t.getLatestPacketFailPercentage()==-1 && t.getLatestReceivedCount()==-1 && t.getSentSinceLastRecv()==-1);
+        check(!t.isDataStallSuspected());check(t.mSocketInfos.size()==1 && t.mSocketInfos.containsKey(99L));
+        check(t.mSentSinceLastRecv==10 && t.mLatestReceivedCount==20 && t.mLatestPacketFailPercentage==90);
+    }
+    static void success(TcpDiagContract t){
+        t.mDependencies.replies.clear();t.mDependencies.replies.add(valid(AF_INET6));t.mDependencies.replies.add(valid(AF_INET));
+        check(t.pollSocketsInfo());check(!t.mRoydTcpDiag.isUnavailable());
+        check(t.getSentSinceLastRecv()==210 && t.getLatestReceivedCount()==0 && t.getLatestPacketFailPercentage()==25);
+        check(t.mSocketInfos.size()==2 && !t.mSocketInfos.containsKey(99L));
+    }
+    public static void main(String[] args){
+        boolean gated="1".equals(System.getenv("ROYD_CONTAINER")) && Integer.getInteger("test.errno",0)==2;
+        int cases=0;
+        for(ByteOrder order:new ByteOrder[]{ByteOrder.LITTLE_ENDIAN,ByteOrder.BIG_ENDIAN})
+        for(int family:ADDRESS_FAMILIES)
+        for(int code:new int[]{0,2,-1,-2,-5,-13,-95})
+        for(int mutation=0;mutation<9;mutation++){
+            byte[] req=request(family,order);ByteBuffer b=error(req,code,order);int length=b.limit(),sequence=13,flags=0;
+            switch(mutation){
+                case 1:length--;break;
+                case 2:length++;break;
+                case 3:b.limit(b.limit()-1);break;
+                case 4:b.put(20+16,(byte)(family==2?10:2));break;
+                case 5:sequence++;break;
+                case 6:flags=0x100;break;
+                case 7:b.put(20+17,(byte)17);break;
+                case 8:b.put(20+8,(byte)42);break;
+            }
+            b.position(16);b=b.asReadOnlyBuffer().order(order);int position=b.position(),limit=b.limit();
+            boolean threw=false;try{new RoydTcpDiag().checkUnavailable(b,length,sequence,flags,req);}catch(RoydTcpDiag.Unavailable expected){threw=true;}
+            check(threw==(gated && code==-2 && mutation==0));check(b.position()==position && b.limit()==limit);cases++;
+        }
+        for(boolean partial:new boolean[]{false,true}){
+            notices=oldErrors=otherErrors=closes=0;TcpDiagContract t=new TcpDiagContract();
+            if(partial)t.mDependencies.replies.add(valid(AF_INET6));
+            t.mDependencies.replies.add(error(t.mSockDiagMsg.get(partial?AF_INET:AF_INET6),-2,ByteOrder.LITTLE_ENDIAN));
+            if(!gated && !partial)t.mDependencies.replies.add(error(t.mSockDiagMsg.get(AF_INET),-2,ByteOrder.LITTLE_ENDIAN));
+            check(t.pollSocketsInfo()!=gated);check(closes==1);
+            if(gated){
+                unknown(t);check(notices==1 && oldErrors==0);
+                t.mTcpPacketsFailRateThreshold=-5;check(!t.isDataStallSuspected());t.mTcpPacketsFailRateThreshold=80;
+                t.mInDozeMode=true;check(!t.pollSocketsInfo());unknown(t);check(t.mDependencies.opens==1);t.mInDozeMode=false;
+                t.mDependencies.replies.add(error(t.mSockDiagMsg.get(AF_INET6),-2,ByteOrder.LITTLE_ENDIAN));
+                check(!t.pollSocketsInfo());unknown(t);check(closes==2 && notices==1 && t.mDependencies.opens==2);
+                t.mDependencies.failConnect=true;int errors=otherErrors;check(!t.pollSocketsInfo());unknown(t);check(otherErrors==errors+1);t.mDependencies.failConnect=false;
+                for(int error:new int[]{0,-13,-5}){
+                    t.mDependencies.replies.add(error(t.mSockDiagMsg.get(AF_INET6),error,ByteOrder.LITTLE_ENDIAN));
+                    t.mDependencies.replies.add(valid(AF_INET));check(!t.pollSocketsInfo());unknown(t);
+                }
+                for(int variant=0;variant<6;variant++){
+                    int flags=variant==1?0x10:variant==3?0x100:variant==4?0x200:2;
+                    ByteBuffer completion=done(AF_INET6,variant==0?-5:0,flags,variant==2?14:13);
+                    if(variant==5)completion.limit(19);
+                    t.mDependencies.replies.add(completion);
+                    t.mDependencies.replies.add(valid(AF_INET));check(!t.pollSocketsInfo());unknown(t);
+                }
+                for(int variant=0;variant<5;variant++){
+                    ByteBuffer frame=valid(AF_INET6);
+                    if(variant==0)frame.putShort(6,(short)0x12);
+                    if(variant==1)frame.putInt(8,14);
+                    if(variant==2){frame=done(AF_INET6,0,2,13);frame.putInt(0,16);frame.limit(16);}
+                    if(variant==3)frame.limit(20);
+                    if(variant==4)frame.putInt(0,256);
+                    t.mDependencies.replies.add(frame);t.mDependencies.replies.add(valid(AF_INET));
+                    check(!t.pollSocketsInfo());unknown(t);
+                }
+                success(t);check(notices==1);
+            }else{
+                check(notices==0 && oldErrors==(partial?1:2));
+            }
+        }
+        TcpDiagContract normal=new TcpDiagContract();notices=0;success(normal);check(notices==0);
+        if(gated){
+            normal.mDependencies.replies.add(error(normal.mSockDiagMsg.get(AF_INET6),-2,ByteOrder.LITTLE_ENDIAN));
+            check(!normal.pollSocketsInfo());
+            check(normal.getSentSinceLastRecv()==-1 && normal.getLatestReceivedCount()==-1);
+            check(normal.mSentSinceLastRecv==210 && normal.mSocketInfos.size()==2);
+            normal.mDependencies.replies.add(valid(AF_INET6));normal.mDependencies.replies.add(valid(AF_INET));
+            check(normal.pollSocketsInfo());check(normal.getSentSinceLastRecv()==210);
+            check(normal.getLatestPacketFailPercentage()==0 && !normal.mRoydTcpDiag.isUnavailable());
+        }
+        check("1".equals(System.getenv("ROYD_CONTAINER")) ? Os.probes>0 : Os.probes==0);
+        java.lang.System.out.println("TCP diagnostic raw-frame/partial-state/close/retry/recovery/stock contracts passed: "+cases+" frame cases; gated="+gated);
+    }
+}

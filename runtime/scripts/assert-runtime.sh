@@ -570,6 +570,11 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
+  if docker logs "$container" 2>&1 | grep -Eq \
+      'TcpSocketTracker[^:]*: Expect to get family (2|10) SOCK_DIAG_BY_FAMILY message but get 2([^0-9]|$)'; then
+    printf 'error: Android 15 misclassified a TCP diagnostic netlink error in %s\n' "$container" >&2
+    exit 1
+  fi
   watchdog_dump=$(docker exec "$container" timeout 15 dumpsys system_server_dumper --name com.android.server.Watchdog) || {
     printf 'error: Android 15 Watchdog state is unavailable in %s\n' "$container" >&2
     exit 1

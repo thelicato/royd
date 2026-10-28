@@ -133,6 +133,10 @@ SRC
     if [ ! -f packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/NetworkMonitor.java" packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java
     fi
+    if [ ! -f packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java ]; then
+      mkdir -p packages/modules/NetworkStack/src/com/android/networkstack/netlink
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/TcpSocketTracker.java" packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java
+    fi
     if [ ! -f frameworks/base/services/core/java/com/android/server/SystemClockTime.java ]; then
       cp "$ROYD_SYNC_FREEZER_FIXTURES/SystemClockTime.java" frameworks/base/services/core/java/com/android/server/SystemClockTime.java
       cp "$ROYD_SYNC_FREEZER_FIXTURES/AlarmManagerService.java" frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java

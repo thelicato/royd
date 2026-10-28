@@ -593,6 +593,9 @@ case "$1" in
     if [ "${MOCK_WATCHDOG_SYSRQ_WRITE:-0}" = 1 ]; then
       printf '%s\n' 'Watchdog: Failed to write to /proc/sysrq-trigger'
     fi
+    if [ "${MOCK_TCP_DIAG_ERROR:-0}" = 1 ]; then
+      printf '%s\n' 'TcpSocketTracker/100: Expect to get family 10 SOCK_DIAG_BY_FAMILY message but get 2'
+    fi
     if [ "${MOCK_DUPLICATE_CGROUP_ROOT:-0}" = 1 ]; then
       printf '%s\n' 'lowmemorykiller: Error opening /sys/fs/cgroup/royd/royd/uid_1000/pid_42/memory.low'
     fi
@@ -1019,6 +1022,13 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_WATCHDOG_SYSRQ_WRITE=1 \
   exit 1
 fi
 grep -Fq 'Watchdog attempted host SysRq diagnostics' "$tmp/error"
+
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_TCP_DIAG_ERROR=1 \
+    "$script_dir/assert-runtime.sh" tcp-diag >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a misclassified TCP diagnostic error' >&2
+  exit 1
+fi
+grep -Fq 'misclassified a TCP diagnostic netlink error' "$tmp/error"
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_REQUIRED_SERVICE=media.audio_policy \
     "$script_dir/assert-runtime.sh" missing-audio-policy >"$tmp/error" 2>&1; then

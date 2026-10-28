@@ -1,0 +1,226 @@
+diff --git a/packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java b/packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java
+--- a/packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java
++++ b/packages/modules/NetworkStack/src/com/android/networkstack/netlink/TcpSocketTracker.java
+@@ -30,6 +30,7 @@
+ import static com.android.net.module.util.FeatureVersions.FEATURE_IS_UID_NETWORKING_BLOCKED;
+ import static com.android.net.module.util.NetworkStackConstants.DNS_OVER_TLS_PORT;
+ import static com.android.net.module.util.netlink.NetlinkConstants.NLMSG_DONE;
++import static com.android.net.module.util.netlink.NetlinkConstants.NLMSG_ERROR;
+ import static com.android.net.module.util.netlink.NetlinkConstants.SOCKDIAG_MSG_HEADER_SIZE;
+ import static com.android.net.module.util.netlink.NetlinkConstants.SOCK_DIAG_BY_FAMILY;
+ import static com.android.net.module.util.netlink.NetlinkUtils.DEFAULT_RECV_BUFSIZE;
+@@ -124,6 +125,7 @@
+      */
+     private final SparseArray<byte[]> mSockDiagMsg = new SparseArray<>();
+     private final Dependencies mDependencies;
++    private final RoydTcpDiag mRoydTcpDiag = new RoydTcpDiag();
+     private final INetd mNetd;
+     private final Network mNetwork;
+     // The fwmark value of {@code mNetwork}.
+@@ -258,6 +260,7 @@
+             if (mInDozeMode) return false;
+         }
+
++        mRoydTcpDiag.startPoll();
+         FileDescriptor fd = null;
+
+         try {
+@@ -272,6 +275,8 @@
+                     logd("Pending info exist. Attempt to read more");
+                 }
+             }
++
++            if (mRoydTcpDiag.isIncompleteRecovery()) return false;
+
+             // Append TcpStats based on previous and current socket info.
+             final TcpStat stat = new TcpStat();
+@@ -327,7 +332,13 @@
+
+             // Remove out-of-date socket info.
+             cleanupSocketInfo(time);
++            mRoydTcpDiag.markAvailable();
+             return true;
++        } catch (RoydTcpDiag.Unavailable e) {
++            if (mRoydTcpDiag.markUnavailable()) {
++                Log.i(TAG + "/" + mNetwork,
++                        "ROYD: TCP socket telemetry unavailable: SOCK_DIAG returned ENOENT");
++            }
+         } catch (ErrnoException | SocketException | InterruptedIOException e) {
+             loge("Fail to get TCP info via netlink.", e);
+         } finally {
+@@ -403,8 +414,16 @@
+         }
+
+         logd("pollSocketsInfo: nlmsghdr=" + nlmsghdr + ", limit=" + bytes.limit());
++        mRoydTcpDiag.recordHeader(bytes, nlmsghdr.nlmsg_len, nlmsghdr.nlmsg_seq,
++                nlmsghdr.nlmsg_flags, mSockDiagMsg.get(family));
++        if (nlmsghdr.nlmsg_type == NLMSG_ERROR) {
++            mRoydTcpDiag.checkUnavailable(bytes, nlmsghdr.nlmsg_len, nlmsghdr.nlmsg_seq,
++                    nlmsghdr.nlmsg_flags, mSockDiagMsg.get(family));
++        }
+         // End of the message. Stop parsing.
+         if (nlmsghdr.nlmsg_type == NLMSG_DONE) {
++            mRoydTcpDiag.recordDone(bytes, nlmsghdr.nlmsg_len, nlmsghdr.nlmsg_seq,
++                    nlmsghdr.nlmsg_flags, family, mSockDiagMsg.get(family));
+             return END_OF_PARSING;
+         }
+
+@@ -462,6 +481,7 @@
+      * statemachine thread of NetworkMonitor.
+      */
+     public boolean isDataStallSuspected() {
++        if (mRoydTcpDiag.isUnavailable()) return false;
+         // Skip checking data stall since the traffic will be restricted and it will not be real
+         // network stall.
+         // TODO: Traffic may be restricted by other reason. Get the restriction info from bpf in T+.
+@@ -509,6 +529,7 @@
+      * @return the latest packet fail percentage. -1 denotes that there is no available data.
+      */
+     public int getLatestPacketFailPercentage() {
++        if (mRoydTcpDiag.isUnavailable()) return -1;
+         // Only return fail rate if device sent enough packets.
+         if (getSentSinceLastRecv() < getMinPacketsThreshold()) return -1;
+         return mLatestPacketFailPercentage;
+@@ -517,13 +538,19 @@
+     /**
+      * Return the number of packets sent since last received. Note that this number is calculated
+      * between each polling period, not an accurate number.
++     * Returns -1 while the container TCP diagnostic source is unavailable.
+      */
+     public int getSentSinceLastRecv() {
++        if (mRoydTcpDiag.isUnavailable()) return -1;
+         return mSentSinceLastRecv;
+     }
+
+-    /** Return the number of the packets received in the latest polling cycle. */
++    /**
++     * Return the packets received in the latest polling cycle, or -1 when the
++     * container TCP diagnostic source is unavailable.
++     */
+     public int getLatestReceivedCount() {
++        if (mRoydTcpDiag.isUnavailable()) return -1;
+         return mLatestReceivedCount;
+     }
+
+diff --git a/packages/modules/NetworkStack/src/com/android/networkstack/netlink/RoydTcpDiag.java b/packages/modules/NetworkStack/src/com/android/networkstack/netlink/RoydTcpDiag.java
+new file mode 100644
+--- /dev/null
++++ b/packages/modules/NetworkStack/src/com/android/networkstack/netlink/RoydTcpDiag.java
+@@ -0,0 +1,117 @@
++/*
++ * Copyright (C) 2026 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.networkstack.netlink;
++
++import android.system.ErrnoException;
++import android.system.Os;
++import android.system.OsConstants;
++
++import com.android.net.module.util.netlink.StructNlMsgHdr;
++
++import java.nio.ByteBuffer;
++
++/** Scoped availability state, owned by the TcpSocketTracker state-machine thread. */
++final class RoydTcpDiag {
++    static final class Unavailable extends RuntimeException {}
++
++    private final boolean mEnabled = detectContainer();
++    private boolean mUnavailable;
++    private boolean mReported;
++    private int mDoneFamilies;
++    private boolean mRecoveryBroken;
++
++    private static boolean detectContainer() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (ErrnoException error) {
++            return error.errno == OsConstants.ENOENT;
++        }
++    }
++
++    // Called only for NLMSG_ERROR, with the cursor immediately after its outer header.
++    // Recognise the complete uncapped echo of this exact outstanding TCP dump request.
++    // ACKs, other errors, unrelated requests and malformed/capped replies stay stock.
++    void checkUnavailable(ByteBuffer bytes, int length, int sequence, int flags, byte[] request) {
++        if (!mEnabled || flags != 0 || request == null
++                || request.length < StructNlMsgHdr.STRUCT_SIZE) {
++            return;
++        }
++        final long expected = (long) StructNlMsgHdr.STRUCT_SIZE + Integer.BYTES + request.length;
++        if (length != expected || bytes.remaining() < length - StructNlMsgHdr.STRUCT_SIZE) {
++            return;
++        }
++        final ByteBuffer original = ByteBuffer.wrap(request).order(bytes.order());
++        if (sequence != original.getInt(8)) return;
++        final ByteBuffer payload = bytes.duplicate().order(bytes.order());
++        if (payload.getInt() != -OsConstants.ENOENT) return;
++        for (byte value : request) {
++            if (payload.get() != value) return;
++        }
++        throw new Unavailable();
++    }
++
++    boolean markUnavailable() {
++        mUnavailable = true;
++        if (mReported) return false;
++        mReported = true;
++        return true;
++    }
++
++    void startPoll() {
++        mDoneFamilies = 0;
++        mRecoveryBroken = false;
++    }
++
++    void recordHeader(ByteBuffer bytes, int length, int sequence, int flags, byte[] request) {
++        if (!mEnabled) return;
++        if (request == null || request.length < StructNlMsgHdr.STRUCT_SIZE
++                || length < StructNlMsgHdr.STRUCT_SIZE
++                || length - StructNlMsgHdr.STRUCT_SIZE > bytes.remaining()
++                || (flags & 0x10) != 0  // NLM_F_DUMP_INTR applies to every dump message.
++                || sequence != ByteBuffer.wrap(request).order(bytes.order()).getInt(8)) {
++            mRecoveryBroken = true;
++        }
++    }
++
++    // Recovery requires both complete dumps, not another parser error or partial family.
++    void recordDone(ByteBuffer bytes, int length, int sequence, int flags,
++            int family, byte[] request) {
++        if (!mEnabled || request == null || request.length < StructNlMsgHdr.STRUCT_SIZE
++                || (flags & ~0x2) != 0  // Only plain or NLM_F_MULTI completion.
++                || sequence != ByteBuffer.wrap(request).order(bytes.order()).getInt(8)) {
++            return;
++        }
++        if (length != StructNlMsgHdr.STRUCT_SIZE + Integer.BYTES
++                || bytes.remaining() < Integer.BYTES
++                || bytes.getInt(bytes.position()) != 0) return;
++        if (family == OsConstants.AF_INET) mDoneFamilies |= 1;
++        if (family == OsConstants.AF_INET6) mDoneFamilies |= 2;
++    }
++
++    boolean isIncompleteRecovery() {
++        return mUnavailable && (mDoneFamilies != 3 || mRecoveryBroken);
++    }
++
++    void markAvailable() {
++        if (mDoneFamilies == 3 && !mRecoveryBroken) mUnavailable = false;
++    }
++
++    boolean isUnavailable() {
++        return mUnavailable;
++    }
++}
