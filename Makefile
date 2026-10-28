@@ -117,9 +117,12 @@ runtime-network-accounting-test:
 runtime-network-accounting-contract-test:
 	./runtime/scripts/network-accounting-contract-test.sh
 
-.PHONY: runtime-network-quota-test runtime-network-quota-contract-test
+.PHONY: runtime-network-quota-test runtime-network-quota-diagnostic-test runtime-network-quota-contract-test
 runtime-network-quota-test:
 	./runtime/scripts/network-quota-test.sh
+
+runtime-network-quota-diagnostic-test:
+	ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
 
 runtime-network-quota-contract-test:
 	./runtime/scripts/network-quota-contract-test.sh

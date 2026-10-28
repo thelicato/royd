@@ -38,10 +38,16 @@ class Trial:
         self.plan = []
         self.refresh_enabled = False
         self.expected_quota = None
+        headers = os.environ.get('ROYD_QUOTA_PACKET_HEADERS', '0')
+        need(headers in ('0', '1'), 'ROYD_QUOTA_PACKET_HEADERS must be 0 or 1')
+        self.headers_enabled = headers == '1'
+        self.header_process = None
         self.manifest = dict(ROYD_QUOTA_EVIDENCE_FORMAT=1, RESULT_STATUS='fail', WORKLOAD_STATUS='not-tested',
                              RESTORE_STATUS='not-tested', DETACH_STATUS='not-tested', FIXTURE_STATUS='not-tested',
                              RUNTIME_STATUS='not-tested', CAPTURE_STATUS='not-tested', CLEANUP_STATUS='not-tested',
                              IMAGE_ID='unknown', CONTAINER=self.container, VOLUME=self.volume)
+        if self.headers_enabled:
+            self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=2, PACKET_HEADERS_STATUS='not-tested')
 
     def save(self, name, value):
         with (self.out/name).open('x') as f:
@@ -170,6 +176,7 @@ class Trial:
 
     def flow(self, label, role, op, count, passed, remaining):
         if self.refresh_enabled: self.refresh_workers()
+        window = dict(start_monotonic_ns=time.monotonic_ns(), start_realtime_ns=time.time_ns())
         worker = self.workers[role]
         before = self.snapshot(label+'-before')
         if self.expected_quota is not None:
@@ -192,8 +199,10 @@ class Trial:
                       3, 'fixture receipts')
         time.sleep(.15)
         after = self.snapshot(label+'-after')
+        window.update(end_monotonic_ns=time.monotonic_ns(), end_realtime_ns=time.time_ns())
         item = dict(label=label, uid=uid, step=step, op=op, count=count, passed=passed, remaining=remaining,
                     ready=worker['ready'], app=app, before=before, after=after, fixture=self.fixture.records())
+        if self.headers_enabled: item['diagnostic_window'] = window
         self.save(label+'.json', item)
         result = assess_flow(item)
         if self.expected_quota is not None: self.expected_quota = after['post']['quota']
@@ -254,6 +263,37 @@ class Trial:
         self.run([SCRIPTS/'assert-runtime.sh', self.cid], name, timeout=180,
                  env=dict(os.environ, ROYD_HAL_PROFILE='graphical', ROYD_GRAPHICS_BACKEND='software', ROYD_RESOURCE_PROFILE='low-memory'))
 
+    def start_headers(self):
+        self.namespace_owner()
+        self.header_directory = self.out/'packet-headers'
+        self.header_directory.mkdir()
+        self.manifest['PACKET_HEADERS_STATUS'] = 'fail'
+        self.header_process = subprocess.Popen(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net',
+                sys.executable, str(ROOT/'runtime/tests/network-quota/packet_headers.py'), str(self.header_directory),
+                self.namespace, str(self.initial['ifindex']), str(os.getpid())],
+                stdout=(self.out/'packet-headers.log').open('x'), stderr=subprocess.STDOUT)
+        self.wait(lambda: (self.header_directory/'ready.json').exists() or self.header_process.poll() is not None,
+                  5, 'packet header observer')
+        need(self.header_process.poll() is None, 'packet header observer failed to start')
+        value = json.loads((self.header_directory/'ready.json').read_text())
+        need(value['namespace'] == self.namespace and value['ifindex'] == self.initial['ifindex']
+             and value['pid'] == self.header_process.pid
+             and os.readlink('/proc/'+str(value['pid'])+'/ns/net') == self.namespace, 'packet observer identity')
+
+    def stop_headers(self):
+        self.namespace_owner()
+        (self.header_directory/'stop').touch(exist_ok=False)
+        need(self.header_process.wait(timeout=10) == 0, 'packet header observer failed')
+        value = json.loads((self.header_directory/'result.json').read_text())
+        need(value['status'] == 'pass' and not value['errors'] and value['drops'] == 0
+             and value['frames'] == value['packets']
+             and value['namespace'] == self.namespace and value['ifindex'] == self.initial['ifindex'],
+             'packet header observer incomplete')
+        rows = (self.header_directory/'headers.jsonl').read_text().splitlines()
+        need(len(rows) == value['frames'] and [json.loads(r)['sequence'] for r in rows] == list(range(1, len(rows)+1)),
+             'incomplete packet header ledger')
+        self.manifest['PACKET_HEADERS_STATUS'] = 'pass'
+
     def body(self):
         need(os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock').startswith('unix://'), 'local Docker required')
         need(self.run(['docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}']).stdout.strip().startswith('unix://'), 'local Docker context required')
@@ -312,6 +352,7 @@ class Trial:
         self.container_ip = self.owner()['NetworkSettings']['Networks']['bridge']['IPAddress']
         self.fixture = Fixture(gateway, self.out/'fixture.jsonl')
         self.nonce = self.fixture.nonce.hex()
+        if self.headers_enabled: self.start_headers()
         for role, package, apk in [('a', 'org.royd.networkprobe', 'probe.apk'), ('b', 'org.royd.networkcontrol', 'control.apk')]:
             need(not self.dx(['timeout', '10', 'pm', 'list', 'packages', package]).strip(), 'pre-existing package')
             need('Success' in self.dx(['timeout', '30', 'pm', 'install', '-t', self.android_dir+'/'+apk], 'install-'+role+'.log').splitlines(), 'APK install failed')
@@ -361,7 +402,7 @@ class Trial:
             before = self.snapshot(label+'-before')['post']['quota']
             self.restore_needed = True
             self.control(label, operation, value, expected, uid)
-            need(self.snapshot(label+'-after')['post']['quota'] == before, 'rejected request changed quota')
+            need(self.snapshot(label+'-after')['post']['quota'] == before, 'quota state changed around rejected request')
         self.set_quota('shared-budget', 2*IP_BYTES+100)
         self.flow('shared-a-egress', 'a', 'send', 1, 1, IP_BYTES+100)
         self.flow('shared-system-ingress', 'system', 'receive', 1, 1, 100)
@@ -500,6 +541,8 @@ class Trial:
                 self.save('packet-replay.json', replay(self.out))
                 self.manifest['WORKLOAD_STATUS'] = 'pass'
             self.attempt('saved packet matrix', replay_packets)
+        if self.header_process is not None:
+            self.attempt('packet header observation', self.stop_headers)
         if self.pre:
             self.manifest['RUNTIME_STATUS'] = 'fail'
             def post():
@@ -514,6 +557,15 @@ class Trial:
             def capture():
                 nonlocal capture_ok
                 self.owner()
+                diagnostic_errors = []
+                if self.headers_enabled and self.pre:
+                    for name, args in [('resolver-query.log', ['dumpsys', 'dnsresolver', 'querylog']),
+                                       ('resolver-state.log', ['dumpsys', 'dnsresolver']),
+                                       ('processes.log', ['ps', '-A', '-o', 'UID,PID,NAME']),
+                                       ('packages.log', ['pm', 'list', 'packages', '-U']),
+                                       ('logcat-epoch.log', ['logcat', '-b', 'all', '-d', '-v', 'epoch'])]:
+                        try: self.dx(['timeout', '10', *args], name)
+                        except Exception: diagnostic_errors.append(traceback.format_exc())
                 self.run([SCRIPTS/'container-evidence.sh', self.cid, self.out/'container'], 'capture.log')
                 probe = self.run(['docker', 'exec', self.cid, 'timeout', '5', 'test', '-d', '/data/anr'], 'anr-directory.log', check=False)
                 need(probe.returncode in (0, 1), 'ANR directory probe failed')
@@ -531,6 +583,9 @@ class Trial:
                     if available.returncode == 0:
                         self.archive(worker['directory'], 'workers/'+role+'.tar')
                 self.owner()
+                need(not diagnostic_errors, 'diagnostic evidence incomplete: '+repr(diagnostic_errors))
+                need(self.header_process is None or self.manifest['PACKET_HEADERS_STATUS'] == 'pass',
+                     'packet header evidence incomplete')
                 self.manifest['CAPTURE_STATUS'] = 'pass'
                 capture_ok = True
             self.attempt('complete evidence capture', capture)
@@ -550,12 +605,13 @@ class Trial:
                 need(owner == self.token, 'volume ownership changed')
                 self.run(['docker', 'volume', 'rm', self.volume], 'unused-volume-cleanup.log')
             self.attempt('unused volume cleanup', remove_unused_volume)
-        for child in [self.native, *self.observers.values()]:
+        for child in [self.native, self.header_process, *self.observers.values()]:
             if child is not None and child.poll() is None:
                 child.terminate()
                 self.attempt('reap child', lambda child=child: child.wait(timeout=5))
         self.save('failures.json', self.failures)
         required = ('WORKLOAD_STATUS', 'RESTORE_STATUS', 'DETACH_STATUS', 'FIXTURE_STATUS', 'RUNTIME_STATUS', 'CAPTURE_STATUS', 'CLEANUP_STATUS')
+        if self.headers_enabled: required += ('PACKET_HEADERS_STATUS',)
         if not self.failures and all(self.manifest[k] == 'pass' for k in required): self.manifest['RESULT_STATUS'] = 'pass'
         with (self.out/'manifest.env').open('x') as f:
             for k, v in self.manifest.items(): f.write(str(k)+'='+str(v)+'\n')
