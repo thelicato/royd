@@ -3283,6 +3283,8 @@ ROYD_ANDROID15_ACCOUNTING_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-interface-accounting-container-test.sh"
 ROYD_ANDROID15_QUOTA_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-interface-quota-container-test.sh"
+ROYD_ANDROID15_INTERFACE_ALERT_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-interface-alert-container-test.sh"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/packages/modules/Connectivity/service/jni/com_android_server_connectivity_ClatCoordinator.cpp"
 grep -Fq 'if (!isRoydContainerWithoutSelinux()) {' \

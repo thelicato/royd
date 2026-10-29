@@ -601,6 +601,10 @@ android15-metered-deny-container-test:
 android15-global-alert-container-test:
 	./android/scripts/android15-global-alert-container-test.sh
 
+.PHONY: android15-interface-alert-container-test
+android15-interface-alert-container-test:
+	./android/scripts/android15-interface-alert-container-test.sh
+
 .PHONY: android15-interface-quota-container-test android15-interface-quota-kernel-test
 android15-interface-quota-container-test:
 	./android/scripts/android15-interface-quota-container-test.sh

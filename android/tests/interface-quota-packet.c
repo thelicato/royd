@@ -17,7 +17,11 @@
 static unsigned char frame[65536];
 static struct RoydQuota quota;
 static struct RoydQuotaDrops drops;
-static int quota_budget, present, bad_read;
+static uint64_t admitted;
+static int quota_budget, present, bad_read, missing_usage;
+static uint64_t* bpf_quota_admitted_lookup_elem(const uint32_t* key) {
+    assert(!*key);return missing_usage ? NULL : &admitted;
+}
 static void* bpf_map_lookup_elem_unsafe(void* map, const uint32_t* key) {
     assert(map == &quota_budget);
     return present && *key == 2 ? &quota : NULL;
@@ -40,11 +44,20 @@ int main(void) {
     // The complete aggregate costs 9620 + 7*28 = 9816 IP bytes.
     present = 1;quota = (struct RoydQuota){9816,9816,1};
     assert(royd_quota_packet(&skb) == TC_ACT_UNSPEC && !quota.remaining);
+    assert(admitted == 9816);
     quota = (struct RoydQuota){9815,9815,2};
     assert(royd_quota_packet(&skb) == TC_ACT_SHOT && !quota.remaining);
+    assert(admitted == 9816); // Discarded crossing remainder is not admitted use.
     assert(!drops.invalid && !drops.contention);
     quota = (struct RoydQuota){20000,20000,3};bad_read = 1;
     assert(royd_quota_packet(&skb) == TC_ACT_SHOT && quota.remaining == 20000 && drops.invalid == 1);
+    assert(admitted == 9816);
+    bad_read = 0;missing_usage = 1;
+    assert(royd_quota_packet(&skb) == TC_ACT_SHOT && quota.remaining == 20000 && drops.invalid == 2);
+    missing_usage = 0;admitted = UINT64_MAX - 9815;
+    assert(royd_quota_packet(&skb) == TC_ACT_SHOT && drops.invalid == 3);
+    assert(admitted == UINT64_MAX - 9815); // Never expose a wrapped counter.
+    quota = (struct RoydQuota){20000,20000,4};
     bad_read = 0;eth->h_proto = htons(ETH_P_ARP);
     assert(royd_quota_packet(&skb) == TC_ACT_UNSPEC && quota.remaining == 20000);
     eth->h_proto = htons(ETH_P_IP);skb.ifindex = 3;

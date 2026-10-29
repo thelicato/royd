@@ -24,6 +24,20 @@ cp "$tmp/RoydInterfaceQuota.h" "$tmp/fix/system/netd/server/"
 patch -s --fuzz=0 -p1 -d "$tmp/fix" \
  <"$root/android/patches/android-15.0.0_r36/0072-netd-query-programs-with-quota-link-ids.patch"
 cp "$tmp/fix/system/netd/server/RoydInterfaceQuota.h" "$tmp/RoydInterfaceQuota.h"
+# Reconstruct the append-only admitted-byte source used by interface alerts.
+mkdir -p "$tmp/fix/packages/modules/Connectivity/bpf/progs"
+for name in royd_quota.h roydquota.c; do
+ cp "$tmp/$name" "$tmp/fix/packages/modules/Connectivity/bpf/progs/$name"
+done
+awk '
+ /^diff --git / {copy=($0 ~ /a\/packages\/modules\/Connectivity\/bpf\/progs\/royd/ || $0 == "diff --git a/system/netd/server/RoydInterfaceQuota.h b/system/netd/server/RoydInterfaceQuota.h")}
+ copy {print}
+' "$root/android/patches/android-15.0.0_r36/0075-netd-notify-container-interface-byte-alerts.patch" \
+ | patch -s --fuzz=0 -p1 -d "$tmp/fix"
+for name in royd_quota.h roydquota.c; do
+ cp "$tmp/fix/packages/modules/Connectivity/bpf/progs/$name" "$tmp/$name"
+done
+cp "$tmp/fix/system/netd/server/RoydInterfaceQuota.h" "$tmp/RoydInterfaceQuota.h"
 awk '
  /^diff --git / {copy=0}
  $0 == "+++ b/packages/modules/Connectivity/bpf/progs/royd_iface_account.h" {copy=1;next}

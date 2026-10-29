@@ -95,12 +95,13 @@ def load_elf(kernel, path):
     for name, section, start, length in symbols.values():
         if section == maps_index and name:
             layout = struct.unpack_from('<5I',contents(map_section),start)
-            assert (name,layout) in [('quota_budget',(1,4,24,1,1)),('quota_drops',(2,4,16,1,0))]
+            assert (name,layout) in [('quota_budget',(1,4,24,1,1)),('quota_drops',(2,4,16,1,0)),
+                                   ('quota_admitted',(2,4,8,1,0))]
             metadata = struct.unpack_from('<12I',contents(map_section),start)
             assert metadata[5] == 0 and metadata[7] == 0o660
             assert 0 < metadata[8] < metadata[9] and metadata[10:12] == (0,0xffffffff)
             maps[name], layouts[name] = kernel.map(name,layout), list(layout)
-    assert set(maps) == {'quota_budget','quota_drops'}
+    assert set(maps) == {'quota_budget','quota_drops','quota_admitted'}
     programs = []
     for name in ['schedcls/ingress','schedcls/egress']:
         index, section = by_name[name]; code = bytearray(contents(section)); relocations = 0
@@ -129,8 +130,10 @@ def exercise(kernel, maps, programs):
     arm(350,1)
     assert [kernel.packet(programs[n%2],frame)[0] for n in range(6)] == [0xffffffff]*3+[2]*3
     assert remaining() == (0,350,1)
+    assert struct.unpack('<Q',kernel.lookup(maps['quota_admitted'],0,8))[0] == 300
     arm(100,2); assert kernel.packet(programs[0],frame)[0] == 0xffffffff
     assert remaining() == (0,100,2) and kernel.packet(programs[1],frame)[0] == 2
+    assert struct.unpack('<Q',kernel.lookup(maps['quota_admitted'],0,8))[0] == 400
     arm(100,3)
     arp = bytearray(frame);struct.pack_into('!H',arp,12,0x0806)
     assert kernel.packet(programs[0],arp)[0] == 0xffffffff and remaining()[0] == 100
@@ -144,6 +147,7 @@ def exercise(kernel, maps, programs):
         cutover = threading.Barrier(len(cpus)+1)
         resume = threading.Barrier(len(cpus)+1)
         arm(100000,4)
+        usage_before = struct.unpack('<Q',kernel.lookup(maps['quota_admitted'],0,8))[0]
         def worker(number, cpu):
             os.sched_setaffinity(0,{cpu});barrier.wait(timeout=10)
             accepted = 0
@@ -162,6 +166,8 @@ def exercise(kernel, maps, programs):
         assert accepted <= (2000 if replace else 1000)
         if not replace: assert accepted == 1000
         else: assert accepted == 1000+10*len(cpus)
+        usage_after = struct.unpack('<Q',kernel.lookup(maps['quota_admitted'],0,8))[0]
+        assert usage_after - usage_before == accepted * 100
         return dict(replacement=replace,accepted=accepted,upper_bound=2000 if replace else 1000)
     concurrency = [run_concurrent(False),run_concurrent(True)]
     kernel.delete(budget,key)

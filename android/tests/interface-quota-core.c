@@ -54,6 +54,16 @@ int main(void) {
     contention = 1;attempts = 0;value = (struct RoydQuota){10000,10000,1};
     assert(royd_quota_take(&value,1) == -2 && attempts == 65 && value.remaining == 10000);
     contention = 0;
+    uint64_t total = 0;
+    assert(royd_quota_record(&total,100) == 1 && total == 100);
+    assert(royd_quota_record(&total,0) == -1 && total == 100);
+    total = UINT64_MAX - 99;
+    assert(royd_quota_record(&total,100) == -1 && total == UINT64_MAX - 99);
+    assert(royd_quota_record(&total,99) == 1 && total == UINT64_MAX);
+    assert(royd_quota_record(&total,1) == -1 && total == UINT64_MAX);
+    contention = 1;attempts = 0;total = 0;
+    assert(royd_quota_record(&total,1) == -2 && attempts == 65 && !total);
+    contention = 0;
     // A packet holding an RCU-retired element can debit only that old allocation.
     struct RoydQuota old = {100,100,1}, replacement = {200,200,2};
     assert(royd_quota_take(&old,100) == 1 && replacement.remaining == 200);

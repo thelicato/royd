@@ -251,3 +251,19 @@ int BandwidthController::setInterfaceAlert(const std::string& iface, int64_t byt
 
     return setCostlyAlert(iface, bytes, &it->second.alert);
 }
+
+int BandwidthController::removeInterfaceAlert(const std::string& iface) {
+    if (!isIfaceName(iface)) {
+        ALOGE("removeInterfaceAlert: Invalid iface \"%s\"", iface.c_str());
+        return -EINVAL;
+    }
+
+    auto it = mQuotaIfaces.find(iface);
+
+    if (it == mQuotaIfaces.end()) {
+        ALOGE("No prior alert set for interface %s", iface.c_str());
+        return -ENOENT;
+    }
+
+    return removeCostlyAlert(iface, &it->second.alert);
+}

@@ -13,6 +13,7 @@ namespace android::net::royd {
 static bool gated = true, present, pinned[2];
 static int fault, writes, creates, deleted, closed;
 static unsigned key = 2;
+static uint64_t usage;
 struct Saved { uint64_t remaining, limit, generation; } saved;
 static constexpr const char* kRoot = "/sys/fs/bpf/netd_shared/";
 struct unique_fd {
@@ -28,6 +29,7 @@ static int object(const char* name) {
     if (fault == 2) { errno = EACCES;return -1; }
     if (!strcmp(name,"map_roydquota_quota_budget")) return 10;
     if (!strcmp(name,"map_roydquota_quota_drops")) return 11;
+    if (!strcmp(name,"map_roydquota_quota_admitted")) return 12;
     int direction = strstr(name,"egress") != nullptr;
     if (strstr(name,"prog_roydquota")) return 20+direction;
     if (strstr(name,"link_royd_iface")) return 30+direction;
@@ -38,7 +40,11 @@ static int object(const char* name) {
 }
 template<class T> static bool info(int fd, T& output, uint32_t) {
     if (fault == 4) return false;
-    if (fd == 10) {
+    if (fd == 12) {
+        auto* value = reinterpret_cast<bpf_map_info*>(&output);
+        value->type = BPF_MAP_TYPE_ARRAY;value->key_size = 4;value->value_size = 8;
+        value->id = fault == 19 ? 0 : 112;value->max_entries = 1;
+    } else if (fd == 10) {
         auto* value = reinterpret_cast<bpf_map_info*>(&output);
         value->type = BPF_MAP_TYPE_HASH;value->key_size = 4;value->value_size = 24;
         value->max_entries = 1;value->map_flags = BPF_F_NO_PREALLOC;
@@ -52,7 +58,8 @@ template<class T> static bool info(int fd, T& output, uint32_t) {
     return true;
 }
 static bool mapLayout(int fd, uint32_t type, uint32_t size) {
-    assert(fd == 11 && type == BPF_MAP_TYPE_ARRAY && size == 16);return fault != 8;
+    assert(type == BPF_MAP_TYPE_ARRAY && ((fd == 11 && size == 16) || (fd == 12 && size == 8)));
+    return fault != 8 && !(fd == 12 && fault == 18);
 }
 static bool validLink(int fd, int program, uint32_t index, uint32_t direction) {
     assert(index == 2 && fd == 40+(direction == BPF_TCX_EGRESS));
@@ -100,6 +107,7 @@ static int bpfCall(enum bpf_cmd cmd, union bpf_attr& attr) {
 }
 template<class T> static bool lookup(int fd, uint32_t index, T& output) {
     if (fault == 16) { errno = EIO;return false; }
+    if (fd == 12) { assert(index == 0);memcpy(&output,&usage,sizeof(usage));return true; }
     if (fd == 11) { assert(index == 0);memset(&output,0,sizeof(output));return true; }
     assert(fd == 10 && index == 2);
     if (!present) { errno = ENOENT;return false; }
@@ -116,13 +124,14 @@ template<class T> static int update(int fd, uint32_t index, const T& value, uint
 using namespace android::net::royd;
 static void reset() {
     gated = true;present = false;pinned[0] = pinned[1] = false;
-    fault = writes = creates = deleted = closed = 0;key = 2;saved = {};
+    fault = writes = creates = deleted = closed = 0;key = 2;saved = {};usage = 0;
 }
 int main() {
     reset();gated = false;assert(initialiseQuota() && creates == 0 && writes == 0);
     for (int failure = 1; failure <= 14; ++failure) {
         reset();fault = failure;assert(!initialiseQuota() && writes == 0);
     }
+    reset();fault = 18;assert(!initialiseQuota() && writes == 0);
     reset();assert(initialiseQuota() && creates == 2 && closed > 0);
     assert(setQuota(0) == -ERANGE && setQuota(-2) == -ERANGE && !writes);
     assert(setQuota(1000) == 0 && writes == 1 && saved.remaining == 1000);
