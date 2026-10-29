@@ -40,6 +40,8 @@ def replay(directory):
     directory = Path(directory)
     load = lambda name: json.loads((directory/name).read_text())
     scope = load('scope.json')
+    from preparation import replay_for_scope
+    replay_for_scope(directory,scope)
     original = scope['original']
     workers = scope['workers']
     need(len({workers[r]['ready']['uid'] for r in ('a', 'b', 'system')}) == 3, 'distinct workers required')

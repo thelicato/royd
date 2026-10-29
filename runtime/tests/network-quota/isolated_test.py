@@ -101,7 +101,7 @@ class NamespaceSockets(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'requires packet headers'):AlertTrial()
             with patch.dict(os.environ,ROYD_QUOTA_NETWORK_MODE='isolated',ROYD_QUOTA_PACKET_HEADERS='1',ROYD_QUOTA_OUTPUT_DIR=name+'/valid'):
                 trial=AlertTrial()
-            self.assertEqual(set(trial.extra_required),{'ALERT_STATUS','ALERT_RESTORE_STATUS','ISOLATION_STATUS','ISOLATION_CLEANUP_STATUS'})
+            self.assertEqual(set(trial.extra_required),{'ALERT_STATUS','ALERT_RESTORE_STATUS','ISOLATION_STATUS','ISOLATION_CLEANUP_STATUS','PREPARATION_STATUS'})
 
 
 class Cleanup(unittest.TestCase):

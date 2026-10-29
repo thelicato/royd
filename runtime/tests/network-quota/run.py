@@ -63,9 +63,10 @@ class Trial:
             self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=2, PACKET_HEADERS_STATUS='not-tested')
         self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=3, CONTROLLER_STATUS='not-tested')
         if self.link is not None:
-            self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=4, NETWORK_MODE='isolated-routed-ipv4',
-                                 ISOLATION_STATUS='not-tested', ISOLATION_CLEANUP_STATUS='not-tested')
-            self.extra_required += ('ISOLATION_STATUS','ISOLATION_CLEANUP_STATUS')
+            self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=6, NETWORK_MODE='isolated-routed-ipv4',
+                                 ISOLATION_STATUS='not-tested', ISOLATION_CLEANUP_STATUS='not-tested',
+                                 PREPARATION_STATUS='not-tested')
+            self.extra_required += ('ISOLATION_STATUS','ISOLATION_CLEANUP_STATUS','PREPARATION_STATUS')
 
     def save(self, name, value):
         with (self.out/name).open('x') as f:
@@ -386,6 +387,23 @@ class Trial:
              and value['pid'] == self.header_process.pid
              and os.readlink('/proc/'+str(value['pid'])+'/ns/net') == self.namespace, 'packet observer identity')
 
+    def prepare_measurement(self):
+        if self.link is None: return
+        from preparation import replay, MAX_SECONDS
+        seconds = int(os.environ.get('ROYD_QUOTA_DRAIN_SECONDS', str(MAX_SECONDS)))
+        need(30 <= seconds <= MAX_SECONDS, 'preparation deadline must be 30 to 1200 seconds')
+        self.namespace_owner();self.manifest['PREPARATION_STATUS'] = 'fail'
+        directory = self.out/'preparation';directory.mkdir()
+        gateway = self.link.holders['gateway'];self.link.owner('gateway')
+        self.run(['nsenter','--net=/proc/'+str(self.host_pid)+'/ns/net',sys.executable,'-B',
+                  ROOT/'runtime/tests/network-quota/preparation.py',directory,self.namespace,str(os.getpid()),
+                  self.out/'native/observe',self.bpf_root,self.out/'initial-accounting.json',str(seconds),
+                  '/proc/'+str(gateway['pid'])+'/ns/net',gateway['namespace']],
+                 'preparation.log',timeout=seconds+15)
+        self.namespace_owner()
+        self.save('preparation-assessment.json',replay(directory,self.initial))
+        self.manifest['PREPARATION_STATUS'] = 'pass'
+
     def stop_headers(self):
         self.namespace_owner()
         (self.header_directory/'stop').touch(exist_ok=False)
@@ -470,6 +488,9 @@ class Trial:
                                    self.link.holders['gateway']['namespace'])
             self.link.owner('gateway')
         self.nonce = self.fixture.nonce.hex()
+        # Drain startup connections before ordinary services begin their idle clock.
+        # Header capture starts afterwards so its original lifetime remains bounded.
+        self.prepare_measurement()
         self.start_controller(0, 'controller-root')
         if self.headers_enabled: self.start_headers()
         for role, package, apk in [('a', 'org.royd.networkprobe', 'probe.apk'), ('b', 'org.royd.networkcontrol', 'control.apk')]:
@@ -512,7 +533,7 @@ class Trial:
         self.manifest['WORKLOAD_STATUS'] = 'fail'
         self.save('scope.json', dict(image=self.image, nonce=self.nonce, original=self.original,
                                    namespace=self.namespace, chains=self.chains, workers=self.workers,
-                                   network_mode=self.network_mode))
+                                   network_mode=self.network_mode, preparation_required=self.link is not None))
         self.workload()
 
     def workload(self):

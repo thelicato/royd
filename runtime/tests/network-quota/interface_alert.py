@@ -88,6 +88,8 @@ def replay_alerts(directory):
     directory = Path(directory)
     load = lambda name: json.loads((directory/name).read_text())
     scope = load('scope.json');plan = load('plan.json');events = load('alert-actions.json')
+    from preparation import replay_for_scope
+    replay_for_scope(directory,scope)
     need(len({w['ready']['uid'] for w in scope['workers'].values()}) == 3, 'distinct worker identities')
     for role, worker in scope['workers'].items():
         r = worker['ready']
