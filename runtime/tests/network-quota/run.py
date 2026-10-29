@@ -23,6 +23,10 @@ MAXIMUM = (1 << 63) - 1
 
 
 class Trial:
+    quota_inspect_mode = 'inspect-quota'
+    quota_observe_mode = 'observe-quota'
+    extra_required = ()
+
     def __init__(self):
         self.out = Path(os.environ.get('ROYD_QUOTA_OUTPUT_DIR', ROOT/'.work'/('network-quota-'+time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())+'-'+str(os.getpid())))).resolve()
         self.out.mkdir(parents=False, exist_ok=False)
@@ -109,7 +113,7 @@ class Trial:
     def direct(self, name, quota=False):
         self.namespace_owner()
         self.run(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net', self.out/'native/observe',
-                  'inspect-quota' if quota else 'inspect', self.bpf_root, self.namespace], name)
+                  self.quota_inspect_mode if quota else 'inspect', self.bpf_root, self.namespace], name)
         return json.loads((self.out/name).read_text())
 
     def snapshot(self, label):
@@ -194,6 +198,9 @@ class Trial:
         self.dx(['timeout', '5', 'sh', '-c', 'set -eC; printf "%s\\n" "$1" > "$2.tmp"; ln "$2.tmp" "$2"; rm "$2.tmp"',
                  'sh', value, target], uid=worker['ready']['uid'])
 
+    def assess_item(self, item):
+        return assess_flow(item)
+
     def flow(self, label, role, op, count, passed, remaining):
         if self.refresh_enabled: self.refresh_workers()
         window = dict(start_monotonic_ns=time.monotonic_ns(), start_realtime_ns=time.time_ns())
@@ -224,7 +231,7 @@ class Trial:
                     ready=worker['ready'], app=app, before=before, after=after, fixture=self.fixture.records())
         if self.headers_enabled: item['diagnostic_window'] = window
         self.save(label+'.json', item)
-        result = assess_flow(item)
+        result = self.assess_item(item)
         if self.expected_quota is not None: self.expected_quota = after['post']['quota']
         self.worker_identity(worker, label)
         self.save(label+'-assessment.json', result)
@@ -303,6 +310,12 @@ class Trial:
             need(self.finishing, 'controller failed during workload')
             return None  # Bounded original commands remain available for failure restoration.
         return channel
+
+    def before_close_controllers(self):
+        pass
+
+    def replay_packets(self):
+        return replay(self.out)
 
     def start_controller(self, uid, tag):
         self.namespace_owner()
@@ -433,7 +446,7 @@ class Trial:
         self.refresh_enabled = True
         self.start_controller(self.workers['a']['ready']['uid'], 'controller-denied')
         need(len({w['ready']['uid'] for w in self.workers.values()}) == 3, 'workers share UID')
-        for role, mode in [('pre', 'observe-quota-pre'), ('post', 'observe-quota')]:
+        for role, mode in [('pre', 'observe-quota-pre'), ('post', self.quota_observe_mode)]:
             directory = self.out/('observer-'+role);directory.mkdir()
             self.namespace_owner()
             process = subprocess.Popen(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net', str(self.out/'native/observe'),
@@ -453,6 +466,9 @@ class Trial:
         self.manifest['WORKLOAD_STATUS'] = 'fail'
         self.save('scope.json', dict(image=self.image, nonce=self.nonce, original=self.original,
                                    namespace=self.namespace, chains=self.chains, workers=self.workers))
+        self.workload()
+
+    def workload(self):
         for label, operation, value, expected, uid in [('invalid-zero', 'set', 0, errno.ERANGE, 0), ('invalid-negative', 'set', -2, errno.ERANGE, 0),
                                                        ('denied-set', 'set', 1, -1, self.workers['a']['ready']['uid']),
                                                        ('denied-remove', 'remove', 0, -1, self.workers['a']['ready']['uid'])]:
@@ -579,6 +595,7 @@ class Trial:
             self.attempt('stop '+role, stop)
         if self.controller_processes:
             def close_controllers():
+                self.before_close_controllers()
                 for channel in self.channels.values():
                     if not channel.closed: channel.close()
                 need(len(self.channels) == len(self.controller_processes)
@@ -609,7 +626,7 @@ class Trial:
         if self.manifest['WORKLOAD_STATUS'] == 'pass':
             self.manifest['WORKLOAD_STATUS'] = 'fail'
             def replay_packets():
-                self.save('packet-replay.json', replay(self.out))
+                self.save('packet-replay.json', self.replay_packets())
                 self.manifest['WORKLOAD_STATUS'] = 'pass'
             self.attempt('saved packet matrix', replay_packets)
         if self.header_process is not None:
@@ -684,14 +701,15 @@ class Trial:
                 self.attempt('reap child', lambda child=child: child.wait(timeout=5))
         self.save('failures.json', self.failures)
         required = ('WORKLOAD_STATUS', 'RESTORE_STATUS', 'DETACH_STATUS', 'FIXTURE_STATUS', 'RUNTIME_STATUS', 'CAPTURE_STATUS', 'CLEANUP_STATUS', 'CONTROLLER_STATUS')
+        required += self.extra_required
         if self.headers_enabled: required += ('PACKET_HEADERS_STATUS',)
         if not self.failures and all(self.manifest[k] == 'pass' for k in required): self.manifest['RESULT_STATUS'] = 'pass'
         with (self.out/'manifest.env').open('x') as f:
             for k, v in self.manifest.items(): f.write(str(k)+'='+str(v)+'\n')
 
 
-def main():
-    trial = Trial()
+def main(trial_class=Trial):
+    trial = trial_class()
     def interrupted(number, frame): raise InterruptedError('signal '+str(number))
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGHUP, interrupted)

@@ -25,6 +25,7 @@ extern int bpf_program__set_expected_attach_type(struct bpf_program*, enum bpf_a
 extern struct bpf_map* bpf_object__find_map_by_name(const struct bpf_object*, const char*);
 extern int bpf_map__fd(const struct bpf_map*);
 struct counters { uint64_t rx_packets, rx_bytes, tx_packets, tx_bytes; };
+static int admitted_mode;
 static int call(enum bpf_cmd cmd, union bpf_attr* attr) { return syscall(__NR_bpf, cmd, attr, sizeof(*attr)); }
 static void check(int good, const char* what) { if (!good) { perror(what); exit(1); } }
 static int object(const char* root, const char* name, int flags) {
@@ -92,6 +93,16 @@ static void quota_json(FILE* f, const char* root, unsigned index) {
             present ? "true":"false",map.id,drop_map.id,value.remaining,value.limit,value.generation,drops.invalid,drops.contention);
     close(budget);close(counts);
 }
+static void admitted_json(FILE* f, const char* root) {
+    int fd=object(root,"map_roydquota_quota_admitted",BPF_F_RDONLY);
+    layout(fd,BPF_MAP_TYPE_ARRAY,sizeof(uint64_t));
+    struct bpf_map_info map = {};uint64_t bytes=0;
+    info(fd,&map,sizeof(map),offsetof(struct bpf_map_info,id)+sizeof(map.id));
+    check(map.id && map.max_entries==1,"admitted source identity");
+    read_map(fd,0,&bytes);
+    fprintf(f,"{\"map_id\":%u,\"bytes\":%"PRIu64"}",map.id,bytes);
+    close(fd);
+}
 static void snapshot(FILE* f, unsigned index, int stats, int selector, int errors,
                      struct bpf_link_info* links, int observed, int tcp_counts, int tcp_records,
                      const char* quota_root) {
@@ -119,6 +130,7 @@ static void snapshot(FILE* f, unsigned index, int stats, int selector, int error
     fprintf(f,"],\"observed\":["); stats_json(f,&after[0]);fprintf(f,",");stats_json(f,&after[1]);fprintf(f,"],\"tcp\":[");
     tcp_json(f,tcp_records,0,tcp_after[0]);fprintf(f,",");tcp_json(f,tcp_records,1,tcp_after[1]);fprintf(f,"]");
     if(quota_root) { fprintf(f,",\"quota\":");quota_json(f,quota_root,index); }
+    if(admitted_mode) { fprintf(f,",\"quota_admitted\":");admitted_json(f,quota_root); }
     fprintf(f,"}\n");
     check(!ferror(f),"snapshot write");
 }
@@ -135,11 +147,12 @@ static void publish(const char* dir, const char* name, unsigned index, int stats
 }
 int main(int argc, char** argv) {
     // Post-quota modes add read-only budget metadata; pre-quota anchors after accounting.
-    int quota=argc>1 && (!strcmp(argv[1],"inspect-quota") || !strcmp(argv[1],"observe-quota"));
+    admitted_mode=argc>1 && (!strcmp(argv[1],"inspect-quota-alert") || !strcmp(argv[1],"observe-quota-alert"));
+    int quota=admitted_mode || (argc>1 && (!strcmp(argv[1],"inspect-quota") || !strcmp(argv[1],"observe-quota")));
     int quota_trial=quota || (argc>1 && !strcmp(argv[1],"observe-quota-pre"));
-    check((argc==4 && (!strcmp(argv[1],"inspect") || !strcmp(argv[1],"inspect-quota")))
+    check((argc==4 && (!strcmp(argv[1],"inspect") || !strcmp(argv[1],"inspect-quota") || !strcmp(argv[1],"inspect-quota-alert")))
             || ((argc==7 || argc==8) && !strcmp(argv[1],"observe"))
-            || (argc==7 && (!strcmp(argv[1],"observe-quota") || !strcmp(argv[1],"observe-quota-pre"))),"arguments");
+            || (argc==7 && (!strcmp(argv[1],"observe-quota") || !strcmp(argv[1],"observe-quota-pre") || !strcmp(argv[1],"observe-quota-alert"))),"arguments");
     const char* quota_root=quota ? argv[2]:NULL;
     char ns[128]={}; ssize_t size=readlink("/proc/self/ns/net",ns,sizeof(ns)-1);
     check(size>0 && !strcmp(ns,argv[3]),"owned network namespace");

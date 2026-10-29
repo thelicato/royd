@@ -2,7 +2,7 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 export PYTHONDONTWRITEBYTECODE=1
-sh -n "$root/runtime/scripts/network-quota-test.sh" "$root/runtime/scripts/network-netd-probe-build.sh"
+sh -n "$root/runtime/scripts/network-quota-test.sh" "$root/runtime/scripts/network-interface-alert-test.sh" "$root/runtime/scripts/network-netd-probe-build.sh"
 python3 -m unittest discover -s "$root/runtime/tests/network-quota" -p '*_test.py'
 # Optional real SDK/core/AIDL compilation, without Docker or Android boot.
 tree=${ROYD_QUOTA_TEST_ANDROID_TREE:-}

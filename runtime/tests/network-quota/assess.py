@@ -8,7 +8,7 @@ def need(value, reason):
         raise ValueError(reason)
 
 
-def assess_flow(item):
+def assess_packets(item):
     before, after = item['before'], item['after']
     uid, step, op, count, passed = [item[k] for k in ('uid', 'step', 'op', 'count', 'passed')]
     need(op in ('send', 'receive') and 0 <= passed <= count <= 64 and count > 0, 'flow plan')
@@ -39,18 +39,6 @@ def assess_flow(item):
              'accounting must include quota attempts')
     need(before['pre']['counters'] == before['post']['counters']
          and after['pre']['counters'] == after['post']['counters'], 'non-quiescent source snapshots')
-    a, b = before['post']['quota'], after['post']['quota']
-    for key in ('present', 'map_id', 'drops_map_id', 'generation', 'limit', 'invalid', 'contention'):
-        need(a[key] == b[key], 'changed quota ' + key)
-    need(a['invalid'] == a['contention'] == 0, 'quota backend fault')
-    need(a['map_id'] > 0 and a['drops_map_id'] > 0, 'unavailable quota maps')
-    need(a['generation'] > 0 and 0 <= a['remaining'] <= a['limit'] < (1 << 63)
-         if a['present'] else a['generation'] == a['limit'] == a['remaining'] == 0,
-         'invalid quota metadata')
-    need(b['remaining'] == item['remaining'], 'wrong remaining budget')
-    admitted = min(count, a['remaining'] // IP_BYTES) if a['present'] else count
-    remainder = a['remaining'] - count * IP_BYTES if a['present'] and admitted == count else 0
-    need(passed == admitted and b['remaining'] == remainder, 'packet admission differs from starting budget')
     app, ready = item['app'], item['ready']
     need(0 < app['ready_ns'] <= app['released_ns'] <= app['finished_ns'], 'worker timing order')
     for key in ('uid', 'pid', 'nonce', 'local', 'remote', 'importance'):
@@ -75,5 +63,23 @@ def assess_flow(item):
         bytes.fromhex(ready['nonce']), step, uid, r['sequence'], count, r['kind'])).hexdigest()
         for r in receipts), 'fixture endpoint or payload digest')
     return dict(uid=uid, step=step, operation=op, attempted=count, admitted=passed,
-                denied=count-passed, remaining=b['remaining'], ip_bytes=IP_BYTES,
-                payload_bytes=SIZE, generation=b['generation'])
+                denied=count-passed, ip_bytes=IP_BYTES, payload_bytes=SIZE)
+
+
+def assess_flow(item):
+    result = assess_packets(item)
+    before, after = item['before'], item['after']
+    count, passed = item['count'], item['passed']
+    a, b = before['post']['quota'], after['post']['quota']
+    for key in ('present', 'map_id', 'drops_map_id', 'generation', 'limit', 'invalid', 'contention'):
+        need(a[key] == b[key], 'changed quota ' + key)
+    need(a['invalid'] == a['contention'] == 0, 'quota backend fault')
+    need(a['map_id'] > 0 and a['drops_map_id'] > 0, 'unavailable quota maps')
+    need(a['generation'] > 0 and 0 <= a['remaining'] <= a['limit'] < (1 << 63)
+         if a['present'] else a['generation'] == a['limit'] == a['remaining'] == 0,
+         'invalid quota metadata')
+    need(b['remaining'] == item['remaining'], 'wrong remaining budget')
+    admitted = min(count, a['remaining'] // IP_BYTES) if a['present'] else count
+    remainder = a['remaining'] - count * IP_BYTES if a['present'] and admitted == count else 0
+    need(passed == admitted and b['remaining'] == remainder, 'packet admission differs from starting budget')
+    return dict(**result, remaining=b['remaining'], generation=b['generation'])

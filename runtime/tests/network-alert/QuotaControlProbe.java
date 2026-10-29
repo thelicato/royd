@@ -2,6 +2,8 @@ package org.royd.alertprobe;
 
 import android.app.ActivityManager;
 import android.net.INetd;
+import android.net.INetdUnsolicitedEventListener;
+import android.os.Binder;
 import android.os.Process;
 import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
@@ -20,6 +22,37 @@ import org.json.JSONObject;
 
 /** Existing Binder operations and owned test-file IPC only. Never writes product maps. */
 public final class QuotaControlProbe {
+    private static final ArrayList<JSONObject> callbacks = new ArrayList<>();
+    private static Listener listener;
+    private static volatile String listenerNonce;
+    private static final class Listener extends INetdUnsolicitedEventListener.Stub {
+        @Override public void onQuotaLimitReached(String name, String iface) {
+            try {
+                int caller = Binder.getCallingUidOrThrow(), pid = Binder.getCallingPid();
+                require(caller == 0 && pid == 0, "unexpected oneway Binder caller");
+                synchronized (callbacks) {
+                    require(callbacks.size() < 32, "callback bound exceeded");
+                    callbacks.add(new JSONObject().put("nonce", listenerNonce).put("name", name)
+                            .put("interface", iface).put("caller_uid", caller).put("caller_pid", pid)
+                            .put("sequence", callbacks.size()+1).put("time_ns", SystemClock.elapsedRealtimeNanos()));
+                }
+            } catch (Exception failure) {
+                failure.printStackTrace(System.err);System.exit(2);
+            }
+        }
+        @Override public void onInterfaceClassActivityChanged(boolean a, int b, long c, int d) {}
+        @Override public void onInterfaceDnsServerInfo(String a, long b, String[] c) {}
+        @Override public void onInterfaceAddressUpdated(String a, String b, int c, int d) {}
+        @Override public void onInterfaceAddressRemoved(String a, String b, int c, int d) {}
+        @Override public void onInterfaceAdded(String a) {}
+        @Override public void onInterfaceRemoved(String a) {}
+        @Override public void onInterfaceChanged(String a, boolean b) {}
+        @Override public void onInterfaceLinkStateChanged(String a, boolean b) {}
+        @Override public void onRouteChanged(boolean a, String b, String c, String d) {}
+        @Override public void onStrictCleartextDetected(int a, String b) {}
+        @Override public int getInterfaceVersion() { return INetdUnsolicitedEventListener.VERSION; }
+        @Override public String getInterfaceHash() { return INetdUnsolicitedEventListener.HASH; }
+    }
     private static void require(boolean value, String reason) throws IOException {
         if (!value) throw new IOException(reason);
     }
@@ -41,6 +74,7 @@ public final class QuotaControlProbe {
         throw new IOException("capability observation missing");
     }
     private static JSONObject control(String nonce, String operation, long bytes, int expected) throws Exception {
+        long started = SystemClock.elapsedRealtimeNanos();
         int error = 0;
         boolean denied = false;
         INetd netd = INetd.Stub.asInterface(ServiceManager.checkService("netd"));
@@ -48,6 +82,8 @@ public final class QuotaControlProbe {
         try {
             if ("set".equals(operation)) netd.bandwidthSetInterfaceQuota("eth0", bytes);
             else if ("remove".equals(operation) && bytes == 0) netd.bandwidthRemoveInterfaceQuota("eth0");
+            else if ("set-alert".equals(operation)) netd.bandwidthSetInterfaceAlert("eth0", bytes);
+            else if ("remove-alert".equals(operation) && bytes == 0) netd.bandwidthRemoveInterfaceAlert("eth0");
             else throw new IOException("operation");
         } catch (ServiceSpecificException failure) { error = failure.errorCode; }
         catch (SecurityException failure) { denied = true; }
@@ -55,7 +91,8 @@ public final class QuotaControlProbe {
                 "unexpected Binder result: denied=" + denied + " error=" + error);
         return new JSONObject().put("nonce", nonce).put("uid", Process.myUid()).put("pid", Process.myPid())
                 .put("operation", operation).put("bytes", bytes).put("error", error).put("denied", denied)
-                .put("cap_eff", capabilities());
+                .put("cap_eff", capabilities()).put("started_ns", started)
+                .put("finished_ns", SystemClock.elapsedRealtimeNanos());
     }
     private static File directory(JSONObject request, String nonce) throws Exception {
         File dir = new File(request.getString("directory"));
@@ -107,6 +144,21 @@ public final class QuotaControlProbe {
         String op = request.getString("op");
         if (op.equals("control")) return control(nonce, request.getString("operation"), request.getLong("bytes"), request.getInt("expected"));
         require(Process.myUid() == 0, "test-file/identity operations require root");
+        if (op.equals("listen")) {
+            require(listener == null, "listener already registered");
+            INetd netd = INetd.Stub.asInterface(ServiceManager.checkService("netd"));
+            require(netd != null && netd.isAlive(), "netd unavailable");
+            listenerNonce = nonce;listener = new Listener();
+            netd.registerUnsolicitedEventListener(listener);
+            return new JSONObject().put("listening", true);
+        }
+        if (op.equals("callbacks")) {
+            require(listener != null, "listener not registered");
+            synchronized (callbacks) {
+                return new JSONObject().put("callbacks", new JSONArray(callbacks))
+                        .put("sampled_ns", SystemClock.elapsedRealtimeNanos());
+            }
+        }
         if (op.equals("identity")) return identity(request);
         File dir = directory(request, nonce);
         String name = request.getString("name");
