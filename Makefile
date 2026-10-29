@@ -124,6 +124,10 @@ runtime-network-interface-alert-isolated-test:
 runtime-network-quota-isolated-test:
 	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
 
+.PHONY: runtime-network-tcp-lifecycle-test
+runtime-network-tcp-lifecycle-test:
+	./runtime/scripts/network-tcp-lifecycle-test.sh
+
 runtime-network-interface-alert-test:
 	./runtime/scripts/network-interface-alert-test.sh
 

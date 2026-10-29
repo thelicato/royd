@@ -66,6 +66,17 @@ class Headers(unittest.TestCase):
         fragment = ipv4(bytes([3,3,0,0]),1,fragment=0x2000)
         self.assertNotIn('icmp_type',metadata(fragment,len(fragment)))
 
+    def test_tcp_sequence_ack_and_cost_without_payload(self):
+        tcp=struct.pack('!HHII',50000,443,0xfffffffe,42)+b'\x80\x11'+b'\0'*18+b'payload-canary'
+        frame=ipv4(tcp,6);value=metadata(frame[:128],len(frame))
+        self.assertEqual((value['tcp_sequence'],value['tcp_acknowledgement'],value['tcp_header_bytes']),
+                         (0xfffffffe,42,32))
+        self.assertEqual(value['tcp_payload_bytes'],len(b'payload-canary'))
+        self.assertNotIn('payload-canary',json.dumps(value))
+        for offset in (0x10,0xf0):
+            bad=bytearray(frame);bad[46]=offset
+            with self.assertRaisesRegex(ValueError,'TCP header length'):metadata(bytes(bad),len(bad))
+
     def test_malformed_lengths_and_truncated_headers_are_rejected(self):
         good = ipv4(udp(b'x'*20))
         bad = bytearray(good);bad[14] = 0x44

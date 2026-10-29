@@ -58,7 +58,11 @@ def metadata(data, frame_bytes):
     source, destination = struct.unpack_from('!HH', data, offset)
     result.update(source_port=source, destination_port=destination)
     if protocol == 6:
-        result['tcp_flags'] = data[offset+13]
+        header = (data[offset+12] >> 4)*4
+        need(20 <= header <= 60 and result['ip_bytes'] >= offset-14+header, 'invalid TCP header length')
+        seq, ack = struct.unpack_from('!II', data, offset+4)
+        result.update(tcp_flags=data[offset+13], tcp_sequence=seq, tcp_acknowledgement=ack,
+                      tcp_header_bytes=header, tcp_payload_bytes=result['ip_bytes']-(offset-14)-header)
     else:
         length = struct.unpack_from('!H', data, offset+4)[0]
         need(length >= 8, 'invalid UDP length')
@@ -101,7 +105,7 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
         try:
             publish(directory, 'ready', dict(namespace=expected_namespace, ifindex=expected_ifindex,
                     pid=os.getpid(), prefix_bytes=PREFIX_BYTES, max_frames=MAX_FRAMES,
-                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened, metadata_format=2))
+                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened, metadata_format=3))
             while True:
                 need(time.monotonic_ns()-opened < LIFETIME_SECONDS*1000000000, 'header observer lifetime exceeded')
                 if (directory/'stop').exists(): receiver.setblocking(False)
@@ -127,7 +131,7 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
     if packets != frames or drops != 0: errors.append('packet socket loss/pending frames: '+repr((packets, frames, drops)))
     result = dict(status='fail' if errors else 'pass', frames=frames, packets=packets, drops=drops,
                   errors=errors, namespace=expected_namespace, ifindex=expected_ifindex,
-                  closed_monotonic_ns=time.monotonic_ns(), metadata_format=2)
+                  closed_monotonic_ns=time.monotonic_ns(), metadata_format=3)
     publish(directory, 'result', result)
     return 0 if not errors else 1
 
