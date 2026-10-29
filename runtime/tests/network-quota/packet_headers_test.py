@@ -44,6 +44,28 @@ class Headers(unittest.TestCase):
         self.assertEqual((value['family'], value['protocol'], value['source']), (6, 44, 'fd00::1'))
         self.assertNotIn('source_port', value)
 
+    def test_router_solicitation_identity_without_options_or_payload(self):
+        frame = bytes.fromhex('33330000000246ee329f1b4486dd')+struct.pack('!IHBB16s16s',
+            6 << 28, 16, 58, 255, socket.inet_pton(socket.AF_INET6, 'fe80::44ee:32ff:fe9f:1b44'),
+            socket.inet_pton(socket.AF_INET6, 'ff02::2'))+bytes([133,0,0,0])+b'private-data'
+        value = metadata(frame,len(frame))
+        self.assertEqual((value['ethernet_source'],value['ethernet_destination']),
+                         ('46:ee:32:9f:1b:44','33:33:00:00:00:02'))
+        self.assertEqual((value['icmp_type'],value['icmp_code'],value['hop_limit']),(133,0,255))
+        self.assertNotIn('private-data',json.dumps(value))
+        for short in (frame[:55],frame[:57]):
+            with self.assertRaisesRegex(ValueError,'short ICMP'):metadata(short,len(frame))
+        # Extension headers do not imply that the following byte is an ICMP type.
+        changed = bytearray(frame);changed[20] = 0
+        self.assertNotIn('icmp_type',metadata(bytes(changed),len(changed)))
+
+    def test_ipv4_icmp_and_fragments(self):
+        frame = ipv4(bytes([3,3,0,0])+b'private-data',1)
+        value = metadata(frame,len(frame))
+        self.assertEqual((value['icmp_type'],value['icmp_code'],value['hop_limit']),(3,3,64))
+        fragment = ipv4(bytes([3,3,0,0]),1,fragment=0x2000)
+        self.assertNotIn('icmp_type',metadata(fragment,len(fragment)))
+
     def test_malformed_lengths_and_truncated_headers_are_rejected(self):
         good = ipv4(udp(b'x'*20))
         bad = bytearray(good);bad[14] = 0x44

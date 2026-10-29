@@ -16,6 +16,7 @@ from assess import assess_flow, need
 from fixture import Fixture, IP_BYTES
 from replay import replay
 from channel import Channel
+from peer import identify as identify_peer
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT/'runtime/scripts'
@@ -335,8 +336,26 @@ class Trial:
         self.dx(['cat', '/proc/'+str(pid)+'/stat'], tag+'-proc-stat.log')
         return channel
 
+    def capture_peer(self, label):
+        self.namespace_owner()
+        inside = json.loads(self.run(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net',
+                                     'ip', '-j', '-d', 'link', 'show', 'dev', 'eth0']).stdout)
+        outside = json.loads(self.run(['ip', '-j', '-d', 'link', 'show']).stdout)
+        identity = identify_peer(inside, outside, self.initial['ifindex'])
+        name = identity['host']['ifname']
+        addresses = json.loads(self.run(['ip', '-j', 'addr', 'show', 'dev', name]).stdout)
+        settings = {}
+        for key in ('disable_ipv6', 'accept_ra', 'forwarding', 'router_solicitations',
+                    'router_solicitation_interval', 'router_solicitation_max_interval'):
+            try: settings[key] = (Path('/proc/sys/net/ipv6/conf')/name/key).read_text().strip()
+            except FileNotFoundError: settings[key] = None  # IPv6 can be unavailable on an IPv4 host.
+        self.namespace_owner()
+        self.save(label+'.json', dict(identity=identity, addresses=addresses, ipv6_settings=settings))
+        return identity
+
     def start_headers(self):
         self.namespace_owner()
+        self.header_peer = self.capture_peer('packet-peer-before')
         self.header_directory = self.out/'packet-headers'
         self.header_directory.mkdir()
         self.manifest['PACKET_HEADERS_STATUS'] = 'fail'
@@ -364,6 +383,7 @@ class Trial:
         rows = (self.header_directory/'headers.jsonl').read_text().splitlines()
         need(len(rows) == value['frames'] and [json.loads(r)['sequence'] for r in rows] == list(range(1, len(rows)+1)),
              'incomplete packet header ledger')
+        need(self.capture_peer('packet-peer-after') == self.header_peer, 'packet peer identity changed')
         self.manifest['PACKET_HEADERS_STATUS'] = 'pass'
 
     def body(self):

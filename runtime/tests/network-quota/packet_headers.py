@@ -21,7 +21,8 @@ def metadata(data, frame_bytes):
     """Persist selected Ethernet/IP/transport/DNS-header fields only, never payload."""
     need(len(data) >= 14 and frame_bytes >= len(data), 'short Ethernet frame')
     ether = struct.unpack_from('!H', data, 12)[0]
-    result = dict(frame_bytes=frame_bytes, ether_type=ether)
+    result = dict(frame_bytes=frame_bytes, ether_type=ether,
+                  ethernet_source=data[6:12].hex(':'), ethernet_destination=data[:6].hex(':'))
     if ether == 0x0800:
         need(len(data) >= 34 and data[14] >> 4 == 4, 'short/invalid IPv4 header')
         size = (data[14] & 15)*4
@@ -30,7 +31,8 @@ def metadata(data, frame_bytes):
              'invalid IPv4 lengths')
         result.update(family=4, ip_bytes=total, protocol=data[23],
                       source=str(ipaddress.ip_address(data[26:30])),
-                      destination=str(ipaddress.ip_address(data[30:34])), fragmented=bool(fragment & 0x3fff))
+                      destination=str(ipaddress.ip_address(data[30:34])), fragmented=bool(fragment & 0x3fff),
+                      hop_limit=data[22])
         offset = 14+size
     elif ether == 0x86dd:
         need(len(data) >= 54 and data[14] >> 4 == 6, 'short/invalid IPv6 header')
@@ -38,13 +40,17 @@ def metadata(data, frame_bytes):
         need(size+40 <= frame_bytes-14, 'invalid IPv6 length')
         result.update(family=6, ip_bytes=size+40 if size else None, protocol=data[20],
                       source=str(ipaddress.ip_address(data[22:38])),
-                      destination=str(ipaddress.ip_address(data[38:54])), fragmented=None)
+                      destination=str(ipaddress.ip_address(data[38:54])), fragmented=None, hop_limit=data[21])
         offset = 54
     else:
         return result
     # Fragment/extension/jumbogram metadata is retained without invented ports/cost.
     if result['fragmented'] or result['ip_bytes'] is None: return result
     protocol = result['protocol']
+    if (result['family'], protocol) in ((4, 1), (6, 58)):
+        need(len(data) >= offset+4 and result['ip_bytes'] >= offset-14+4, 'short ICMP header')
+        result.update(icmp_type=data[offset], icmp_code=data[offset+1])
+        return result
     if protocol not in (6, 17): return result
     required = 20 if protocol == 6 else 8
     need(len(data) >= offset+required and result['ip_bytes'] >= offset-14+required,
@@ -95,7 +101,7 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
         try:
             publish(directory, 'ready', dict(namespace=expected_namespace, ifindex=expected_ifindex,
                     pid=os.getpid(), prefix_bytes=PREFIX_BYTES, max_frames=MAX_FRAMES,
-                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened))
+                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened, metadata_format=2))
             while True:
                 need(time.monotonic_ns()-opened < LIFETIME_SECONDS*1000000000, 'header observer lifetime exceeded')
                 if (directory/'stop').exists(): receiver.setblocking(False)
@@ -121,7 +127,7 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
     if packets != frames or drops != 0: errors.append('packet socket loss/pending frames: '+repr((packets, frames, drops)))
     result = dict(status='fail' if errors else 'pass', frames=frames, packets=packets, drops=drops,
                   errors=errors, namespace=expected_namespace, ifindex=expected_ifindex,
-                  closed_monotonic_ns=time.monotonic_ns())
+                  closed_monotonic_ns=time.monotonic_ns(), metadata_format=2)
     publish(directory, 'result', result)
     return 0 if not errors else 1
 
