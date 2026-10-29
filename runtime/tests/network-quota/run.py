@@ -15,6 +15,7 @@ import traceback
 from assess import assess_flow, need
 from fixture import Fixture, IP_BYTES
 from replay import replay
+from channel import Channel
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT/'runtime/scripts'
@@ -42,12 +43,15 @@ class Trial:
         need(headers in ('0', '1'), 'ROYD_QUOTA_PACKET_HEADERS must be 0 or 1')
         self.headers_enabled = headers == '1'
         self.header_process = None
+        self.channels, self.controller_processes = {}, []
+        self.finishing = False
         self.manifest = dict(ROYD_QUOTA_EVIDENCE_FORMAT=1, RESULT_STATUS='fail', WORKLOAD_STATUS='not-tested',
                              RESTORE_STATUS='not-tested', DETACH_STATUS='not-tested', FIXTURE_STATUS='not-tested',
                              RUNTIME_STATUS='not-tested', CAPTURE_STATUS='not-tested', CLEANUP_STATUS='not-tested',
                              IMAGE_ID='unknown', CONTAINER=self.container, VOLUME=self.volume)
         if self.headers_enabled:
             self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=2, PACKET_HEADERS_STATUS='not-tested')
+        self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=3, CONTROLLER_STATUS='not-tested')
 
     def save(self, name, value):
         with (self.out/name).open('x') as f:
@@ -141,10 +145,16 @@ class Trial:
     def control(self, label, operation, value=0, expected=0, uid=0):
         if self.refresh_enabled: self.refresh_workers()
         self.owner()
-        command = self.java('org.royd.alertprobe.QuotaControlProbe', 'control.dex',
-                            [self.nonce, operation, value, expected], uid)
-        self.run(command, label+'.log', timeout=20)
-        rows = [json.loads(line) for line in (self.out/(label+'.log')).read_text().splitlines() if line.startswith('{')]
+        channel = self.available_channel(uid)
+        if channel is not None:
+            value_out = channel.request('control', operation=operation, bytes=value, expected=expected, timeout=20)
+            with (self.out/(label+'.log')).open('x') as output: output.write(json.dumps(value_out)+'\n')
+            rows = [value_out]
+        else:
+            command = self.java('org.royd.alertprobe.QuotaControlProbe', 'control.dex',
+                                [self.nonce, operation, value, expected], uid)
+            self.run(command, label+'.log', timeout=20)
+            rows = [json.loads(line) for line in (self.out/(label+'.log')).read_text().splitlines() if line.startswith('{')]
         need(len(rows) == 1, 'missing/ambiguous Binder receipt')
         receipt = rows[0]
         need(receipt['pid'] > 1 and (uid == 0 or int(receipt['cap_eff'], 16) == 0), 'Binder caller process/capabilities')
@@ -154,6 +164,10 @@ class Trial:
 
     def read_worker(self, worker, name):
         directory = worker['directory']
+        channel = self.available_channel()
+        if channel is not None and 'ready' in worker:
+            self.owner()
+            return channel.request('read', directory=directory, uid=worker['ready']['uid'], name=name)
         def ready():
             text = self.dx(['timeout', '5', 'sh', '-c',
                             'if test -s "$1/error.json"; then printf error; elif test -s "$1/$2.json"; then printf ready; else printf pending; fi',
@@ -170,6 +184,12 @@ class Trial:
         return request
 
     def publish_file(self, worker, name, value):
+        channel = self.available_channel()
+        if channel is not None:
+            self.owner()
+            need(channel.request('publish', directory=worker['directory'], uid=worker['ready']['uid'], name=name, value=value)
+                 == dict(published=name), 'publication receipt')
+            return
         target = worker['directory']+'/'+name
         self.dx(['timeout', '5', 'sh', '-c', 'set -eC; printf "%s\\n" "$1" > "$2.tmp"; ln "$2.tmp" "$2"; rm "$2.tmp"',
                  'sh', value, target], uid=worker['ready']['uid'])
@@ -237,6 +257,19 @@ class Trial:
 
     def worker_identity(self, worker, label):
         value = worker['ready'];pid, uid = value['pid'], value['uid']
+        channel = self.available_channel()
+        if channel is not None:
+            self.owner()
+            observed = channel.request('identity', pid=pid, uid=uid, package=worker.get('package', ''))
+            self.save(label+'-identity.json', observed)
+            need(observed['uid'] == uid, 'worker UID changed')
+            need(observed['stat'].rsplit(')', 1)[1].split()[19] == worker['start_ticks'], 'worker PID reused')
+            need(re.search(r'^CapEff:\s+0+$', observed['status'], re.M) is not None, 'worker gained capabilities')
+            need(observed['cgroup'] == value['cgroup'], 'worker cgroup changed')
+            if uid >= 10000:
+                need(observed['pids'] == [pid], 'app process changed')
+                need(observed['uid_state'] == 10, 'app UID state changed')
+            return
         need(self.dx(['stat', '-c', '%u', '/proc/'+str(pid)]).strip() == str(uid), 'worker UID changed')
         current = self.dx(['cat', '/proc/'+str(pid)+'/stat'])
         need(current.rsplit(')', 1)[1].split()[19] == worker['start_ticks'], 'worker PID reused')
@@ -262,6 +295,32 @@ class Trial:
         self.owner()
         self.run([SCRIPTS/'assert-runtime.sh', self.cid], name, timeout=180,
                  env=dict(os.environ, ROYD_HAL_PROFILE='graphical', ROYD_GRAPHICS_BACKEND='software', ROYD_RESOURCE_PROFILE='low-memory'))
+
+    def available_channel(self, uid=0):
+        channel = self.channels.get(uid)
+        if channel is None: return None  # Initial registration has no controller yet.
+        if channel.broken or channel.closed:
+            need(self.finishing, 'controller failed during workload')
+            return None  # Bounded original commands remain available for failure restoration.
+        return channel
+
+    def start_controller(self, uid, tag):
+        self.namespace_owner()
+        self.manifest['CONTROLLER_STATUS'] = 'fail'
+        command = self.java('org.royd.alertprobe.QuotaControlProbe', 'control.dex',
+                            [self.nonce, 'serve' if uid == 0 else 'serve-control'], uid)
+        command.insert(2, '-i')
+        self.save(tag+'-command.json', command)
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=(self.out/(tag+'-stderr.log')).open('xb'), bufsize=0)
+        self.controller_processes.append(process)
+        channel = Channel(process, self.nonce, self.out, prefix=tag, uid=uid)
+        self.channels[uid] = channel
+        self.save(tag+'-hello.json', channel.hello)
+        pid = channel.hello['pid']
+        need(self.dx(['stat', '-c', '%u', '/proc/'+str(pid)]).strip() == str(uid), 'controller process UID')
+        self.dx(['cat', '/proc/'+str(pid)+'/stat'], tag+'-proc-stat.log')
+        return channel
 
     def start_headers(self):
         self.namespace_owner()
@@ -352,6 +411,7 @@ class Trial:
         self.container_ip = self.owner()['NetworkSettings']['Networks']['bridge']['IPAddress']
         self.fixture = Fixture(gateway, self.out/'fixture.jsonl')
         self.nonce = self.fixture.nonce.hex()
+        self.start_controller(0, 'controller-root')
         if self.headers_enabled: self.start_headers()
         for role, package, apk in [('a', 'org.royd.networkprobe', 'probe.apk'), ('b', 'org.royd.networkcontrol', 'control.apk')]:
             need(not self.dx(['timeout', '10', 'pm', 'list', 'packages', package]).strip(), 'pre-existing package')
@@ -371,6 +431,7 @@ class Trial:
                                        stdout=(self.out/'native-worker.log').open('x'), stderr=subprocess.STDOUT)
         self.register_worker('system', worker)
         self.refresh_enabled = True
+        self.start_controller(self.workers['a']['ready']['uid'], 'controller-denied')
         need(len({w['ready']['uid'] for w in self.workers.values()}) == 3, 'workers share UID')
         for role, mode in [('pre', 'observe-quota-pre'), ('post', 'observe-quota')]:
             directory = self.out/('observer-'+role);directory.mkdir()
@@ -392,10 +453,6 @@ class Trial:
         self.manifest['WORKLOAD_STATUS'] = 'fail'
         self.save('scope.json', dict(image=self.image, nonce=self.nonce, original=self.original,
                                    namespace=self.namespace, chains=self.chains, workers=self.workers))
-        # Baseline one-way packets in each direction, with unchanged socket identities.
-        for role in self.workers:
-            for op in ('send', 'receive'):
-                self.flow('baseline-'+role+'-'+op, role, op, 1, 1, None)
         for label, operation, value, expected, uid in [('invalid-zero', 'set', 0, errno.ERANGE, 0), ('invalid-negative', 'set', -2, errno.ERANGE, 0),
                                                        ('denied-set', 'set', 1, -1, self.workers['a']['ready']['uid']),
                                                        ('denied-remove', 'remove', 0, -1, self.workers['a']['ready']['uid'])]:
@@ -403,6 +460,11 @@ class Trial:
             self.restore_needed = True
             self.control(label, operation, value, expected, uid)
             need(self.snapshot(label+'-after')['post']['quota'] == before, 'quota state changed around rejected request')
+        self.channels[self.workers['a']['ready']['uid']].close()
+        # Baseline one-way packets in each direction, with unchanged socket identities.
+        for role in self.workers:
+            for op in ('send', 'receive'):
+                self.flow('baseline-'+role+'-'+op, role, op, 1, 1, None)
         self.set_quota('shared-budget', 2*IP_BYTES+100)
         self.flow('shared-a-egress', 'a', 'send', 1, 1, IP_BYTES+100)
         self.flow('shared-system-ingress', 'system', 'receive', 1, 1, 100)
@@ -491,6 +553,7 @@ class Trial:
                             remaining -= len(block)
 
     def finish(self):
+        self.finishing = True
         self.refresh_enabled = False
         if self.restore_needed:
             self.manifest['RESTORE_STATUS'] = 'fail'
@@ -514,6 +577,14 @@ class Trial:
                 elif self.native is not None:
                     need(self.native.wait(timeout=10) == 0, 'native worker exit')
             self.attempt('stop '+role, stop)
+        if self.controller_processes:
+            def close_controllers():
+                for channel in self.channels.values():
+                    if not channel.closed: channel.close()
+                need(len(self.channels) == len(self.controller_processes)
+                     and all(not c.broken and c.closed for c in self.channels.values()), 'controller evidence incomplete')
+                self.manifest['CONTROLLER_STATUS'] = 'pass'
+            self.attempt('close controllers', close_controllers)
         for role, process in self.observers.items():
             self.manifest['DETACH_STATUS'] = 'fail'
             def detach(role=role, process=process):
@@ -586,6 +657,8 @@ class Trial:
                 need(not diagnostic_errors, 'diagnostic evidence incomplete: '+repr(diagnostic_errors))
                 need(self.header_process is None or self.manifest['PACKET_HEADERS_STATUS'] == 'pass',
                      'packet header evidence incomplete')
+                need(not self.controller_processes or self.manifest['CONTROLLER_STATUS'] == 'pass',
+                     'controller evidence incomplete')
                 self.manifest['CAPTURE_STATUS'] = 'pass'
                 capture_ok = True
             self.attempt('complete evidence capture', capture)
@@ -605,12 +678,12 @@ class Trial:
                 need(owner == self.token, 'volume ownership changed')
                 self.run(['docker', 'volume', 'rm', self.volume], 'unused-volume-cleanup.log')
             self.attempt('unused volume cleanup', remove_unused_volume)
-        for child in [self.native, self.header_process, *self.observers.values()]:
+        for child in [self.native, self.header_process, *self.observers.values(), *self.controller_processes]:
             if child is not None and child.poll() is None:
                 child.terminate()
                 self.attempt('reap child', lambda child=child: child.wait(timeout=5))
         self.save('failures.json', self.failures)
-        required = ('WORKLOAD_STATUS', 'RESTORE_STATUS', 'DETACH_STATUS', 'FIXTURE_STATUS', 'RUNTIME_STATUS', 'CAPTURE_STATUS', 'CLEANUP_STATUS')
+        required = ('WORKLOAD_STATUS', 'RESTORE_STATUS', 'DETACH_STATUS', 'FIXTURE_STATUS', 'RUNTIME_STATUS', 'CAPTURE_STATUS', 'CLEANUP_STATUS', 'CONTROLLER_STATUS')
         if self.headers_enabled: required += ('PACKET_HEADERS_STATUS',)
         if not self.failures and all(self.manifest[k] == 'pass' for k in required): self.manifest['RESULT_STATUS'] = 'pass'
         with (self.out/'manifest.env').open('x') as f:
