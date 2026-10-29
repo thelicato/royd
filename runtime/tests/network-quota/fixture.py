@@ -2,6 +2,8 @@
 import hashlib
 import ipaddress
 import json
+import os
+import queue
 import secrets
 import socket
 import struct
@@ -33,11 +35,36 @@ def decode(data, nonce):
 
 
 class Fixture:
-    def __init__(self, address, log):
+    def __init__(self, address, log, namespace=None, expected_namespace=None):
         if ipaddress.ip_address(address).version != 4 or not ipaddress.ip_address(address).is_private:
             raise ValueError('private IPv4 fixture required')
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind((address, 0))
+        def bound_socket():
+            value = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try: value.bind((address, 0))
+            except BaseException:
+                value.close()
+                raise
+            return value
+        if namespace is None:
+            self.socket = bound_socket()
+        else:
+            # Network namespaces are per thread. The controller never enters it.
+            expected_namespace = expected_namespace or os.readlink(namespace)
+            result = queue.SimpleQueue()
+            def create():
+                try:
+                    with open(namespace, 'rb') as fd:
+                        if 'net:['+str(os.fstat(fd.fileno()).st_ino)+']' != expected_namespace:
+                            raise ValueError('fixture namespace identity changed')
+                        os.setns(fd.fileno(), os.CLONE_NEWNET)
+                    if os.readlink('/proc/thread-self/ns/net') != expected_namespace:
+                        raise ValueError('fixture entered wrong namespace')
+                    result.put(bound_socket())
+                except BaseException as error: result.put(error)
+            creator = threading.Thread(target=create)
+            creator.start();creator.join()
+            self.socket = result.get_nowait()
+            if isinstance(self.socket, BaseException): raise self.socket
         self.socket.settimeout(.1)
         self.address = '%s:%s' % self.socket.getsockname()
         self.nonce = secrets.token_bytes(16)

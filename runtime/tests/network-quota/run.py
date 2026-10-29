@@ -17,6 +17,7 @@ from fixture import Fixture, IP_BYTES
 from replay import replay
 from channel import Channel
 from peer import identify as identify_peer
+from isolated import IsolatedLink, GATEWAY
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT/'runtime/scripts'
@@ -50,6 +51,10 @@ class Trial:
         self.header_process = None
         self.channels, self.controller_processes = {}, []
         self.finishing = False
+        self.network_mode = os.environ.get('ROYD_QUOTA_NETWORK_MODE', 'bridge')
+        need(self.network_mode in ('bridge', 'isolated'), 'ROYD_QUOTA_NETWORK_MODE must be bridge or isolated')
+        need(self.network_mode != 'isolated' or self.headers_enabled, 'isolated mode requires packet headers')
+        self.link = IsolatedLink(self) if self.network_mode == 'isolated' else None
         self.manifest = dict(ROYD_QUOTA_EVIDENCE_FORMAT=1, RESULT_STATUS='fail', WORKLOAD_STATUS='not-tested',
                              RESTORE_STATUS='not-tested', DETACH_STATUS='not-tested', FIXTURE_STATUS='not-tested',
                              RUNTIME_STATUS='not-tested', CAPTURE_STATUS='not-tested', CLEANUP_STATUS='not-tested',
@@ -57,6 +62,10 @@ class Trial:
         if self.headers_enabled:
             self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=2, PACKET_HEADERS_STATUS='not-tested')
         self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=3, CONTROLLER_STATUS='not-tested')
+        if self.link is not None:
+            self.manifest.update(ROYD_QUOTA_EVIDENCE_FORMAT=4, NETWORK_MODE='isolated-routed-ipv4',
+                                 ISOLATION_STATUS='not-tested', ISOLATION_CLEANUP_STATUS='not-tested')
+            self.extra_required += ('ISOLATION_STATUS','ISOLATION_CLEANUP_STATUS')
 
     def save(self, name, value):
         with (self.out/name).open('x') as f:
@@ -92,6 +101,10 @@ class Trial:
         mounts = [m for m in item['Mounts'] if m['Destination'] == '/data']
         need(len(mounts) == 1 and mounts[0]['Type'] == 'volume' and mounts[0]['Name'] == self.volume,
              'data ownership changed')
+        if self.link is not None:
+            for role in self.link.holders: self.link.owner(role)
+            need(item['HostConfig']['NetworkMode'] == 'container:'+self.link.holders['android']['id'],
+                 'isolated network owner changed')
         return item
 
     def dx(self, args, name=None, *, uid=0, **kwargs):
@@ -338,6 +351,8 @@ class Trial:
 
     def capture_peer(self, label):
         self.namespace_owner()
+        if self.link is not None:
+            return self.link.snapshot(label)['identity']
         inside = json.loads(self.run(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net',
                                      'ip', '-j', '-d', 'link', 'show', 'dev', 'eth0']).stdout)
         outside = json.loads(self.run(['ip', '-j', '-d', 'link', 'show']).stdout)
@@ -407,7 +422,9 @@ class Trial:
         for helper, options in [('security-args.sh', ['privileged']), ('container-args.sh', [])]:
             args += shlex.split(self.run([SCRIPTS/helper, *options]).stdout)
         profile = shlex.split(self.run([SCRIPTS/'profile.sh', 'default'], env=dict(os.environ, ROYD_RESOURCE_PROFILE='low-memory')).stdout)
-        self.cid = self.run(['docker', 'create', *args, '--name', self.container, '--network', 'bridge',
+        if self.link is not None: self.link.setup()
+        network = 'container:'+self.link.holders['android']['id'] if self.link is not None else 'bridge'
+        self.cid = self.run(['docker', 'create', *args, '--name', self.container, '--network', network,
                              '--label', 'org.royd.test=network-quota', '--label', 'org.royd.test.owner='+self.token,
                              '-v', self.volume+':/data', self.image, *profile], 'create.log').stdout.strip()
         self.created = True;self.owner()
@@ -440,9 +457,18 @@ class Trial:
         for source, target in [(self.out/'java/dex/classes.dex', 'control.dex'), (self.out/'apk/probe.apk', 'probe.apk'), (self.out/'apk/control.apk', 'control.apk')]:
             self.run(['docker', 'cp', source, self.cid+':'+self.android_dir+'/'+target])
             self.dx(['chmod', '644', self.android_dir+'/'+target])
-        gateway = self.owner()['NetworkSettings']['Networks']['bridge']['Gateway']
-        self.container_ip = self.owner()['NetworkSettings']['Networks']['bridge']['IPAddress']
-        self.fixture = Fixture(gateway, self.out/'fixture.jsonl')
+        if self.link is None:
+            gateway = self.owner()['NetworkSettings']['Networks']['bridge']['Gateway']
+            self.container_ip = self.owner()['NetworkSettings']['Networks']['bridge']['IPAddress']
+            self.fixture = Fixture(gateway, self.out/'fixture.jsonl')
+        else:
+            from isolated import ADDRESS
+            self.container_ip = ADDRESS
+            self.link.owner('gateway')
+            namespace = '/proc/'+str(self.link.holders['gateway']['pid'])+'/ns/net'
+            self.fixture = Fixture(GATEWAY, self.out/'fixture.jsonl', namespace,
+                                   self.link.holders['gateway']['namespace'])
+            self.link.owner('gateway')
         self.nonce = self.fixture.nonce.hex()
         self.start_controller(0, 'controller-root')
         if self.headers_enabled: self.start_headers()
@@ -485,7 +511,8 @@ class Trial:
                  and self.chains[d][:3] == pre['query'][d], 'post observer placement')
         self.manifest['WORKLOAD_STATUS'] = 'fail'
         self.save('scope.json', dict(image=self.image, nonce=self.nonce, original=self.original,
-                                   namespace=self.namespace, chains=self.chains, workers=self.workers))
+                                   namespace=self.namespace, chains=self.chains, workers=self.workers,
+                                   network_mode=self.network_mode))
         self.workload()
 
     def workload(self):
@@ -719,6 +746,8 @@ class Trial:
             if child is not None and child.poll() is None:
                 child.terminate()
                 self.attempt('reap child', lambda child=child: child.wait(timeout=5))
+        if self.link is not None and (not self.created or self.manifest['CLEANUP_STATUS'] == 'pass'):
+            self.attempt('isolated link cleanup', self.link.cleanup)
         self.save('failures.json', self.failures)
         required = ('WORKLOAD_STATUS', 'RESTORE_STATUS', 'DETACH_STATUS', 'FIXTURE_STATUS', 'RUNTIME_STATUS', 'CAPTURE_STATUS', 'CLEANUP_STATUS', 'CONTROLLER_STATUS')
         required += self.extra_required

@@ -117,7 +117,13 @@ runtime-network-accounting-test:
 runtime-network-accounting-contract-test:
 	./runtime/scripts/network-accounting-contract-test.sh
 
-.PHONY: runtime-network-quota-test runtime-network-quota-diagnostic-test runtime-network-quota-contract-test runtime-network-interface-alert-test runtime-network-interface-alert-contract-test
+.PHONY: runtime-network-quota-test runtime-network-quota-diagnostic-test runtime-network-quota-contract-test runtime-network-interface-alert-test runtime-network-interface-alert-contract-test runtime-network-interface-alert-isolated-test runtime-network-quota-isolated-test
+runtime-network-interface-alert-isolated-test:
+	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-interface-alert-test.sh
+
+runtime-network-quota-isolated-test:
+	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
+
 runtime-network-interface-alert-test:
 	./runtime/scripts/network-interface-alert-test.sh
 
