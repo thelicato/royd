@@ -100,6 +100,7 @@ The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persi
 - [x] Add persistent `/data` and ADB configuration.
 - [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
 - [x] Correct and qualify ordinary-UID internal-storage capacity and the loaded Storage Settings dashboard on the shared OCI backing pool, without fabricating a physical device or per-instance quota.
+- [ ] Align Android 15 Settings emergency-gesture availability with the omitted emergency provider. Task169's rebuilt `eb20fb0fb127` passes full qualification and ADB authentication controls, but its 300-second scrcpy gate fails after `EmergencyGestureEntrypointPreferenceController.getSummary` queries absent authority `com.android.emergency.gesture`. Preserve the failed trial; the unchanged Settings APK and missing EmergencyInfo in both archives bound attribution, not general application compatibility.
 - [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
 - [x] Requalify container restart/recreation and framework-only restart on the `0063` Android 15 baseline, with preserved named state and verified framework-native power tracing.
 - [x] Implement strict container-gated omission of the legacy host-global UID CPU-stat cleanup write, preserving local history removal, reads and stock behaviour outside the gate.
