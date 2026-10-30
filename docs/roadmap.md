@@ -84,6 +84,7 @@ The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persi
 - [x] Add checksummed reference-host qualification bundles with policy-staleness and tamper verification.
 - [x] Add a timed scrcpy streaming-stability gate with retained recording and host/container evidence for Android 15 graphical qualification.
 - [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
+- [x] Add opt-in stock ADB key authentication for Android 15, with a fail-closed built-in property and direct OCI public-key mounts.
 - [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
 - [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.
 - [x] Retain Docker logs, inspect and state evidence when a container never starts and has no health state, without relaxing qualification gates.

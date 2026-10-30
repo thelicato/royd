@@ -15,6 +15,7 @@ services:
       - royd.dpi=${ROYD_DPI:-240}
       - royd.fps=${ROYD_FPS:-30}
       - royd.resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
+      - royd.adb_auth=${ROYD_ADB_AUTH:-disabled}
 
 volumes:
   royd-data:

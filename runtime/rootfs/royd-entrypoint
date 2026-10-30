@@ -37,6 +37,7 @@ case "$hal_profile" in
 esac
 
 resource_profile=low-memory
+adb_auth=disabled
 
 positive_integer() {
   name=$1
@@ -56,6 +57,7 @@ for argument in "$@"; do
     royd.dpi=*) dpi=${argument#royd.dpi=} ;;
     royd.fps=*) fps=${argument#royd.fps=} ;;
     royd.resource_profile=*) resource_profile=${argument#royd.resource_profile=} ;;
+    royd.adb_auth=*) adb_auth=${argument#royd.adb_auth=} ;;
     '') ;;
     *)
       echo "royd: unknown runtime argument: $argument" >&2
@@ -63,6 +65,21 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+case "$adb_auth" in
+  disabled) adb_secure=0 ;;
+  required)
+    if [ "$android_version" != 15 ]; then
+      echo "royd: required ADB authentication needs Android 15, got $android_version" >&2
+      exit 64
+    fi
+    adb_secure=1
+    ;;
+  *)
+    echo "royd: unsupported ADB authentication mode: $adb_auth" >&2
+    exit 64
+    ;;
+esac
 
 positive_integer width "$width"
 positive_integer height "$height"
@@ -131,6 +148,7 @@ umask 077
   echo "dalvik.vm.heapmaxfree=$heap_max_free"
   if [ "$android_version" = 15 ]; then
     echo "ro.sf.lcd_density=$dpi"
+    echo "ro.adb.secure=$adb_secure"
   fi
 } > "$resource_file"
 
