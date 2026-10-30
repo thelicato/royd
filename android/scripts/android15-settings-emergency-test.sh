@@ -8,13 +8,13 @@ for sdk in 26 27 28 29 30 31 32 33 34 35 36 37; do
   overlays=$(make -s --no-print-directory -f - PLATFORM_SDK_VERSION="$sdk" <<EOF_MAKE
 include $root/android/royd/device/royd/container_common.mk
 all:
-	@echo \$(PRODUCT_PACKAGE_OVERLAYS)
+	@echo "\$(PRODUCT_PACKAGE_OVERLAYS)|\$(PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS)"
 EOF_MAKE
   )
   if [ "$sdk" = 35 ]; then
-    [ "$overlays" = device/royd/overlay/android15 ]
+    [ "$overlays" = 'device/royd/overlay/android15|device/royd/overlay/android15' ]
   else
-    [ -z "$overlays" ]
+    [ "$overlays" = '|' ]
   fi
 done
 
@@ -39,14 +39,14 @@ android = '{http://schemas.android.com/apk/res/android}'
 page = ET.parse(settings / 'xml/emergency_gesture_settings.xml').getroot()
 assert page.tag == 'PreferenceScreen'
 assert page.attrib == {
-    android + 'title': '@*com.android.settings:string/emergency_gesture_screen_title',
+    android + 'title': '@string/emergency_gesture_screen_title',
 }
 assert len(page) == 1
 notice = page[0]
 assert notice.tag == 'Preference' and len(notice) == 0
 assert notice.attrib == {
     android + 'key': 'emergency_gesture_unavailable',
-    android + 'title': '@*com.android.settings:string/device_info_not_available',
+    android + 'title': '@string/device_info_not_available',
     android + 'selectable': 'false',
 }
 assert {p.relative_to(settings).as_posix() for p in settings.rglob('*') if p.is_file()} == {
