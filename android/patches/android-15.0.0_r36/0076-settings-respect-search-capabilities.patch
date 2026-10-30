@@ -1,0 +1,59 @@
+diff --git a/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java b/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java
+--- a/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java
++++ b/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java
+@@ -29,12 +29,14 @@
+ import android.content.Context;
+ import android.content.DialogInterface;
+ import android.content.Intent;
++import android.content.pm.PackageManager;
+ import android.location.LocationManager;
+ import android.net.NetworkTemplate;
+ import android.net.wifi.WifiConfiguration;
+ import android.net.wifi.WifiManager;
+ import android.os.Bundle;
+ import android.os.PowerManager;
++import android.os.SELinux;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.provider.Settings;
+@@ -1333,6 +1335,16 @@
+                 keys.add(PREF_KEY_WIFI_TOGGLE);
+             }
+ 
++            if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                    && !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)) {
++                keys.add(PREF_KEY_WIFI_TOGGLE);
++                keys.add(PREF_KEY_SAVED_NETWORKS);
++                keys.add(PREF_KEY_ADD_WIFI_NETWORK);
++                keys.add(PREF_KEY_CONFIGURE_NETWORK_SETTINGS);
++                keys.add(PREF_KEY_DATA_USAGE);
++                return keys;
++            }
++
+             final WifiManager wifiManager = context.getSystemService(WifiManager.class);
+             if (wifiManager == null) return keys;
+ 
+diff --git a/packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java b/packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java
+--- a/packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java
++++ b/packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java
+@@ -18,6 +18,8 @@
+ 
+ import android.app.settings.SettingsEnums;
+ import android.content.Context;
++import android.content.pm.PackageManager;
++import android.os.SELinux;
+ 
+ import com.android.settings.R;
+ import com.android.settings.dashboard.DashboardFragment;
+@@ -72,6 +74,11 @@
+ 
+                 @Override
+                 protected boolean isPageSearchEnabled(Context context) {
++                    if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                            && !context.getPackageManager().hasSystemFeature(
++                                    PackageManager.FEATURE_BACKUP)) {
++                        return false;
++                    }
+                     final BackupSettingsHelper backupHelper = new BackupSettingsHelper(context);
+                     return !backupHelper.isBackupProvidedByManufacturer() &&
+                             !backupHelper.isIntentProvidedByTransport();

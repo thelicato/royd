@@ -34,7 +34,7 @@
 .PHONY: android15-host-power-container-test
 .PHONY: android15-framework-readiness-container-test
 .PHONY: android15-settings-hardware-container-test
-.PHONY: android15-settings-emergency-test
+.PHONY: android15-settings-emergency-test android15-settings-search-container-test
 .PHONY: android15-gpu-memory-container-test
 .PHONY: android15-wifi-mac-container-test
 .PHONY: android15-gpu-work-container-test
@@ -570,6 +570,9 @@ android15-settings-hardware-container-test:
 
 android15-settings-emergency-test:
 	./android/scripts/android15-settings-emergency-test.sh
+
+android15-settings-search-container-test:
+	./android/scripts/android15-settings-search-container-test.sh
 
 android15-gpu-memory-container-test:
 	./android/scripts/android15-gpu-memory-container-test.sh

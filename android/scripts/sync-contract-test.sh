@@ -333,6 +333,71 @@ void dump() {
 }
 SRC
     fi
+    if [ ! -f packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java ]; then
+      mkdir -p packages/apps/Settings/src/com/android/settings/network
+      cat > packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java <<'SRC'
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.location.LocationManager;
+import android.net.NetworkTemplate;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.os.UserHandle;
+import android.os.UserManager;
+import android.provider.Settings;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
+import android.text.TextUtils;
+        @Override
+        public List<String> getNonIndexableKeys(Context context) {
+            final List<String> keys = super.getNonIndexableKeys(context);
+
+            if (!mWifiRestriction.isChangeWifiStateAllowed(context)) {
+                keys.add(PREF_KEY_WIFI_TOGGLE);
+            }
+
+            final WifiManager wifiManager = context.getSystemService(WifiManager.class);
+            if (wifiManager == null) return keys;
+
+            if (WifiSavedConfigUtils.getAllConfigsCount(context, wifiManager) == 0) {
+                keys.add(PREF_KEY_SAVED_NETWORKS);
+            }
+            if (wifiManager.getWifiState() != WifiManager.WIFI_STATE_ENABLED) {
+SRC
+    fi
+    if [ ! -f packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java ]; then
+      mkdir -p packages/apps/Settings/src/com/android/settings/backup
+      cat > packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java <<'SRC'
+package com.android.settings.backup;
+
+import android.app.settings.SettingsEnums;
+import android.content.Context;
+
+import com.android.settings.R;
+import com.android.settings.dashboard.DashboardFragment;
+import com.android.settings.search.BaseSearchIndexProvider;
+import com.android.settingslib.search.SearchIndexable;
+
+@SearchIndexable
+public class PrivacySettings extends DashboardFragment {
+    private static final String TAG = "PrivacySettings";
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(R.xml.privacy_settings) {
+
+                @Override
+                protected boolean isPageSearchEnabled(Context context) {
+                    final BackupSettingsHelper backupHelper = new BackupSettingsHelper(context);
+                    return !backupHelper.isBackupProvidedByManufacturer() &&
+                            !backupHelper.isIntentProvidedByTransport();
+                }
+            };
+}
+SRC
+    fi
     if [ ! -f packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java ]; then
       cat > packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java <<'SRC'
 import android.content.Context;
@@ -2868,6 +2933,10 @@ grep -Fq 'ROYD: not starting host-global GPU work tracing' \
 [ "$(grep -c 'if (shouldSkipRoydGpuMemoryTracing())' "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp")" -eq 2 ]
 grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
+grep -Fq 'keys.add(PREF_KEY_CONFIGURE_NETWORK_SETTINGS);' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java"
+grep -Fq 'PackageManager.FEATURE_BACKUP)) {' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/backup/PrivacySettings.java"
 grep -Fq 'mWifiManager = shouldSkipRoydWifi() ? null' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/deviceinfo/DeviceNamePreferenceController.java"
 grep -Fq 'mWifiManager = skipRoydWifi ? null : context.getSystemService(WifiManager.class);' \

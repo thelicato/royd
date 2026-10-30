@@ -39,6 +39,19 @@ Rebuilt `1111be37c095` passes three dashboard/direct-page repetitions with uncha
 
 The task170 global search-provider query on rebuilt `1111be37c095` returns no rows: `NetworkProviderSettings` requests the absent Wi-Fi service and `PrivacySettings` dereferences an absent BackupManager. Its retained WTF and provider exception are independent failures. The emergency page's stock search provider honours the resolved false flag, but end-to-end search exclusion remains unqualified until the global query works. Preserve the failed search trial separately from page-only and standard qualification results; do not filter its diagnostics or treat a later workload that omits search as search acceptance.
 
+### Android 15 Settings search capabilities
+
+Patch0076 checks the product's Wi-Fi and backup features inside the existing explicit container-without-SELinux gate. It excludes unavailable Wi-Fi controls without probing the absent manager, and declares the backup page non-indexable before constructing its service-dependent helper. The framework starts BackupManager only when `android.software.backup` is advertised. Inherited exclusions, general network entries, stock supported-feature lookups, provider permissions and exception reporting stay unchanged.
+
+After rebuilding, retain repeated global queries around full pre/post runtime checks in a fresh disposable instance:
+
+```sh
+adb -s "$royd_test_serial" shell content query --uri content://com.android.settings/settings/non_indexables_key
+adb -s "$royd_test_serial" shell content query --uri content://com.android.settings/settings/indexables_xml_res
+```
+
+Require real rows, not merely command exit0. The exclusions must contain `main_toggle_wifi`, `saved_networks`, `add_wifi_network`, `configure_network_settings`, `non_carrier_data_usage`, all five backup-page keys and both `gesture_emergency_summary` and `emergency_gesture_unavailable`. Retain indexable-resource rows as a positive control and verify an ordinary supported Settings search result through SettingsIntelligence where installed. Check unchanged Settings/SystemServer identity and the complete retained log for provider exceptions, emergency-authority errors, crashes, ANRs and missing-service WTFs. Keep failed trials, including task170's query; do not alter global provider error handling or remove assertions for a quieter run. `make android15-settings-search-container-test` covers the strict gate, feature combinations, exact key set and preserved stock lookup failures; a passing contract is not rebuilt-image or search-UI acceptance.
+
 Android 15's optional GPU-memory collector attaches a system-wide tracepoint without a container filter. The reference host lacks `gpu_mem/gpu_mem_total`, so initialisation fails even though the pinned BPF program exists; the resulting accounting would not be container-scoped on a host exposing the tracepoint either. With `ROYD_CONTAINER=1` and an `ENOENT` probe for `/sys/fs/selinux/enforce`, royd leaves this collector and its Perfetto source inactive and makes `dumpsys gpu --gpumem` explicitly report unavailable accounting, not zero usage. Ordinary driver statistics, GPU work accounting, ANGLE/SwiftShader rendering, dump permissions and BPF loading remain unchanged. Existing SELinux interfaces and every other probe error retain stock behaviour. Qualification requires the bounded skip marker, the unavailable status and graphical driver-statistics response, and rejects the former attachment and dependent-tracer failures. A container-scoped GPU-memory collector remains future work.
 
 Android 15's audio startup assertions attribute shared-tag ServiceManager wait messages to the live audioserver PID or earlier audioserver PIDs identified by native log records. A cameraserver wait during framework replacement is not evidence that audioserver blocked. Full container logs retain other callers' diagnostics for separate investigation.
