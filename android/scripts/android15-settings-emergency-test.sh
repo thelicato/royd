@@ -38,13 +38,15 @@ assert (flag.text or '').strip() == 'false'
 android = '{http://schemas.android.com/apk/res/android}'
 page = ET.parse(settings / 'xml/emergency_gesture_settings.xml').getroot()
 assert page.tag == 'PreferenceScreen'
-assert page.attrib == {android + 'title': '@string/emergency_gesture_screen_title'}
+assert page.attrib == {
+    android + 'title': '@*com.android.settings:string/emergency_gesture_screen_title',
+}
 assert len(page) == 1
 notice = page[0]
 assert notice.tag == 'Preference' and len(notice) == 0
 assert notice.attrib == {
     android + 'key': 'emergency_gesture_unavailable',
-    android + 'title': '@string/device_info_not_available',
+    android + 'title': '@*com.android.settings:string/device_info_not_available',
     android + 'selectable': 'false',
 }
 assert {p.relative_to(settings).as_posix() for p in settings.rglob('*') if p.is_file()} == {
