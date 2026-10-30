@@ -3074,6 +3074,10 @@ grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2inputsurface=-1' \
 grep -Fxq 'PRODUCT_VENDOR_PROPERTIES += debug.stagefright.c2-poolmask=786432' \
   "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'ROYD_APP_WIDGETS := true' "$tmp/src/vendor/royd/version.mk"
+for resource in values/config.xml xml/emergency_gesture_settings.xml; do
+  overlay=device/royd/overlay/android15/packages/apps/Settings/res/$resource
+  cmp "$android_dir/royd/$overlay" "$tmp/src/$overlay"
+done
 grep -Fxq 'PRODUCT_COPY_FILES += frameworks/native/data/etc/android.software.app_widgets.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.app_widgets.xml' \
   "$tmp/src/vendor/royd/version.mk"
 grep -Fxq 'ROYD_CGROUP2_SUBTREE := /sys/fs/cgroup/royd' \
