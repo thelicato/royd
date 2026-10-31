@@ -1,0 +1,53 @@
+diff --git a/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java b/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java
+--- a/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java
++++ b/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java
+@@ -21,7 +21,9 @@
+ import android.app.settings.SettingsEnums;
+ import android.content.ComponentName;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.os.Bundle;
++import android.os.SELinux;
+ import android.view.LayoutInflater;
+ import android.view.View;
+ import android.view.ViewGroup;
+@@ -129,6 +131,13 @@
+             new BaseSearchIndexProvider(R.xml.accessibility_hearing_aids) {
+                 @Override
+                 protected boolean isPageSearchEnabled(Context context) {
++                    if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                            && !context.getPackageManager().hasSystemFeature(
++                                    PackageManager.FEATURE_BLUETOOTH)
++                            && !context.getPackageManager().hasSystemFeature(
++                                    PackageManager.FEATURE_BLUETOOTH_LE)) {
++                        return false;
++                    }
+                     if (Flags.fixA11ySettingsSearch()) {
+                         return AccessibilityHearingAidsFragment.isPageSearchEnabled(context);
+                     } else {
+diff --git a/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java b/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java
+--- a/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java
++++ b/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java
+@@ -20,6 +20,8 @@
+ 
+ import android.app.settings.SettingsEnums;
+ import android.content.Context;
++import android.content.pm.PackageManager;
++import android.os.SELinux;
+ import android.util.FeatureFlagUtils;
+ 
+ import androidx.annotation.VisibleForTesting;
+@@ -67,6 +69,13 @@
+             new BaseSearchIndexProvider(R.xml.accessibility_audio_routing_fragment) {
+                 @Override
+                 protected boolean isPageSearchEnabled(Context context) {
++                    if ("1".equals(System.getenv("ROYD_CONTAINER")) && !SELinux.isSELinuxEnabled()
++                            && !context.getPackageManager().hasSystemFeature(
++                                    PackageManager.FEATURE_BLUETOOTH)
++                            && !context.getPackageManager().hasSystemFeature(
++                                    PackageManager.FEATURE_BLUETOOTH_LE)) {
++                        return false;
++                    }
+                     if (Flags.fixA11ySettingsSearch()) {
+                         return AccessibilityAudioRoutingFragment.isPageSearchEnabled(context);
+                     } else {

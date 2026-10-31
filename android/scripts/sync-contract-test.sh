@@ -333,6 +333,57 @@ void dump() {
 }
 SRC
     fi
+    if [ ! -f packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java ]; then
+      mkdir -p packages/apps/Settings/src/com/android/settings/accessibility
+      cat > packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java <<'SRC'
+
+import android.app.settings.SettingsEnums;
+import android.content.Context;
+import android.util.FeatureFlagUtils;
+
+import androidx.annotation.VisibleForTesting;
+
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(R.xml.accessibility_audio_routing_fragment) {
+                @Override
+                protected boolean isPageSearchEnabled(Context context) {
+                    if (Flags.fixA11ySettingsSearch()) {
+                        return AccessibilityAudioRoutingFragment.isPageSearchEnabled(context);
+                    } else {
+                        return super.isPageSearchEnabled(context);
+                    }
+                }
+            };
+}
+SRC
+    fi
+    if [ ! -f packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java ]; then
+      mkdir -p packages/apps/Settings/src/com/android/settings/accessibility
+      cat > packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java <<'SRC'
+import android.app.settings.SettingsEnums;
+import android.content.ComponentName;
+import android.content.Context;
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+
+import androidx.annotation.VisibleForTesting;
+import androidx.preference.PreferenceCategory;
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(R.xml.accessibility_hearing_aids) {
+                @Override
+                protected boolean isPageSearchEnabled(Context context) {
+                    if (Flags.fixA11ySettingsSearch()) {
+                        return AccessibilityHearingAidsFragment.isPageSearchEnabled(context);
+                    } else {
+                        return super.isPageSearchEnabled(context);
+                    }
+                }
+            };
+}
+SRC
+    fi
     if [ ! -f packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java ]; then
       mkdir -p packages/apps/Settings/src/com/android/settings/network
       cat > packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java <<'SRC'
@@ -2933,6 +2984,10 @@ grep -Fq 'ROYD: not starting host-global GPU work tracing' \
 [ "$(grep -c 'if (shouldSkipRoydGpuMemoryTracing())' "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp")" -eq 2 ]
 grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
+grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java"
+grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
+  "$tmp/src/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityHearingAidsFragment.java"
 grep -Fq 'keys.add(PREF_KEY_CONFIGURE_NETWORK_SETTINGS);' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/network/NetworkProviderSettings.java"
 grep -Fq 'PackageManager.FEATURE_BACKUP)) {' \

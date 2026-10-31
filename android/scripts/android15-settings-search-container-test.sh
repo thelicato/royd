@@ -2,12 +2,12 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 patch="$root/android/patches/android-15.0.0_r36/0076-settings-respect-search-capabilities.patch"
-# Only imports and two early capability branches may change stock providers.
+# Only imports and early capability branches may change stock providers.
 [ "$(grep -c '^diff --git ' "$patch")" -eq 2 ]
 ! grep -Eq '^-[^-]|^\+.*(catch |Log\.|ServiceManager|SystemProperties)' "$patch"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-python3 - "$patch" "$tmp" <<'PY'
+python3 - "$patch" "$tmp" "$root/android/patches/android-15.0.0_r36/0077-settings-skip-unsupported-hearing-aid-search.patch" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]).read_text()
@@ -17,13 +17,22 @@ for section in p.split('diff --git ')[1:]:
     blocks.append('\n'.join(additions))
 assert len(blocks)==2
 wifi,backup=blocks
+hearing_patch=Path(sys.argv[3]).read_text()
+assert hearing_patch.count('diff --git ')==2
+assert not any(line.startswith('-') and not line.startswith('---') for line in hearing_patch.splitlines())
+assert 'if (Flags.fixA11ySettingsSearch()) {' in hearing_patch
+hearing_blocks=['\n'.join(line[1:] for line in section.splitlines() if line.startswith('+') and not line.startswith('+++') and not line.startswith('+import ')) for section in hearing_patch.split('diff --git ')[1:]]
+assert hearing_blocks[0]==hearing_blocks[1]
+hearing=hearing_blocks[0]
+assert 'return false;' in hearing and 'FEATURE_BLUETOOTH_LE' in hearing
+assert not any(word in hearing for word in ['catch ', 'Log.', 'ServiceManager', 'SystemProperties'])
 assert wifi.count('keys.add(')==5 and 'return keys;' in wifi
 assert 'return false;' in backup
 header='''import java.util.*;
 class SearchCapabilityTest {
     static String marker;
     static boolean selinux, failLookup, manufacturer, transport;
-    static int wifiLookups, backupLookups;
+    static int wifiLookups, backupLookups, hearingLookups;
     static final String PREF_KEY_WIFI_TOGGLE="main_toggle_wifi",
         PREF_KEY_SAVED_NETWORKS="saved_networks", PREF_KEY_ADD_WIFI_NETWORK="add_wifi_network",
         PREF_KEY_CONFIGURE_NETWORK_SETTINGS="configure_network_settings",
@@ -33,10 +42,11 @@ class SearchCapabilityTest {
     }}
     static class SELinux { static boolean isSELinuxEnabled(){return selinux;} }
     static class PackageManager {
-        static final String FEATURE_WIFI="wifi", FEATURE_BACKUP="backup";
+        static final String FEATURE_WIFI="wifi", FEATURE_BACKUP="backup",
+            FEATURE_BLUETOOTH="bt", FEATURE_BLUETOOTH_LE="le";
         int features;
         boolean hasSystemFeature(String feature) {
-            return (features & (feature.equals(FEATURE_WIFI)?1:2))!=0;
+            return (features & (feature.equals(FEATURE_WIFI)?1:feature.equals(FEATURE_BACKUP)?2:feature.equals(FEATURE_BLUETOOTH)?4:8))!=0;
         }
     }
     static class Context {
@@ -59,12 +69,21 @@ end='''
         if(failLookup)throw new IllegalStateException("stock backup lookup failure");
         return !manufacturer && !transport;
     }
+'''
+hearing_end='''
+        if (flag) {
+            hearingLookups++;
+            if(failLookup)throw new IllegalStateException("stock hearing helper failure");
+            return supported;
+        }
+        return superEnabled;
+    }
     public static void main(String[] args) {
         for(String value:new String[]{null,"","0","true","1"}) {
             marker=value;
             for(boolean enabled:new boolean[]{false,true}) {
                 selinux=enabled;
-                for(int features=0;features<4;features++) {
+                for(int features=0;features<16;features++) {
                     Context c=new Context();c.pm.features=features;
                     boolean gated="1".equals(value)&&!enabled;
                     boolean skipWifi=gated&&(features&1)==0, skipBackup=gated&&(features&2)==0;
@@ -78,6 +97,15 @@ end='''
                             check(new HashSet<>(keys).equals(expected)&&keys.size()==expected.size());
                         } catch(IllegalStateException e){check(failure&&!skipWifi);}
                         check(wifiLookups==(skipWifi?0:1));
+                        boolean skipHearing=gated&&(features&12)==0;
+                        for(boolean flag:new boolean[]{false,true})for(boolean supported:new boolean[]{false,true})for(boolean superEnabled:new boolean[]{false,true}) {
+                            hearingLookups=0;
+                            try {
+                                check(hearing(c,flag,supported,superEnabled)==(!skipHearing&&(flag?supported:superEnabled)));
+                                check(!failure||skipHearing||!flag);
+                            } catch(IllegalStateException e){check(failure&&!skipHearing&&flag);}
+                            check(hearingLookups==(!skipHearing&&flag?1:0));
+                        }
                         for(boolean m:new boolean[]{false,true})for(boolean t:new boolean[]{false,true}) {
                             manufacturer=m;transport=t;backupLookups=0;
                             try {check(backup(c)==(!skipBackup&&!m&&!t));check(!failure||skipBackup);}
@@ -91,7 +119,7 @@ end='''
     }
 }
 '''
-Path(sys.argv[2],'SearchCapabilityTest.java').write_text(header+wifi+mid+backup+end)
+Path(sys.argv[2],'SearchCapabilityTest.java').write_text(header+wifi+mid+backup+end+"    static boolean hearing(Context context, boolean flag, boolean supported, boolean superEnabled) {\n"+hearing+hearing_end)
 PY
 if [ -n "${ROYD_TEST_JAVA_HOME:-}" ]; then
   "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/SearchCapabilityTest.java"
