@@ -1,0 +1,846 @@
+diff --git a/packages/apps/Settings/src/com/android/settings/Utils.java b/packages/apps/Settings/src/com/android/settings/Utils.java
+--- a/packages/apps/Settings/src/com/android/settings/Utils.java
++++ b/packages/apps/Settings/src/com/android/settings/Utils.java
+@@ -133,24 +133,39 @@
+
+ import java.util.Arrays;
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Locale;
+ import java.util.Objects;
+ import java.util.Set;
+
+ public final class Utils extends com.android.settingslib.Utils {
+
+     private static final String TAG = "Settings";
+
++    /** Whether this container product declares none of the supplied hardware features. */
++    public static boolean isRoydHardwareUnavailable(Context context, String... features) {
++        if (context == null || features.length == 0
++                || !"1".equals(System.getenv("ROYD_CONTAINER"))
++                || android.os.SELinux.isSELinuxEnabled()) {
++            return false;
++        }
++        for (String feature : features) {
++            if (context.getPackageManager().hasSystemFeature(feature)) {
++                return false;
++            }
++        }
++        return true;
++    }
++
+     public static final String FILE_PROVIDER_AUTHORITY = "com.android.settings.files";
+
+     /**
+      * Set the preference's title to the matching activity's label.
+      */
+     public static final int UPDATE_PREFERENCE_FLAG_SET_TITLE_TO_MATCHING_ACTIVITY = 1;
+
+     public static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
+
+     public static final String SYSTEMUI_PACKAGE_NAME = "com.android.systemui";
+
+     public static final String PHONE_PACKAGE_NAME = "com.android.phone";
+diff --git a/packages/apps/Settings/src/com/android/settings/connecteddevice/usb/UsbDetailsFragment.java b/packages/apps/Settings/src/com/android/settings/connecteddevice/usb/UsbDetailsFragment.java
+--- a/packages/apps/Settings/src/com/android/settings/connecteddevice/usb/UsbDetailsFragment.java
++++ b/packages/apps/Settings/src/com/android/settings/connecteddevice/usb/UsbDetailsFragment.java
+@@ -11,24 +11,26 @@
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+ package com.android.settings.connecteddevice.usb;
+
+ import static com.android.settingslib.RestrictedLockUtilsInternal.checkIfUsbDataSignalingIsDisabled;
+
+ import android.app.settings.SettingsEnums;
+ import android.content.Context;
++import android.content.pm.PackageManager;
++import android.os.Build;
+ import android.os.Bundle;
+ import android.os.UserHandle;
+ import android.view.View;
+
+ import androidx.annotation.VisibleForTesting;
+
+ import com.android.settings.R;
+ import com.android.settings.Utils;
+ import com.android.settings.dashboard.DashboardFragment;
+ import com.android.settings.search.BaseSearchIndexProvider;
+ import com.android.settingslib.core.AbstractPreferenceController;
+ import com.android.settingslib.search.SearchIndexable;
+@@ -112,24 +114,32 @@
+         ret.add(new UsbDetailsPowerRoleController(context, fragment, usbBackend));
+         ret.add(new UsbDetailsTranscodeMtpController(context, fragment, usbBackend));
+         return ret;
+     }
+
+     /**
+      * For Search.
+      */
+     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+             new BaseSearchIndexProvider(R.xml.usb_details_fragment) {
+                 @Override
+                 protected boolean isPageSearchEnabled(Context context) {
++                    if (!Build.IS_EMULATOR && Utils.isRoydHardwareUnavailable(context,
++                            PackageManager.FEATURE_USB_HOST, PackageManager.FEATURE_USB_ACCESSORY)) {
++                        return false;
++                    }
+                     return checkIfUsbDataSignalingIsDisabled(
+                             context, UserHandle.myUserId()) == null;
+                 }
+
+                 @Override
+                 public List<AbstractPreferenceController> createPreferenceControllers(
+                         Context context) {
++                    if (!Build.IS_EMULATOR && Utils.isRoydHardwareUnavailable(context,
++                            PackageManager.FEATURE_USB_HOST, PackageManager.FEATURE_USB_ACCESSORY)) {
++                        return new ArrayList<>();
++                    }
+                     return new ArrayList<>(
+                             createControllerList(context, new UsbBackend(context), null));
+                 }
+             };
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/development/WifiScanThrottlingPreferenceController.java b/packages/apps/Settings/src/com/android/settings/development/WifiScanThrottlingPreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/development/WifiScanThrottlingPreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/development/WifiScanThrottlingPreferenceController.java
+@@ -8,55 +8,73 @@
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+ package com.android.settings.development;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+
+ import androidx.preference.Preference;
+ import androidx.preference.TwoStatePreference;
+
++import com.android.settings.Utils;
+ import com.android.settings.core.PreferenceControllerMixin;
+ import com.android.settingslib.development.DeveloperOptionsPreferenceController;
+
+ public class WifiScanThrottlingPreferenceController extends DeveloperOptionsPreferenceController
+         implements Preference.OnPreferenceChangeListener, PreferenceControllerMixin {
+     private static final String WIFI_SCAN_THROTTLING_KEY = "wifi_scan_throttling";
+
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+
+     public WifiScanThrottlingPreferenceController(Context context) {
+         super(context);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null : context.getSystemService(WifiManager.class);
++    }
++
++    @Override
++    public boolean isAvailable() {
++        return !mWifiUnavailable && super.isAvailable();
+     }
+
+     @Override
+     public String getPreferenceKey() {
+         return WIFI_SCAN_THROTTLING_KEY;
+     }
+
+     @Override
+     public boolean onPreferenceChange(Preference preference, Object newValue) {
++        if (mWifiUnavailable) {
++            return false;
++        }
+         final boolean isEnabled = (Boolean) newValue;
+         mWifiManager.setScanThrottleEnabled(isEnabled);
+         return true;
+     }
+
+     @Override
+     public void updateState(Preference preference) {
++        if (mWifiUnavailable) {
++            return;
++        }
+         ((TwoStatePreference) mPreference).setChecked(mWifiManager.isScanThrottleEnabled());
+     }
+
+     @Override
+     protected void onDeveloperOptionsSwitchDisabled() {
+         super.onDeveloperOptionsSwitchDisabled();
++        if (mWifiUnavailable) {
++            return;
++        }
+         mWifiManager.setScanThrottleEnabled(true);
+         ((TwoStatePreference) mPreference).setChecked(true);
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/development/WifiVerboseLoggingPreferenceController.java b/packages/apps/Settings/src/com/android/settings/development/WifiVerboseLoggingPreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/development/WifiVerboseLoggingPreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/development/WifiVerboseLoggingPreferenceController.java
+@@ -8,65 +8,84 @@
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+ package com.android.settings.development;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+
+ import androidx.annotation.VisibleForTesting;
+ import androidx.preference.Preference;
+ import androidx.preference.TwoStatePreference;
+
++import com.android.settings.Utils;
+ import com.android.settings.core.PreferenceControllerMixin;
+ import com.android.settingslib.development.DeveloperOptionsPreferenceController;
+
+ public class WifiVerboseLoggingPreferenceController extends DeveloperOptionsPreferenceController
+         implements Preference.OnPreferenceChangeListener, PreferenceControllerMixin {
+
+     private static final String WIFI_VERBOSE_LOGGING_KEY = "wifi_verbose_logging";
+
+     @VisibleForTesting
+     static final int SETTING_VALUE_ON = 1;
+     @VisibleForTesting
+     static final int SETTING_VALUE_OFF = 0;
+
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+
+     public WifiVerboseLoggingPreferenceController(Context context) {
+         super(context);
+
+-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null
++                : (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
++    }
++
++    @Override
++    public boolean isAvailable() {
++        return !mWifiUnavailable && super.isAvailable();
+     }
+
+     @Override
+     public String getPreferenceKey() {
+         return WIFI_VERBOSE_LOGGING_KEY;
+     }
+
+     @Override
+     public boolean onPreferenceChange(Preference preference, Object newValue) {
++        if (mWifiUnavailable) {
++            return false;
++        }
+         final boolean isEnabled = (Boolean) newValue;
+         mWifiManager.setVerboseLoggingEnabled(isEnabled);
+         return true;
+     }
+
+     @Override
+     public void updateState(Preference preference) {
++        if (mWifiUnavailable) {
++            return;
++        }
+         final boolean enabled = mWifiManager.isVerboseLoggingEnabled();
+         ((TwoStatePreference) mPreference).setChecked(enabled);
+
+     }
+
+     @Override
+     protected void onDeveloperOptionsSwitchDisabled() {
+         super.onDeveloperOptionsSwitchDisabled();
++        if (mWifiUnavailable) {
++            return;
++        }
+         mWifiManager.setVerboseLoggingEnabled(false);
+         ((TwoStatePreference) mPreference).setChecked(false);
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/location/LocationServicesWifiScanningPreferenceController.java b/packages/apps/Settings/src/com/android/settings/location/LocationServicesWifiScanningPreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/location/LocationServicesWifiScanningPreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/location/LocationServicesWifiScanningPreferenceController.java
+@@ -7,55 +7,65 @@
+  *
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+ package com.android.settings.location;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+ import android.os.UserManager;
+
+ import androidx.preference.Preference;
+
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ import com.android.settings.core.BasePreferenceController;
+ import com.android.settingslib.RestrictedPreference;
+
+ /**
+  * Preference controller for Wi-Fi scanning in Location Services.
+  */
+ public class LocationServicesWifiScanningPreferenceController extends BasePreferenceController {
+
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+
+     public LocationServicesWifiScanningPreferenceController(Context context, String key) {
+         super(context, key);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null : context.getSystemService(WifiManager.class);
+     }
+
+     @Override
+     public void updateState(Preference preference) {
+         ((RestrictedPreference) preference).checkRestrictionAndSetDisabled(
+                 UserManager.DISALLOW_CONFIG_LOCATION);
+         refreshSummary(preference);
+     }
+
+     @Override
+     public CharSequence getSummary() {
++        if (mWifiUnavailable) {
++            return null;
++        }
+         final boolean wifiScanOn = mWifiManager.isScanAlwaysAvailable();
+         int resId =
+                 wifiScanOn ? R.string.scanning_status_text_on : R.string.scanning_status_text_off;
+         return mContext.getString(resId);
+     }
+
+     @AvailabilityStatus
+     public int getAvailabilityStatus() {
++        if (mWifiUnavailable) {
++            return UNSUPPORTED_ON_DEVICE;
++        }
+         return mContext.getResources().getBoolean(R.bool.config_show_location_scanning)
+                 ? AVAILABLE
+                 : UNSUPPORTED_ON_DEVICE;
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/location/WifiScanningMainSwitchPreferenceController.java b/packages/apps/Settings/src/com/android/settings/location/WifiScanningMainSwitchPreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/location/WifiScanningMainSwitchPreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/location/WifiScanningMainSwitchPreferenceController.java
+@@ -7,81 +7,97 @@
+  *
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+ package com.android.settings.location;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+ import android.os.UserManager;
+ import android.widget.CompoundButton;
+ import android.widget.CompoundButton.OnCheckedChangeListener;
+
+ import androidx.preference.PreferenceScreen;
+
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ import com.android.settings.core.TogglePreferenceController;
+ import com.android.settingslib.widget.MainSwitchPreference;
+
+ /**
+  * Preference controller for Wi-Fi scanning main switch.
+  */
+ public class WifiScanningMainSwitchPreferenceController extends TogglePreferenceController
+         implements OnCheckedChangeListener {
+
+     private static final String KEY_WIFI_SCANNING_SWITCH = "wifi_always_scanning_switch";
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+     private final UserManager mUserManager;
+
+     public WifiScanningMainSwitchPreferenceController(Context context) {
+         super(context, KEY_WIFI_SCANNING_SWITCH);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null : context.getSystemService(WifiManager.class);
+         mUserManager = UserManager.get(context);
+     }
+
+     @Override
+     public void displayPreference(PreferenceScreen screen) {
+         super.displayPreference(screen);
++        if (mWifiUnavailable) {
++            return;
++        }
+
+         MainSwitchPreference pref = screen.findPreference(getPreferenceKey());
+         pref.addOnSwitchChangeListener(this);
+         pref.updateStatus(isChecked());
+     }
+
+     @Override
+     public int getAvailabilityStatus() {
++        if (mWifiUnavailable) {
++            return UNSUPPORTED_ON_DEVICE;
++        }
+         return mContext.getResources().getBoolean(R.bool.config_show_location_scanning)
+                 ? (mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_LOCATION)
+                        ? DISABLED_DEPENDENT_SETTING
+                        : AVAILABLE)
+                 : UNSUPPORTED_ON_DEVICE;
+     }
+
+     @Override
+     public boolean isChecked() {
+-        return mWifiManager.isScanAlwaysAvailable();
++        return !mWifiUnavailable && mWifiManager.isScanAlwaysAvailable();
+     }
+
+     @Override
+     public boolean setChecked(boolean isChecked) {
++        if (mWifiUnavailable) {
++            return false;
++        }
+         mWifiManager.setScanAlwaysAvailable(isChecked);
+         // Returning true means the underlying setting is updated.
+         return true;
+     }
+
+     @Override
+     public int getSliceHighlightMenuRes() {
+         return R.string.menu_key_location;
+     }
+
+     @Override
+     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
++        if (mWifiUnavailable) {
++            return;
++        }
+         if (isChecked != isChecked()) {
+             setChecked(isChecked);
+         }
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/location/WifiScanningPreferenceController.java b/packages/apps/Settings/src/com/android/settings/location/WifiScanningPreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/location/WifiScanningPreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/location/WifiScanningPreferenceController.java
+@@ -5,55 +5,65 @@
+  * except in compliance with the License. You may obtain a copy of the License at
+  *
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software distributed under the
+  * License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  * KIND, either express or implied. See the License for the specific language governing
+  * permissions and limitations under the License.
+  */
+ package com.android.settings.location;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+
+ import androidx.preference.Preference;
+ import androidx.preference.TwoStatePreference;
+
++import com.android.settings.Utils;
+ import com.android.settings.core.PreferenceControllerMixin;
+ import com.android.settingslib.core.AbstractPreferenceController;
+
+ public class WifiScanningPreferenceController extends AbstractPreferenceController
+         implements PreferenceControllerMixin {
+
+     private static final String KEY_WIFI_SCAN_ALWAYS_AVAILABLE = "wifi_always_scanning";
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+
+     public WifiScanningPreferenceController(Context context) {
+         super(context);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null : context.getSystemService(WifiManager.class);
+     }
+
+     @Override
+     public boolean isAvailable() {
+-        return true;
++        return !mWifiUnavailable;
+     }
+
+     @Override
+     public String getPreferenceKey() {
+         return KEY_WIFI_SCAN_ALWAYS_AVAILABLE;
+     }
+
+     @Override
+     public void updateState(Preference preference) {
++        if (mWifiUnavailable) {
++            return;
++        }
+         ((TwoStatePreference) preference).setChecked(mWifiManager.isScanAlwaysAvailable());
+     }
+
+     @Override
+     public boolean handlePreferenceTreeClick(Preference preference) {
++        if (mWifiUnavailable) {
++            return false;
++        }
+         if (KEY_WIFI_SCAN_ALWAYS_AVAILABLE.equals(preference.getKey())) {
+             mWifiManager.setScanAlwaysAvailable(((TwoStatePreference) preference).isChecked());
+             return true;
+         }
+         return false;
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/network/AdaptiveConnectivityTogglePreferenceController.java b/packages/apps/Settings/src/com/android/settings/network/AdaptiveConnectivityTogglePreferenceController.java
+--- a/packages/apps/Settings/src/com/android/settings/network/AdaptiveConnectivityTogglePreferenceController.java
++++ b/packages/apps/Settings/src/com/android/settings/network/AdaptiveConnectivityTogglePreferenceController.java
+@@ -8,65 +8,72 @@
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+ package com.android.settings.network;
+
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.net.wifi.WifiManager;
+ import android.provider.Settings;
+
+ import androidx.preference.PreferenceScreen;
+
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ import com.android.settings.widget.SettingsMainSwitchPreferenceController;
+
+ /**
+  * {@link SettingsMainSwitchPreferenceController}
+  * that controls whether Adaptive connectivity option is enabled.
+  */
+ // LINT.IfChange
+ public class AdaptiveConnectivityTogglePreferenceController extends
+         SettingsMainSwitchPreferenceController {
+
+     private final WifiManager mWifiManager;
++    private final boolean mWifiUnavailable;
+
+     public AdaptiveConnectivityTogglePreferenceController(Context context, String preferenceKey) {
+         super(context, preferenceKey);
+-        mWifiManager = context.getSystemService(WifiManager.class);
++        mWifiUnavailable = Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI);
++        mWifiManager = mWifiUnavailable ? null : context.getSystemService(WifiManager.class);
+     }
+
+     @Override
+     public void displayPreference(PreferenceScreen screen) {
+         super.displayPreference(screen);
+     }
+
+     @Override
+     public int getAvailabilityStatus() {
+-        return AVAILABLE;
++        return mWifiUnavailable ? UNSUPPORTED_ON_DEVICE : AVAILABLE;
+     }
+
+     @Override
+     public boolean isChecked() {
+         return Settings.Secure.getInt(mContext.getContentResolver(),
+                 Settings.Secure.ADAPTIVE_CONNECTIVITY_ENABLED, 1) == 1;
+     }
+
+     @Override
+     public boolean setChecked(boolean isChecked) {
++        if (mWifiUnavailable) {
++            return false;
++        }
+         Settings.Secure.putInt(mContext.getContentResolver(),
+                 Settings.Secure.ADAPTIVE_CONNECTIVITY_ENABLED,
+                 isChecked ? 1 : 0);
+         mWifiManager.setWifiScoringEnabled(isChecked);
+         return true;
+     }
+
+     @Override
+     public int getSliceHighlightMenuRes() {
+         return R.string.menu_key_network;
+     }
+ }
+diff --git a/packages/apps/Settings/src/com/android/settings/network/tether/TetherSettings.java b/packages/apps/Settings/src/com/android/settings/network/tether/TetherSettings.java
+--- a/packages/apps/Settings/src/com/android/settings/network/tether/TetherSettings.java
++++ b/packages/apps/Settings/src/com/android/settings/network/tether/TetherSettings.java
+@@ -21,24 +21,25 @@
+ import static android.net.TetheringManager.TETHERING_ETHERNET;
+
+ import static com.android.settings.wifi.WifiUtils.canShowWifiHotspot;
+ import static com.android.settingslib.RestrictedLockUtilsInternal.checkIfUsbDataSignalingIsDisabled;
+
+ import android.app.Activity;
+ import android.app.settings.SettingsEnums;
+ import android.bluetooth.BluetoothAdapter;
+ import android.bluetooth.BluetoothPan;
+ import android.bluetooth.BluetoothProfile;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.hardware.usb.UsbManager;
+ import android.net.ConnectivityManager;
+ import android.net.EthernetManager;
+ import android.net.IpConfiguration;
+ import android.net.TetheringManager;
+ import android.net.wifi.WifiManager;
+ import android.os.Bundle;
+ import android.os.Environment;
+ import android.os.Handler;
+ import android.os.UserHandle;
+@@ -669,25 +670,27 @@
+                             tm.getTetherableUsbRegexs().length != 0;
+                     if (!usbAvailable || Utils.isMonkeyRunning()) {
+                         keys.add(KEY_USB_TETHER_SETTINGS);
+                     }
+
+                     final boolean bluetoothAvailable =
+                             tm.getTetherableBluetoothRegexs().length != 0;
+                     if (!bluetoothAvailable) {
+                         keys.add(KEY_ENABLE_BLUETOOTH_TETHERING);
+                     }
+
+                     final EthernetManager em =
+-                            context.getSystemService(EthernetManager.class);
++                            Utils.isRoydHardwareUnavailable(context,
++                                    PackageManager.FEATURE_ETHERNET, PackageManager.FEATURE_USB_HOST)
++                                    ? null : context.getSystemService(EthernetManager.class);
+                     final boolean ethernetAvailable = (em != null);
+                     if (!ethernetAvailable) {
+                         keys.add(KEY_ENABLE_ETHERNET_TETHERING);
+                     }
+                     return keys;
+                 }
+     };
+
+     private static final class OnStartTetheringCallback extends
+             ConnectivityManager.OnStartTetheringCallback {
+         final WeakReference<TetherSettings> mTetherSettings;
+
+diff --git a/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java b/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
+--- a/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
++++ b/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
+@@ -9,38 +9,40 @@
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+ package com.android.settings.wifi;
+
+ import android.app.settings.SettingsEnums;
+ import android.content.ComponentName;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.content.Intent;
+ import android.net.wifi.WifiManager;
+ import android.os.Bundle;
+ import android.os.UserManager;
+ import android.util.EventLog;
+ import android.util.Log;
+ import android.view.View;
+ import android.widget.TextView;
+
+ import androidx.annotation.Nullable;
+ import androidx.annotation.VisibleForTesting;
+ import androidx.preference.Preference;
+
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ import com.android.settings.dashboard.DashboardFragment;
+ import com.android.settings.search.BaseSearchIndexProvider;
+ import com.android.settings.wifi.p2p.WifiP2pPreferenceController;
+ import com.android.settingslib.core.AbstractPreferenceController;
+ import com.android.settingslib.search.SearchIndexable;
+
+ import java.util.ArrayList;
+ import java.util.List;
+
+ @SearchIndexable
+ public class ConfigureWifiSettings extends DashboardFragment {
+
+@@ -135,25 +137,36 @@
+
+     @Override
+     public void onActivityResult(int requestCode, int resultCode, Intent data) {
+         if (mWifiWakeupPreferenceController != null && requestCode == WIFI_WAKEUP_REQUEST_CODE) {
+             mWifiWakeupPreferenceController.onActivityResult(requestCode, resultCode);
+             return;
+         }
+         super.onActivityResult(requestCode, resultCode, data);
+     }
+
+     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+             new BaseSearchIndexProvider(R.xml.wifi_configure_settings) {
++                @Override
++                public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
++                    if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
++                        return new ArrayList<>();
++                    }
++                    return super.createPreferenceControllers(context);
++                }
++
+                 protected boolean isPageSearchEnabled(Context context) {
++                    if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
++                        return false;
++                    }
+                     if (isGuestUser(context)) return false;
+                     return context.getResources()
+                             .getBoolean(R.bool.config_show_wifi_settings);
+                 }
+             };
+
+     private static boolean isGuestUser(Context context) {
+         if (context == null) return false;
+         final UserManager userManager = context.getSystemService(UserManager.class);
+         if (userManager == null) return false;
+         return userManager.isGuestUser();
+     }
+diff --git a/packages/apps/Settings/src/com/android/settings/wifi/tether/WifiTetherSettings.java b/packages/apps/Settings/src/com/android/settings/wifi/tether/WifiTetherSettings.java
+--- a/packages/apps/Settings/src/com/android/settings/wifi/tether/WifiTetherSettings.java
++++ b/packages/apps/Settings/src/com/android/settings/wifi/tether/WifiTetherSettings.java
+@@ -16,36 +16,38 @@
+
+ package com.android.settings.wifi.tether;
+
+ import static android.net.wifi.WifiManager.WIFI_AP_STATE_CHANGED_ACTION;
+ import static android.view.View.INVISIBLE;
+ import static android.view.View.VISIBLE;
+
+ import static com.android.settings.wifi.WifiUtils.canShowWifiHotspot;
+
+ import android.app.settings.SettingsEnums;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.net.wifi.SoftApConfiguration;
+ import android.os.Bundle;
+ import android.os.UserManager;
+ import android.util.Log;
+
+ import androidx.annotation.Nullable;
+ import androidx.annotation.VisibleForTesting;
+ import androidx.preference.Preference;
+
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ import com.android.settings.SettingsActivity;
+ import com.android.settings.dashboard.RestrictedDashboardFragment;
+ import com.android.settings.overlay.FeatureFactory;
+ import com.android.settings.search.BaseSearchIndexProvider;
+ import com.android.settings.widget.SettingsMainSwitchBar;
+ import com.android.settings.wifi.WifiUtils;
+ import com.android.settings.wifi.repository.SharedConnectivityRepository;
+ import com.android.settingslib.TetherUtil;
+ import com.android.settingslib.core.AbstractPreferenceController;
+ import com.android.settingslib.search.SearchIndexable;
+ import com.android.settingslib.wifi.WifiEnterpriseRestrictionUtils;
+
+@@ -357,24 +359,28 @@
+
+         @VisibleForTesting
+         SearchIndexProvider(int xmlRes, WifiRestriction wifiRestriction,
+                 boolean isInstantHotspotEnabled) {
+             super(xmlRes);
+             mWifiRestriction = wifiRestriction;
+             mIsInstantHotspotEnabled = isInstantHotspotEnabled;
+         }
+
+         @Override
+         public List<String> getNonIndexableKeys(Context context) {
+             final List<String> keys = super.getNonIndexableKeys(context);
++            if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
++                keys.add(KEY_WIFI_TETHER_SCREEN);
++                return keys;
++            }
+
+             if (!mWifiRestriction.isTetherAvailable(context)
+                     || !mWifiRestriction.isHotspotAvailable(context)) {
+                 keys.add(KEY_WIFI_TETHER_NETWORK_NAME);
+                 keys.add(KEY_WIFI_TETHER_SECURITY);
+                 keys.add(KEY_WIFI_HOTSPOT_SECURITY);
+                 keys.add(KEY_WIFI_TETHER_NETWORK_PASSWORD);
+                 keys.add(KEY_WIFI_TETHER_AUTO_OFF);
+                 keys.add(KEY_WIFI_TETHER_MAXIMIZE_COMPATIBILITY);
+                 keys.add(KEY_WIFI_HOTSPOT_SPEED);
+                 keys.add(KEY_INSTANT_HOTSPOT);
+             } else {
+@@ -385,36 +391,40 @@
+                 if (!mIsInstantHotspotEnabled) {
+                     keys.add(KEY_INSTANT_HOTSPOT);
+                 }
+             }
+
+             // Remove duplicate
+             keys.add(KEY_WIFI_TETHER_SCREEN);
+             return keys;
+         }
+
+         @Override
+         protected boolean isPageSearchEnabled(Context context) {
++            if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) return false;
+             if (context == null) {
+                 return false;
+             }
+             UserManager userManager = context.getSystemService(UserManager.class);
+             if (userManager == null || !userManager.isAdminUser()) {
+                 return false;
+             }
+             return WifiUtils.canShowWifiHotspot(context);
+         }
+
+         @Override
+         public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
++            if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
++                return new ArrayList<>();
++            }
+             return buildPreferenceControllers(context, null /* listener */);
+         }
+
+         @VisibleForTesting
+         boolean isSpeedFeatureAvailable() {
+             return FeatureFactory.getFeatureFactory().getWifiFeatureProvider()
+                     .getWifiHotspotRepository().isSpeedFeatureAvailable();
+         }
+     }
+
+     @VisibleForTesting
+     static class WifiRestriction {

@@ -70,6 +70,7 @@ run ./android/scripts/android15-framework-readiness-container-test.sh
 run ./android/scripts/android15-settings-hardware-container-test.sh
 run ./android/scripts/android15-settings-emergency-test.sh
 run ./android/scripts/android15-settings-search-container-test.sh
+run ./android/scripts/android15-settings-service-container-test.sh
 run ./android/scripts/android15-networkmonitor-wifi-container-test.sh
 run ./android/scripts/android15-netpolicy-wifi-container-test.sh
 run ./android/scripts/android15-metered-deny-container-test.sh

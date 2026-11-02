@@ -27,10 +27,14 @@ root = Path(sys.argv[1])
 settings = root / 'android/royd/device/royd/overlay/android15/packages/apps/Settings/res'
 config = ET.parse(settings / 'values/config.xml').getroot()
 assert config.tag == 'resources'
-assert len(config) == 1
-flag = config[0]
-assert flag.tag == 'bool' and flag.attrib == {'name': 'config_show_emergency_gesture_settings'}
-assert (flag.text or '').strip() == 'false'
+assert len(config) == 4
+assert {flag.attrib.get('name') for flag in config} == {
+    'config_show_emergency_gesture_settings', 'config_show_wifi_settings',
+    'config_show_wifi_hotspot_settings', 'config_show_location_scanning',
+}
+for flag in config:
+    assert flag.tag == 'bool' and set(flag.attrib) == {'name'}
+    assert (flag.text or '').strip() == 'false'
 
 # A false availability flag alone is insufficient: DashboardFragment calls
 # displayPreference even on unavailable controllers during a forced page load.
