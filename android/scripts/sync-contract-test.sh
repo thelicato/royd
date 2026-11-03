@@ -21,6 +21,8 @@ case "$1" in
     # Its executable contracts also run on the resulting applied Java methods.
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0078-settings-respect-optional-service-availability.patch"
+    python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0080-settings-respect-hearing-aid-controller-availability.patch"
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
@@ -2990,6 +2992,8 @@ grep -Fq 'ROYD: not starting host-global GPU memory tracing' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
 ROYD_ANDROID15_SETTINGS_SERVICE_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-settings-service-container-test.sh"
+ROYD_ANDROID15_SETTINGS_HEARING_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-settings-hearing-aid-container-test.sh"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
