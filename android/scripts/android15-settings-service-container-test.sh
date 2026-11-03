@@ -13,6 +13,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(root / 'android/tests/fixtures/android15'))
 from SettingsSearchPatchFixture import method, sources
 source = sources(patch, after=True)
+combined_patch = root / 'android/patches/android-15.0.0_r36/0079-settings-gate-combined-wifi-search-controllers.patch'
+source.update(sources(combined_patch, after=True))
 if sys.argv[4]:
     source = {name: (Path(sys.argv[4]) / name).read_text() for name in source}
 assert len(source) == 11
@@ -120,6 +122,20 @@ body+='''
 }
 '''
 (out/'HardwareServicesTest.java').write_text(body)
+
+# Use the actual pinned base assembly to witness the old XML-construction bug.
+fixture = root / 'android/tests/fixtures/android15'
+base_method = method((fixture / 'SettingsBaseSearchControllers.java').read_text(), 'getPreferenceControllers')
+combined_method = method(source[prefix+'wifi/ConfigureWifiSettings.java'], 'getPreferenceControllers')
+combined = (fixture / 'SettingsSearchCombinedContract.java').read_text()
+for marker, implementation in {
+    '// INSERT_ACTUAL_HELPER': helper,
+    '// INSERT_ACTUAL_BASE_ASSEMBLY': base_method,
+    '// INSERT_ACTUAL_COMBINED_OVERRIDE': combined_method,
+}.items():
+    assert combined.count(marker) == 1
+    combined = combined.replace(marker, implementation)
+(out/'CombinedSearchControllersTest.java').write_text(combined)
 # Search builders omit only unavailable backends; inherited XML keys and stock
 # supported-hardware calls must remain, rather than swallowing provider errors.
 usb=source[prefix+'connecteddevice/usb/UsbDetailsFragment.java']
@@ -132,11 +148,12 @@ assert 'keys.add(KEY_WIFI_TETHER_SCREEN);' in hotspot
 assert 'return buildPreferenceControllers(context, null /* listener */);' in hotspot
 configure=source[prefix+'wifi/ConfigureWifiSettings.java']
 assert configure.count('Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)')==2
-assert 'return super.createPreferenceControllers(context);' in configure
+assert 'return super.getPreferenceControllers(context);' in configure
 assert 'PackageManager.FEATURE_ETHERNET, PackageManager.FEATURE_USB_HOST)' in source[prefix+'network/tether/TetherSettings.java']
 PY
 if [ -n "${ROYD_TEST_JAVA_HOME:-}" ]; then
-  "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/HardwareServicesTest.java"
+  "$ROYD_TEST_JAVA_HOME/bin/javac" -d "$tmp" "$tmp/HardwareServicesTest.java" "$tmp/CombinedSearchControllersTest.java"
   "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" HardwareServicesTest
+  "$ROYD_TEST_JAVA_HOME/bin/java" -cp "$tmp" CombinedSearchControllersTest
 fi
 printf '%s\n' 'Android 15 Settings optional-service contracts passed'

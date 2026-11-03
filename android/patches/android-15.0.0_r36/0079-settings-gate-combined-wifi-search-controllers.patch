@@ -1,0 +1,27 @@
+diff --git a/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java b/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
+--- a/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
++++ b/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
+@@ -142,21 +142,21 @@
+             return;
+         }
+         super.onActivityResult(requestCode, resultCode, data);
+     }
+
+     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+             new BaseSearchIndexProvider(R.xml.wifi_configure_settings) {
+                 @Override
+-                public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
++                public List<AbstractPreferenceController> getPreferenceControllers(Context context) {
+                     if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
+                         return new ArrayList<>();
+                     }
+-                    return super.createPreferenceControllers(context);
++                    return super.getPreferenceControllers(context);
+                 }
+
+                 protected boolean isPageSearchEnabled(Context context) {
+                     if (Utils.isRoydHardwareUnavailable(context, PackageManager.FEATURE_WIFI)) {
+                         return false;
+                     }
+                     if (isGuestUser(context)) return false;
+                     return context.getResources()
