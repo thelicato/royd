@@ -580,6 +580,10 @@ android15-settings-service-container-test:
 android15-settings-hearing-aid-container-test:
 	./android/scripts/android15-settings-hearing-aid-container-test.sh
 
+.PHONY: android15-telecom-preopt-test
+android15-telecom-preopt-test:
+	python3 ./android/scripts/android15-telecom-preopt-check.py --self-test
+
 android15-gpu-memory-container-test:
 	./android/scripts/android15-gpu-memory-container-test.sh
 

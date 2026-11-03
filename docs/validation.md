@@ -21,6 +21,24 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+### Android 15 Telecom compiled-code selection
+
+Task173 reproduces Telecom falling back to `verify`/VDEX on `76e58fc11f4e`. Its packaged `speed` OAT expects IKE as a shared library, while PackageManager unconditionally removes that declaration because IKE is already on the boot classpath. Patch0081 excludes only this redundant Telecom declaration and makes Soong's existing library exclusion update both manifest and stored dexpreopt context after resource dependency collection. Compile dependencies, ART checks, manifest verification, permissions and compiler filters remain intact.
+
+`make android15-telecom-preopt-test` checks the resolved-artefact validator's positive and rejection cases. The patch also adds `TestUsesLibraryExclusionsMatchDexpreopt` to Soong's actual Java tests, covering unchanged, excluded, unknown and all-excluded dependencies with verification enabled. Execute that test in the synced build; Linux Soong skips Go tests by default. After building Telecom, validate its real outputs:
+
+```sh
+royd_source=.work/android-src-15
+royd_telecom="$royd_source/out/soong/.intermediates/packages/services/Telecomm/Telecom/android_common"
+python3 android/scripts/android15-telecom-preopt-check.py \
+  "$royd_source/out/soong/dexpreopt.config" \
+  "$royd_telecom/dexpreopt/Telecom/dexpreopt.config" \
+  "$royd_telecom/manifest_merger/AndroidManifest.xml" \
+  "$royd_telecom/enforce_uses_libraries.status"
+```
+
+Rebuild/package/import before runtime acceptance. In a fresh owned instance, retain `cmd package art dump com.android.server.telecom`, package/Telecom dumps, generated boot classpath, SystemServer maps, full log/inspect and available ANR dumps. Require ART to select the packaged Telecom OAT with `speed`, an executable OAT mapping in SystemServer, IKE still on its boot classpath and stable process/container identities. Retain the Telecom service lookup separately: this product advertises no microphone, Telecom or telephony feature, so stock SystemServer omits TelecomLoaderService. Compiled-code selection does not qualify calling functionality. Do not force compilation or bypass context validation. Require full pre/post runtime, fresh full qualification and five-minute streaming independently. This restores compiled-code reuse; it neither establishes a measured speed advantage nor fixes the unresolved startup/input stalls. Task172 companion A's RoleService user-start wait begins after its pre-watchdog, bounding the later sample's attribution.
+
 ### Android 15 emergency Settings
 
 The product omits EmergencyInfo's gesture provider. Its SDK35-only static Settings overlay declares the gesture unavailable to the dashboard and search, and provides a non-interactive, localised unavailable page for saved or forced links. Only this trusted build-input path is excluded from automatic RRO generation, so its XML uses Settings' own localised strings; enforcement for other overlays stays unchanged. Other Safety settings and the provider's normal failures remain unchanged. The direct-page resource is necessary because upstream display callbacks can query the provider even when a controller reports unavailable.

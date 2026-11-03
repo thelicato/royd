@@ -5,12 +5,12 @@ import re
 import sys
 
 
-def sources(patch, after=False):
+def sources(patch, after=False, prefixes=('packages/apps/Settings/',)):
     files = {}
     for section in Path(patch).read_text().split('diff --git ')[1:]:
         header, *lines = section.splitlines()
         path = header.split(' b/', 1)[1]
-        assert path.startswith('packages/apps/Settings/') and '..' not in Path(path).parts
+        assert path.startswith(prefixes) and '..' not in Path(path).parts
         rows = {}
         old = new = None
         for line in lines:
@@ -54,7 +54,7 @@ def method(source, name):
 
 
 if __name__ == '__main__':
-    for name, text in sources(sys.argv[1]).items():
+    for name, text in sources(sys.argv[1], prefixes=tuple(sys.argv[2:]) or ('packages/apps/Settings/',)).items():
         path = Path(name)
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)

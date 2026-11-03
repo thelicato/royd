@@ -1,0 +1,141 @@
+diff --git a/packages/services/Telecomm/Android.bp b/packages/services/Telecomm/Android.bp
+--- a/packages/services/Telecomm/Android.bp
++++ b/packages/services/Telecomm/Android.bp
+@@ -42,12 +42,14 @@
+     platform_apis: true,
+ }
+
+ // Build the Telecom service.
+ android_app {
+     name: "Telecom",
++    // PackageManager removes this uses-library because IKE is on the boot classpath.
++    exclude_uses_libs: ["android.net.ipsec.ike"],
+     srcs: [
+     ],
+     static_libs: [
+         "TelecomLib",
+     ],
+     libs: [
+diff --git a/build/soong/java/app.go b/build/soong/java/app.go
+--- a/build/soong/java/app.go
++++ b/build/soong/java/app.go
+@@ -653,12 +653,15 @@
+ 			forceNonFinalResourceIDs:       nonFinalIds,
+ 			extraLinkFlags:                 aaptLinkFlags,
+ 			aconfigTextFiles:               aconfigTextFilePaths,
+ 			usesLibrary:                    &a.usesLibrary,
+ 		},
+ 	)
++
++	// Keep dexpreopt aligned with the manifest after resource dependencies were added.
++	a.classLoaderContexts = a.classLoaderContexts.ExcludeLibs(a.usesLibraryProperties.Exclude_uses_libs)
+
+ 	// apps manifests are handled by aapt, don't let Module see them
+ 	a.properties.Manifest = nil
+
+ 	android.SetProvider(ctx, FlagsPackagesProvider, FlagsPackages{
+ 		AconfigTextFiles: aconfigTextFilePaths,
+diff --git a/build/soong/java/base.go b/build/soong/java/base.go
+--- a/build/soong/java/base.go
++++ b/build/soong/java/base.go
+@@ -1159,12 +1159,14 @@
+ 	// Only override the original value if explicitly set
+ 	if j.properties.Ravenizer.Enabled != nil {
+ 		j.ravenizer.enabled = *j.properties.Ravenizer.Enabled
+ 	}
+
+ 	deps := j.collectDeps(ctx)
++	// Dependency collection must not restore libraries excluded from the app manifest.
++	j.classLoaderContexts = j.classLoaderContexts.ExcludeLibs(j.usesLibraryProperties.Exclude_uses_libs)
+ 	flags := j.collectBuilderFlags(ctx, deps)
+
+ 	if flags.javaVersion.usesJavaModules() {
+ 		j.properties.Srcs = append(j.properties.Srcs, j.properties.Openjdk9.Srcs...)
+ 	} else if len(j.properties.Openjdk9.Javacflags) > 0 {
+ 		// java version defaults higher than openjdk 9, these conditionals should no longer be necessary
+diff --git a/build/soong/java/app_test.go b/build/soong/java/app_test.go
+--- a/build/soong/java/app_test.go
++++ b/build/soong/java/app_test.go
+@@ -3424,12 +3424,82 @@
+
+ 	// Test that necessary args are passed for constructing CLC in Ninja phase.
+ 	cmd := app.Rule("dexpreopt").RuleParams.Command
+ 	android.AssertStringDoesContain(t, "dexpreopt app cmd context", cmd, "--context-json=")
+ 	android.AssertStringDoesContain(t, "dexpreopt app cmd product_packages", cmd,
+ 		"--product-packages=out/soong/.intermediates/app/android_common/dexpreopt/app/product_packages.txt")
++}
++
++func TestUsesLibraryExclusionsMatchDexpreopt(t *testing.T) {
++	for _, test := range []struct {
++		name     string
++		property string
++		expected []string
++	}{
++		{"unchanged", "", []string{"foo", "bar"}},
++		{"excluded", `exclude_uses_libs: ["foo"],`, []string{"bar"}},
++		{"unknown", `exclude_uses_libs: ["missing"],`, []string{"foo", "bar"}},
++		{"all", `exclude_uses_libs: ["foo", "bar"],`, []string{}},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			bp := `
++				java_sdk_library {
++					name: "foo",
++					srcs: ["a.java"],
++					api_packages: ["foo"],
++					sdk_version: "current",
++				}
++				java_sdk_library {
++					name: "bar",
++					srcs: ["a.java"],
++					api_packages: ["bar"],
++					sdk_version: "current",
++				}
++				java_library {
++					name: "helper",
++					srcs: ["a.java"],
++					libs: ["foo.impl", "bar.impl"],
++					sdk_version: "current",
++				}
++				android_app {
++					name: "app",
++					srcs: ["a.java"],
++					static_libs: ["helper"],
++					sdk_version: "current",
++					enforce_uses_libs: true,
++					` + test.property + `
++				}
++			`
++			result := android.GroupFixturePreparers(
++				prepareForJavaTest,
++				PrepareForTestWithJavaSdkLibraryFiles,
++				FixtureWithLastReleaseApis("foo", "bar"),
++			).RunTestWithBp(t, bp)
++			app := result.ModuleForTests("app", "android_common")
++			module := app.Module().(*AndroidApp)
++			required, optional := module.dexpreopter.classLoaderContexts.UsesLibs()
++			android.AssertDeepEquals(t, "dexpreopt required libraries", test.expected, required)
++			if len(optional) != 0 {
++				t.Fatalf("unexpected optional libraries: %v", optional)
++			}
++			manifest := app.Output("manifest_fixer/AndroidManifest.xml").Args["args"]
++			verify := app.Rule("verify_uses_libraries").RuleParams.Command
++			for _, name := range []string{"foo", "bar"} {
++				want := android.InList(name, test.expected)
++				for _, args := range []string{manifest, verify} {
++					if strings.Contains(args, "--uses-library "+name) != want {
++						t.Fatalf("manifest/verification context differs for %s: %s", name, args)
++					}
++				}
++			}
++			if !module.dexpreopter.enforceUsesLibs {
++				t.Fatal("uses-library verification was disabled")
++			}
++			app.Rule("dexpreopt")
++		})
++	}
+ }
+
+ func TestDexpreoptBcp(t *testing.T) {
+ 	bp := `
+ 		java_sdk_library {
+ 			name: "foo",

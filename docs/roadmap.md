@@ -94,6 +94,7 @@ The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persi
 
 ## 5. Reproducible runtime examples
 
+- [ ] Restore and qualify Android 15 Telecom's packaged compiled-code reuse. Task173 reproduces its IKE class-loader mismatch and implements aligned manifest/dexpreopt exclusion without changing ART validation or compiler filters. Require actual Soong regression execution, resolved build outputs and rebuilt-image OAT selection plus independent full qualification/streaming. Startup watchdog and input/render causes remain separate blockers.
 - [x] Add a minimal `docker run` example.
 - [x] Add a configurable Docker Compose example.
 - [x] Add Compose lifecycle Make targets.
