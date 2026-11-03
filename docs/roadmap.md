@@ -94,7 +94,8 @@ The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persi
 
 ## 5. Reproducible runtime examples
 
-- [ ] Restore and qualify Android 15 Telecom's packaged compiled-code reuse. Task173 reproduces its IKE class-loader mismatch and implements aligned manifest/dexpreopt exclusion without changing ART validation or compiler filters. Require actual Soong regression execution, resolved build outputs and rebuilt-image OAT selection plus independent full qualification/streaming. Startup watchdog and input/render causes remain separate blockers.
+- [x] Restore Android 15 Telecom's packaged compiled-code selection. Task173 corrects its redundant IKE manifest/dexpreopt context with ART validation and compiler filters intact. Actual Soong regressions, CI and resolved build verification pass; rebuilt `7c6bb33735b8` selects speed/prebuilt OAT with an executable SystemServer mapping and full pre/post runtime passes. Complete qualification including both Binder companions passes separately.
+- [ ] Complete acceptance of that rebuilt baseline. The fresh scrcpy attempt fails its pre-runtime check on a formal 5,032 ms WebView-shell focus-gain ANR, so recording/workload remain untested. Preserve full logs/inspect and the available dumps; the affected stack is unavailable after a tombstoned timeout, and SystemUI's separate trace cannot substitute for it. Startup watchdog and input/render causes remain open.
 - [x] Add a minimal `docker run` example.
 - [x] Add a configurable Docker Compose example.
 - [x] Add Compose lifecycle Make targets.
