@@ -21,6 +21,20 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+### Android 15 software Vulkan worker budget
+
+Task174's scoped native traces reproduce a WebView focus ANR with a 6.857-second main-thread futex wait overlapping RenderThread's 6.614-second SwiftShader queue wait. The latter is interrupted during force-stop, not successful rendering completion. Worker CPU/fault samples identify private Scudo first-touch faults and page-table lock contention while executing generated shader code. ELF build IDs match the image; offline kernel symbol relocation matches three live tracefs addresses without changing host policy. The observer later fails on runc's concurrent cgroup deletion during `docker top`; retain the gap and bound conclusions to captured intervals. Two earlier observed runs pass, and none is uninstrumented performance evidence or attribution of all older failures.
+
+A separate fresh control uses upstream `SwiftShader.ini` with four workers. It records the actual count, passes full runtime checks and records a first completed queue wait of 0.898 seconds. Patch0082 makes a bounded pool the automatic default only for Android x86_64 low-memory containers with the explicit container gate and an exact `ENOENT` SELinux-interface probe. The budget is at most four and respects a successful positive calling-thread CPU affinity. Preserve configured non-zero counts, performance resource mode, other platforms, stock affinity/floating-point setup and rendering/security checks. This bounds simultaneous first-touch work; it does not precommit unused graphics memory, alter the host scheduler or establish the optimal pool size. CPU quota handling remains separate from affinity.
+
+`make android15-swiftshader-workers-test` compiles the actual old/new scheduler configuration and gate with controlled platform probes. It exercises stock/non-container/SELinux/error/property/explicit-setting paths, CPU/affinity bounds, unchanged configuration/initialisation and concurrent bounded logging. Sync contracts repeat it against applied source. After rebuilding, require an owned fresh default low-memory software instance with no INI override:
+
+```sh
+./runtime/scripts/assert-low-memory-vulkan-workers.sh "$royd_test_container"
+```
+
+This read-only check requires one matching SurfaceFlinger budget marker and a live worker count between one and four, with stable process/container identities. Run it before and after full runtime checks; separately require complete qualification and fresh five-minute scrcpy with retained logs/inspect/available ANR evidence. Contract or INI-control success alone cannot qualify the new image or close old watchdog/input failures.
+
 ### Android 15 Telecom compiled-code selection
 
 Task173 reproduces Telecom falling back to `verify`/VDEX on `76e58fc11f4e`. Its packaged `speed` OAT expects IKE as a shared library, while PackageManager unconditionally removes that declaration because IKE is already on the boot classpath. Patch0081 excludes only this redundant Telecom declaration and makes Soong's existing library exclusion update both manifest and stored dexpreopt context after resource dependency collection. Compile dependencies, ART checks, manifest verification, permissions and compiler filters remain intact.

@@ -1,0 +1,233 @@
+diff --git a/external/swiftshader/src/System/SwiftConfig.cpp b/external/swiftshader/src/System/SwiftConfig.cpp
+--- a/external/swiftshader/src/System/SwiftConfig.cpp
++++ b/external/swiftshader/src/System/SwiftConfig.cpp
+@@ -1,59 +1,88 @@
+ // Copyright 2022 The SwiftShader Authors. All Rights Reserved.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+ // You may obtain a copy of the License at
+ //
+ //    http://www.apache.org/licenses/LICENSE-2.0
+ //
+ // Unless required by applicable law or agreed to in writing, software
+ // distributed under the License is distributed on an "AS IS" BASIS,
+ // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+
+ #include "SwiftConfig.hpp"
+
+ #include "CPUID.hpp"
+ #include "Configurator.hpp"
+ #include "Debug.hpp"
+ #include "marl/scheduler.h"
+
+ #include <algorithm>
+
++#if defined(__ANDROID__) && defined(__x86_64__)
++#	include <android/log.h>
++#	include <sys/stat.h>
++#	include <sys/system_properties.h>
++#	include <sched.h>
++#	include <atomic>
++#	include <cerrno>
++#	include <cstdlib>
++#	include <cstring>
++#endif
++
+ namespace {
++
++#if defined(__ANDROID__) && defined(__x86_64__)
++bool isRoydLowMemoryContainer()
++{
++	const char *container = getenv("ROYD_CONTAINER");
++	if(!container || strcmp(container, "1") != 0)
++	{
++		return false;
++	}
++	char lowRam[PROP_VALUE_MAX] = {};
++	if(__system_property_get("ro.config.low_ram", lowRam) <= 0 || strcmp(lowRam, "true") != 0)
++	{
++		return false;
++	}
++	struct stat info;
++	return stat("/sys/fs/selinux/enforce", &info) == -1 && errno == ENOENT;
++}
++#endif
+
+ std::string toLowerStr(const std::string &str)
+ {
+ 	std::string lower = str;
+ 	std::transform(lower.begin(), lower.end(), lower.begin(),
+ 	               [](unsigned char c) { return std::tolower(c); });
+ 	return lower;
+ }
+
+ marl::Thread::Core getCoreFromIndex(uint8_t coreIndex)
+ {
+ 	marl::Thread::Core core = {};
+ #if defined(_WIN32)
+ 	// We only support one processor group on Windows
+ 	// when an explicit affinity mask is used.
+ 	core.windows.group = 0;
+ 	core.windows.index = coreIndex;
+ #else
+ 	core.pthread.index = coreIndex;
+ #endif
+ 	return core;
+ }
+
+ marl::Thread::Affinity getAffinityFromMask(uint64_t affinityMask)
+ {
+ 	if(affinityMask == std::numeric_limits<uint64_t>::max())
+ 	{
+ 		return marl::Thread::Affinity::all();
+ 	}
+
+ 	ASSERT(affinityMask != 0);
+ 	marl::containers::vector<marl::Thread::Core, 32> cores;
+ 	uint8_t coreIndex = 0;
+ 	while(affinityMask)
+ 	{
+@@ -95,49 +124,72 @@
+ 	config.affinityMask = ini.getInteger<uint64_t>("Processor", "AffinityMask", 0xFFFFFFFFFFFFFFFFu);
+ 	if(config.affinityMask == 0)
+ 	{
+ 		warn("Affinity mask is empty, using all-cores affinity\n");
+ 		config.affinityMask = 0xFFFFFFFFFFFFFFFFu;
+ 	}
+ 	std::string affinityPolicy = toLowerStr(ini.getValue("Processor", "AffinityPolicy", "any"));
+ 	if(affinityPolicy == "one")
+ 	{
+ 		config.affinityPolicy = Configuration::AffinityPolicy::OneOf;
+ 	}
+ 	else
+ 	{
+ 		// Default.
+ 		config.affinityPolicy = Configuration::AffinityPolicy::AnyOf;
+ 	}
+
+ 	// Profiling flags.
+ 	config.enableSpirvProfiling = ini.getBoolean("Profiler", "EnableSpirvProfiling");
+ 	config.spvProfilingReportPeriodMs = ini.getInteger<uint64_t>("Profiler", "SpirvProfilingReportPeriodMs");
+ 	config.spvProfilingReportDir = ini.getValue("Profiler", "SpirvProfilingReportDir");
+
+ 	return config;
+ }
+
+ const Configuration &getConfiguration()
+ {
+ 	static Configuration config = readConfigurationFromFile();
+ 	return config;
+ }
+
+ marl::Scheduler::Config getSchedulerConfiguration(const Configuration &config)
+ {
+ 	uint32_t threadCount = (config.threadCount == 0) ? std::min<size_t>(marl::Thread::numLogicalCPUs(), 16)
+ 	                                                 : config.threadCount;
++
++#if defined(__ANDROID__) && defined(__x86_64__)
++	if(config.threadCount == 0 && isRoydLowMemoryContainer())
++	{
++		// Limit simultaneous first-touch faults in the low-memory software renderer.
++		threadCount = std::min(threadCount, 4u);
++		cpu_set_t allowed;
++		if(sched_getaffinity(0, sizeof(allowed), &allowed) == 0)
++		{
++			const int count = CPU_COUNT(&allowed);
++			if(count > 0)
++			{
++				threadCount = std::min(threadCount, static_cast<uint32_t>(count));
++			}
++		}
++		static std::atomic_flag reported = ATOMIC_FLAG_INIT;
++		if(!reported.test_and_set(std::memory_order_relaxed))
++		{
++			__android_log_print(ANDROID_LOG_INFO, "swiftshader",
++			                    "ROYD: low-memory software Vulkan worker budget: %u", threadCount);
++		}
++	}
++#endif
+ 	auto affinity = getAffinityFromMask(config.affinityMask);
+ 	auto affinityPolicy = getAffinityPolicy(std::move(affinity), config.affinityPolicy);
+
+ 	marl::Scheduler::Config cfg;
+ 	cfg.setWorkerThreadCount(threadCount);
+ 	cfg.setWorkerThreadAffinityPolicy(affinityPolicy);
+ 	cfg.setWorkerThreadInitializer([](int) {
+ 		sw::CPUID::setFlushToZero(true);
+ 		sw::CPUID::setDenormalsAreZero(true);
+ 	});
+ 	return cfg;
+ }
+
+ }  // namespace sw
+\ No newline at end of file
+diff --git a/external/swiftshader/src/System/SwiftConfig.hpp b/external/swiftshader/src/System/SwiftConfig.hpp
+--- a/external/swiftshader/src/System/SwiftConfig.hpp
++++ b/external/swiftshader/src/System/SwiftConfig.hpp
+@@ -2,60 +2,62 @@
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+ // You may obtain a copy of the License at
+ //
+ //    http://www.apache.org/licenses/LICENSE-2.0
+ //
+ // Unless required by applicable law or agreed to in writing, software
+ // distributed under the License is distributed on an "AS IS" BASIS,
+ // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+
+ #ifndef sw_SwiftConfig_hpp
+ #define sw_SwiftConfig_hpp
+
+ #include "Reactor/Nucleus.hpp"
+ #include "marl/scheduler.h"
+
+ #include <stdint.h>
+
+ namespace sw {
+
+ struct Configuration
+ {
+ 	enum class AffinityPolicy : int
+ 	{
+ 		// A thread has affinity with any core in the affinity mask.
+ 		AnyOf = 0,
+ 		// A thread has affinity with a single core in the affinity mask.
+ 		OneOf = 1,
+ 	};
+
+ 	// -------- [Processor] --------
+ 	// Number of threads used by the scheduler. A thread count of 0 is
+-	// interpreted as min(cpu_cores_available, 16).
++	// interpreted as min(cpu_cores_available, 16). royd Android 15 low-memory
++	// x86_64 containers additionally cap the default at four and the current CPU affinity.
++	// An explicit non-zero count retains the configured value.
+ 	uint32_t threadCount = 0;
+
+ 	// Core affinity and affinity policy used by the scheduler.
+ 	uint64_t affinityMask = 0xFFFFFFFFFFFFFFFFu;
+ 	AffinityPolicy affinityPolicy = AffinityPolicy::AnyOf;
+
+ 	// -------- [Profiler] --------
+ 	// Whether SPIR-V profiling is enabled.
+ 	bool enableSpirvProfiling = false;
+ 	// Period controlling how often SPIR-V profiles are reported.
+ 	uint64_t spvProfilingReportPeriodMs = 1000;
+ 	// Directory where SPIR-V profile reports will be written.
+ 	std::string spvProfilingReportDir = "";
+ };
+
+ // Get the configuration as parsed from a configuration file.
+ const Configuration &getConfiguration();
+
+ // Get the scheduler configuration given a configuration.
+ marl::Scheduler::Config getSchedulerConfiguration(const Configuration &config);
+
+ }  // namespace sw
+
+ #endif

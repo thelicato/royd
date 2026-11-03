@@ -13,10 +13,16 @@ def sources(patch, after=False, prefixes=('packages/apps/Settings/',)):
         assert path.startswith(prefixes) and '..' not in Path(path).parts
         rows = {}
         old = new = None
+        last_kind = None
+        no_newline = False
         for line in lines:
             match = re.match(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
             if match:
                 old, new = map(int, match.groups())
+                continue
+            if line.startswith('\\ No newline'):
+                if last_kind == ' ' or last_kind == ('+' if after else '-'):
+                    no_newline = True
                 continue
             if old is None or line.startswith('\\'):
                 continue
@@ -25,6 +31,7 @@ def sources(patch, after=False, prefixes=('packages/apps/Settings/',)):
             if line[0] not in ' +-':
                 continue
             kind, value = line[0], line[1:]
+            last_kind = kind
             if kind == ' ' or kind == ('+' if after else '-'):
                 number = new if after else old
                 assert number not in rows or rows[number] == value
@@ -33,7 +40,9 @@ def sources(patch, after=False, prefixes=('packages/apps/Settings/',)):
                 old += 1
             if kind in ' +':
                 new += 1
-        files[path] = '\n'.join(rows.get(n, '') for n in range(1, max(rows) + 1)) + '\n'
+        files[path] = '\n'.join(rows.get(n, '') for n in range(1, max(rows) + 1))
+        if not no_newline:
+            files[path] += '\n'
     return files
 
 

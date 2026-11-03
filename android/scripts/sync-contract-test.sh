@@ -26,6 +26,9 @@ case "$1" in
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0081-telecom-align-precompiled-library-context.patch" \
       packages/services/Telecomm/ build/soong/java/
+    python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0082-swiftshader-bound-low-memory-workers.patch" \
+      external/swiftshader/
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
@@ -3005,6 +3008,8 @@ grep -Fq 'j.classLoaderContexts = j.classLoaderContexts.ExcludeLibs(j.usesLibrar
   "$tmp/src/build/soong/java/base.go"
 grep -Fq 'func TestUsesLibraryExclusionsMatchDexpreopt(t *testing.T)' \
   "$tmp/src/build/soong/java/app_test.go"
+ROYD_ANDROID15_SWIFTSHADER_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-swiftshader-workers-test.sh"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \

@@ -94,6 +94,7 @@ The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persi
 
 ## 5. Reproducible runtime examples
 
+- [ ] Bound and qualify Android 15 low-memory software Vulkan worker concurrency. Task174 reproduces a rendering wait with shader page-fault contention and implements a strict-gated automatic four-worker/affinity budget, preserving explicit settings and stock/performance paths. Require rebuilt default-pool checks without INI overrides, complete runtime/qualification and streaming; no universal watchdog/input or speed claim follows from the instrumented control.
 - [x] Restore Android 15 Telecom's packaged compiled-code selection. Task173 corrects its redundant IKE manifest/dexpreopt context with ART validation and compiler filters intact. Actual Soong regressions, CI and resolved build verification pass; rebuilt `7c6bb33735b8` selects speed/prebuilt OAT with an executable SystemServer mapping and full pre/post runtime passes. Complete qualification including both Binder companions passes separately.
 - [ ] Complete acceptance of that rebuilt baseline. The fresh scrcpy attempt fails its pre-runtime check on a formal 5,032 ms WebView-shell focus-gain ANR, so recording/workload remain untested. Preserve full logs/inspect and the available dumps; the affected stack is unavailable after a tombstoned timeout, and SystemUI's separate trace cannot substitute for it. Startup watchdog and input/render causes remain open.
 - [x] Add a minimal `docker run` example.
