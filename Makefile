@@ -41,6 +41,7 @@
 .PHONY: android15-cpu-residency-container-test
 .PHONY: android15-uid-cpu-cleanup-container-test
 .PHONY: android15-display-identification-test
+.PHONY: android15-composer-vsync-test
 .PHONY: android15-binder-freezer-container-test
 .PHONY: android15-installer-frp-container-test
 .PHONY: android15-oci-network-container-test
@@ -605,6 +606,9 @@ android15-uid-cpu-cleanup-container-test:
 
 android15-display-identification-test:
 	./android/scripts/android15-display-identification-test.sh
+
+android15-composer-vsync-test:
+	./android/scripts/android15-composer-vsync-test.sh
 
 android15-binder-freezer-container-test:
 	./android/scripts/android15-binder-freezer-container-test.sh

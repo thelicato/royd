@@ -16,13 +16,14 @@
 namespace royd::graphics::composer {
 namespace {
 
-int32_t propertyInt(const char* name, int32_t fallback) {
+int32_t propertyInt(const char* name, int32_t fallback,
+                    int32_t maximum = std::numeric_limits<int32_t>::max()) {
     char value[PROPERTY_VALUE_MAX] = {};
     if (property_get(name, value, "") <= 0) return fallback;
 
     char* end = nullptr;
     const long parsed = std::strtol(value, &end, 10);
-    if (end == value || *end != '\0' || parsed <= 0 || parsed > std::numeric_limits<int32_t>::max()) {
+    if (end == value || *end != '\0' || parsed <= 0 || parsed > maximum) {
         ALOGW("ignoring invalid %s=%s", name, value);
         return fallback;
     }
@@ -39,8 +40,9 @@ ComposerClient::ComposerClient()
     : mWidth(propertyInt("vendor.royd.display.width", 540)),
       mHeight(propertyInt("vendor.royd.display.height", 960)),
       mDpi(propertyInt("vendor.royd.display.dpi", 240)) {
-    const int32_t fps = propertyInt("vendor.royd.display.fps", 30);
+    const int32_t fps = propertyInt("vendor.royd.display.fps", 30, 1000);
     mVsyncPeriodNs = static_cast<int32_t>(1000000000LL / fps);
+    ALOGI("ROYD: composer vsync uses monotonic phase deadlines (period=%d ns)", mVsyncPeriodNs);
     mVsyncThread = std::thread(&ComposerClient::vsyncLoop, this);
 }
 
@@ -541,20 +543,32 @@ ndk::ScopedAStatus ComposerClient::getLuts(int64_t display,
 }
 
 void ComposerClient::vsyncLoop() {
+    using Clock = std::chrono::steady_clock;
+    const auto period = std::chrono::nanoseconds(mVsyncPeriodNs);
+    auto next = Clock::now() + period;
     while (!mStopVsync.load()) {
         if (!mVsyncEnabled.load()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            next = Clock::now() + period;
             continue;
         }
 
-        std::this_thread::sleep_for(std::chrono::nanoseconds(mVsyncPeriodNs));
+        // Keep the advertised phase through callback work and skip missed ticks.
+        const auto now = Clock::now();
+        if (next < now) next += period * ((now - next) / period + 1);
+        std::this_thread::sleep_until(next);
         std::shared_ptr<c3::IComposerCallback> callback;
         {
             std::lock_guard lock(mMutex);
             callback = mCallback;
         }
+        const auto wake = Clock::now();
+        const auto tick = next + period * ((wake - next) / period);
+        next = tick + period;
+        const auto timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                       tick.time_since_epoch()).count();
         if (callback && mVsyncEnabled.load() && !mStopVsync.load()) {
-            const auto status = callback->onVsync(kDisplayId, nowNanos(), mVsyncPeriodNs);
+            const auto status = callback->onVsync(kDisplayId, timestamp, mVsyncPeriodNs);
             if (!status.isOk()) ALOGW("vsync callback failed: %s", status.getDescription().c_str());
         }
     }

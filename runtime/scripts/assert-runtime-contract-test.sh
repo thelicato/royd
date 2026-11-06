@@ -158,7 +158,7 @@ case "$1" in
         ro.sf.lcd_density)
           [ "${MOCK_BAD_LOGICAL_DENSITY:-0}" = 1 ] && value=213 || value=${MOCK_DISPLAY_DPI:-240}
           ;;
-        vendor.royd.display.fps) value=30 ;;
+        vendor.royd.display.fps) value=${MOCK_COMPOSER_FPS:-30} ;;
         *) printf 'unexpected property: %s\n' "$property" >&2; exit 1 ;;
       esac
       printf '%s\n' "$value"
@@ -351,6 +351,10 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_COMPOSER_VSYNC_MODE:-0}" != 1 ]; then
+      printf 'composer: ROYD: composer vsync uses monotonic phase deadlines (period=%s ns)\n' \
+        "${MOCK_COMPOSER_VSYNC_PERIOD:-33333333}"
+    fi
     if [ "${MOCK_CAPTURE_SCAN_ERROR:-0}" = 1 ]; then
       printf '%s\n' 'ModernMediaScanner: Trouble scanning /storage/emulated/0/Movies/royd-runtime-video-test.ABC123.mp4'
     fi
@@ -1176,6 +1180,21 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_ART_OVERLAY_FAILURE=1 \
   exit 1
 fi
 grep -Fq 'Android 15 ART could not classify the OCI system overlay' "$tmp/error"
+
+for invalid in missing period fps; do
+  case "$invalid" in
+    missing) mode=1; period=33333333; fps=30 ;;
+    period) mode=0; period=1; fps=30 ;;
+    fps) mode=0; period=33333333; fps=1001 ;;
+  esac
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_COMPOSER_VSYNC_MODE="$mode" \
+      MOCK_COMPOSER_VSYNC_PERIOD="$period" MOCK_COMPOSER_FPS="$fps" \
+      "$script_dir/assert-runtime.sh" "composer-vsync-$invalid" >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted invalid composer vsync evidence: %s\n' "$invalid" >&2
+    exit 1
+  fi
+  grep -Eq 'composer frame rate is invalid|composer vsync deadline mode/period is not reported' "$tmp/error"
+done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_METADATA_FSVERITY_FAILURE=1 \
     "$script_dir/assert-runtime.sh" metadata-fsverity >"$tmp/error" 2>&1; then

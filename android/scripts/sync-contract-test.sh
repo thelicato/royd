@@ -3386,6 +3386,8 @@ grep -Fq 'static_cast<uint64_t>(BufferUsage::VIDEO_ENCODER)' \
 grep -Fq 'c3::Capability::PRESENT_FENCE_IS_NOT_RELIABLE' \
   "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
 ! grep -Fq 'setPresentFence' "$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp"
+ROYD_ANDROID15_COMPOSER_SOURCE="$tmp/src/vendor/royd/graphics_composer/composer/Composer.cpp" \
+  "$script_dir/android15-composer-vsync-test.sh"
 grep -Fq '"libselinux",' "$tmp/src/system/netd/server/Android.bp"
 grep -Fq 'static bool isRoydContainerWithoutSelinux() {' \
   "$tmp/src/system/netd/server/Controllers.cpp"

@@ -148,6 +148,17 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  composer_fps=$(docker exec "$container" getprop vendor.royd.display.fps | tr -d '\r')
+  case "$composer_fps" in
+    [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|1000) ;;
+    *) printf 'error: Android 15 composer frame rate is invalid in %s\n' "$container" >&2; exit 1 ;;
+  esac
+  composer_period=$((1000000000 / composer_fps))
+  if ! docker logs "$container" 2>&1 | grep -Fq \
+      "ROYD: composer vsync uses monotonic phase deadlines (period=$composer_period ns)"; then
+    printf 'error: Android 15 composer vsync deadline mode/period is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: routing init diagnostics to container stderr'; then
     printf 'error: Android 15 init stderr logging mode is not reported in %s\n' "$container" >&2
