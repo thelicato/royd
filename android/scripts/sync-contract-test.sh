@@ -31,6 +31,8 @@ case "$1" in
       external/swiftshader/
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0083-settings-skip-unavailable-saved-bluetooth.patch"
+    python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0084-settings-respect-printing-availability.patch"
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
@@ -3004,6 +3006,8 @@ ROYD_ANDROID15_SETTINGS_HEARING_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-settings-hearing-aid-container-test.sh"
 ROYD_ANDROID15_SETTINGS_SAVED_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-settings-saved-bluetooth-container-test.sh"
+ROYD_ANDROID15_SETTINGS_PRINTING_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-settings-printing-container-test.sh"
 grep -Fq 'exclude_uses_libs: ["android.net.ipsec.ike"]' \
   "$tmp/src/packages/services/Telecomm/Android.bp"
 grep -Fq 'a.classLoaderContexts = a.classLoaderContexts.ExcludeLibs(a.usesLibraryProperties.Exclude_uses_libs)' \

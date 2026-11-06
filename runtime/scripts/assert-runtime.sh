@@ -788,7 +788,7 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     server=$(pidof system_server) || exit 1
     settings=$(pidof com.android.settings) || exit 1
     case "$settings" in ""|*[!0-9]*) exit 1 ;; esac
-    for page in ConnectedDeviceDashboardActivity PreviouslyConnectedDeviceActivity; do
+    for page in ConnectedDeviceDashboardActivity PreviouslyConnectedDeviceActivity PrintSettingsActivity; do
       component="com.android.settings/.Settings\$$page"
       launch=$(am start -W --activity-clear-top -n "$component") || exit 1
       printf "%s\n" "$launch"

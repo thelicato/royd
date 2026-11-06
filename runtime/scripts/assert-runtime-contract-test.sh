@@ -1318,7 +1318,7 @@ case "${0##*/}" in
     case " $* " in *' --activity-clear-top '*) ;; *) exit 1 ;; esac
     printf '%s\n' "$component" >>"$MOCK_CONNECTED_RUN/launches"
     case "$component:$MOCK_CONNECTED_CASE" in
-      *ConnectedDeviceDashboardActivity:wrong_connected|*PreviouslyConnectedDeviceActivity:wrong_saved)
+      *ConnectedDeviceDashboardActivity:wrong_connected|*PreviouslyConnectedDeviceActivity:wrong_saved|*PrintSettingsActivity:wrong_print)
         component='com.android.settings/.Settings$MyDeviceInfoActivity' ;;
     esac
     printf 'Status: ok\nActivity: %s\n' "$component"
@@ -1328,9 +1328,9 @@ case "${0##*/}" in
     [ ! -f "$MOCK_CONNECTED_RUN/$1" ] || count=$(cat "$MOCK_CONNECTED_RUN/$1")
     count=$((count+1)); printf '%s\n' "$count" >"$MOCK_CONNECTED_RUN/$1"
     case "$1:$MOCK_CONNECTED_CASE:$count" in
-      com.android.settings:settings_first:2|com.android.settings:settings_second:3) printf '%s\n' 1385 ;;
+      com.android.settings:settings_first:2|com.android.settings:settings_second:3|com.android.settings:settings_third:4) printf '%s\n' 1385 ;;
       com.android.settings:*) printf '%s\n' 1384 ;;
-      system_server:system_replaced:2) printf '%s\n' 446 ;;
+      system_server:system_replaced:2|system_server:system_third:4) printf '%s\n' 446 ;;
       system_server:*) printf '%s\n' 445 ;;
       *) exit 1 ;;
     esac
@@ -1342,7 +1342,7 @@ esac
 MOCK
 chmod +x "$tmp/connected-bin/command"
 for command in am pidof input sleep; do ln -s command "$tmp/connected-bin/$command"; done
-for mode in good launch_failure wrong_connected wrong_saved settings_first settings_second system_replaced; do
+for mode in good launch_failure wrong_connected wrong_saved wrong_print settings_first settings_second settings_third system_replaced system_third; do
   mkdir "$tmp/connected-$mode"
   status=0
   PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CONNECTED_BIN="$tmp/connected-bin" \
@@ -1350,9 +1350,10 @@ for mode in good launch_failure wrong_connected wrong_saved settings_first setti
     "$script_dir/assert-runtime.sh" "connected-$mode" >"$tmp/connected-$mode.log" 2>&1 || status=$?
   if [ "$mode" = good ]; then
     [ "$status" -eq 0 ]
-    [ "$(wc -l <"$tmp/connected-$mode/launches")" -eq 2 ]
+    [ "$(wc -l <"$tmp/connected-$mode/launches")" -eq 3 ]
     grep -Fxq 'com.android.settings/.Settings$ConnectedDeviceDashboardActivity' "$tmp/connected-$mode/launches"
     grep -Fxq 'com.android.settings/.Settings$PreviouslyConnectedDeviceActivity' "$tmp/connected-$mode/launches"
+    grep -Fxq 'com.android.settings/.Settings$PrintSettingsActivity' "$tmp/connected-$mode/launches"
   else
     [ "$status" -ne 0 ]
     grep -Fq 'connected-device pages did not remain stable' "$tmp/connected-$mode.log"

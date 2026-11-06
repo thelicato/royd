@@ -21,6 +21,16 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+### Android 15 Printing without a printing feature
+
+Task177's fresh `c97aaf982d44` instance passes full pre-runtime and Connection preferences, then PrintSettingsActivity crashes when PrintJobsLoader registers a listener on a null global PrintManager. Android's wrapper exists without FEATURE_PRINTING but its global-manager getter returns null. Preserve the process replacement, full log/inspect/available ANR data and failed-post crash rejection; successful `am start` alone is insufficient.
+
+Patch0084 uses the existing container/SELinux-disabled/absent-FEATURE_PRINTING helper. The fragment retains inherited restriction checks, clears unavailable controls before constructing loaders, uses the inherited empty TextView with localised `device_info_not_available`, and declines printing actions and SPA redirection under that gate. Its provider omits XML and disables page indexing there. Framework PrintManager APIs, permissions, stock errors, supported-feature handling and both routing paths elsewhere are unchanged. Explicit direct SPA routes and real printing hardware remain unqualified.
+
+`make android15-settings-printing-container-test` extracts the actual before/after fragment methods, provider hooks and capability helper. Set `ROYD_TEST_JAVA_HOME` for executable capability/routing/restriction/action and preserved-failure controls; without it only extraction/structural checks run. The controlled loader trap witnesses dependency activation, while the retained real stack establishes the actual crash. Sync contracts repeat against copied build input. Runtime assertions open Printing alongside Connected/Saved devices and require stable Settings/SystemServer PIDs plus full retained crash/WTF rejection.
+
+After rebuilding, repeat explicit Printing and public printing-intent launches, require the resolved title and localised unavailable notice with no add-service action, and retain screenshots/hierarchies, unchanged timeout/relevant printing settings and process identities. Verify absence of its XML search row with positive Display/Connected/Saved controls and the existing exclusion keys. Complete full pre/post runtime, qualification including both Binder companions and fresh five-minute scrcpy. This is scoped crash prevention; printing support and exhaustive unsupported-peripheral-page coverage are not baseline completion requirements. Keep old focus/watchdog/blank-window failures independently open.
+
 ### Android 15 saved-device Settings pages
 
 Task176's fresh `80794e116211` instance passes full pre-runtime, then opening Connected devices crashes Settings in SavedBluetoothDeviceUpdater.forceUpdate. The default dock placeholder keeps its parent controller available without Bluetooth. Preserve that failed launch, process replacement and full failed-post crash rejection. Connection preferences/Printing and the separate saved-list page were not reached in that diagnostic.
