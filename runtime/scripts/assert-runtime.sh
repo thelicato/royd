@@ -782,6 +782,33 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     exit 1
   fi
 
+  docker exec "$container" sh -c '
+    # royd-runtime-connected-devices-test
+    trap '\''input keyevent KEYCODE_HOME >/dev/null 2>&1 || true'\'' EXIT INT TERM
+    server=$(pidof system_server) || exit 1
+    settings=$(pidof com.android.settings) || exit 1
+    case "$settings" in ""|*[!0-9]*) exit 1 ;; esac
+    for page in ConnectedDeviceDashboardActivity PreviouslyConnectedDeviceActivity; do
+      component="com.android.settings/.Settings\$$page"
+      launch=$(am start -W --activity-clear-top -n "$component") || exit 1
+      printf "%s\n" "$launch"
+      printf "%s\n" "$launch" | grep -Fxq "Status: ok" || exit 1
+      printf "%s\n" "$launch" | grep -Fxq "Activity: $component" || exit 1
+      sleep 4
+      [ "$(pidof com.android.settings)" = "$settings" ] || exit 1
+      [ "$(pidof system_server)" = "$server" ] || exit 1
+    done
+  ' || {
+    printf 'error: Android 15 connected-device pages did not remain stable in %s\n' \
+      "$container" >&2
+    exit 1
+  }
+  if docker logs "$container" 2>&1 | grep -Eq 'am_crash.*com\.android\.settings|am_wtf.*SystemServiceRegistry'; then
+    printf 'error: Android 15 connected-device workload retained a Settings crash or missing-service WTF in %s\n' \
+      "$container" >&2
+    exit 1
+  fi
+
   recents_directories=$(docker exec "$container" sh -c '
     # royd-runtime-recents-persistence-test
     am write >/dev/null || exit 1

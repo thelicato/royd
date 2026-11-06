@@ -21,6 +21,14 @@ The test creates a temporary Docker volume and privileged container, waits for `
 
 Graphics assertions follow the selected Android release contract. Android 15 validates its AIDL allocator V2, stable-C mapper V5, ANGLE-over-Pastel renderer and composer3 properties without requiring the legacy `ro.hardware.gralloc`, `ro.hardware.egl`, or `ro.hardware.hwcomposer` selectors.
 
+### Android 15 saved-device Settings pages
+
+Task176's fresh `80794e116211` instance passes full pre-runtime, then opening Connected devices crashes Settings in SavedBluetoothDeviceUpdater.forceUpdate. The default dock placeholder keeps its parent controller available without Bluetooth. Preserve that failed launch, process replacement and full failed-post crash rejection. Connection preferences/Printing and the separate saved-list page were not reached in that diagnostic.
+
+Patch0083 uses the existing strict container/SELinux-disabled/absent-Bluetooth-feature helper in the two saved-device controllers. Skip only Bluetooth manager/updater/receiver work; retain dock callbacks/updates, general navigation, supported-hardware handling and stock failures elsewhere. `make android15-settings-saved-bluetooth-container-test` extracts both complete before/after classes and the real capability helper for executable lifecycle, feature, dock and failure controls. Set `ROYD_TEST_JAVA_HOME` to run Java; otherwise only extraction/structural checks run. Sync contracts repeat against the copied source. The controlled missing-adapter probe rejects old controller activation; the retained real image supplies the actual crash attribution.
+
+After rebuilding, runtime assertions explicitly select ConnectedDeviceDashboardActivity and PreviouslyConnectedDeviceActivity above any nested task, wait for each and require unchanged Settings/SystemServer PIDs, then reject full retained Settings crashes and missing-service WTFs. The workload returns Home on failure. Qualify repeated direct launches with page evidence and search controls, complete runtime qualification and fresh five-minute scrcpy. Do not treat these checks as arbitrary optional-hardware-page acceptance or a fix for the independent startup/input/blank-window causes.
+
 ### Android 15 synthetic vsync cadence
 
 The owned composer advertises a fixed integer period. Its old relative sleep adds callback duration to every cycle; task175's actual-source delayed-callback regression reproduces the drift. Use monotonic phase deadlines, omit missed ticks and report the latest due synthetic timestamp after callback lookup. Preserve enable/stop checks, callback replacement, dispatch outside the service mutex and callback failure diagnostics. Validate native FPS against the bootstrap's existing 1 through 1000 range. This follows the composer callback's `CLOCK_MONOTONIC` contract without changing clocks, watchdogs or rendering semantics.

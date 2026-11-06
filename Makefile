@@ -35,6 +35,7 @@
 .PHONY: android15-framework-readiness-container-test
 .PHONY: android15-settings-hardware-container-test
 .PHONY: android15-settings-emergency-test android15-settings-search-container-test android15-settings-service-container-test android15-settings-hearing-aid-container-test
+.PHONY: android15-settings-saved-bluetooth-container-test
 .PHONY: android15-gpu-memory-container-test
 .PHONY: android15-wifi-mac-container-test
 .PHONY: android15-gpu-work-container-test
@@ -580,6 +581,9 @@ android15-settings-service-container-test:
 
 android15-settings-hearing-aid-container-test:
 	./android/scripts/android15-settings-hearing-aid-container-test.sh
+
+android15-settings-saved-bluetooth-container-test:
+	./android/scripts/android15-settings-saved-bluetooth-container-test.sh
 
 .PHONY: android15-telecom-preopt-test
 android15-telecom-preopt-test:

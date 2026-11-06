@@ -333,6 +333,12 @@ case "$1" in
             : >"$MOCK_ABOUT_PHONE_STATE"
           fi
           ;;
+        *royd-runtime-connected-devices-test*)
+          if [ -n "${MOCK_CONNECTED_BIN:-}" ]; then
+            PATH="$MOCK_CONNECTED_BIN:$PATH" sh -c "$3" || exit 1
+          fi
+          if [ -n "${MOCK_CONNECTED_STATE:-}" ]; then : >"$MOCK_CONNECTED_STATE"; fi
+          ;;
         *royd-runtime-recents-persistence-test*)
           [ "${MOCK_BAD_RECENTS_PERSISTENCE:-0}" != 1 ] || exit 1
           if [ "${MOCK_RECENTS_DIRECTORIES_PRESENT:-0}" = 1 ]; then
@@ -351,6 +357,12 @@ case "$1" in
     exit 1
     ;;
   logs)
+    if [ -n "${MOCK_CONNECTED_STATE:-}" ] && [ -f "$MOCK_CONNECTED_STATE" ]; then
+      case "${MOCK_CONNECTED_POST_ERROR:-}" in
+        crash) printf '%s\n' 'am_crash: [0,1365,com.android.settings,0,java.lang.NullPointerException,missing Bluetooth adapter]' ;;
+        wtf) printf '%s\n' 'am_wtf: [0,1365,com.android.settings,0,SystemServiceRegistry,No service published for: bluetooth]' ;;
+      esac
+    fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_COMPOSER_VSYNC_MODE:-0}" != 1 ]; then
       printf 'composer: ROYD: composer vsync uses monotonic phase deadlines (period=%s ns)\n' \
         "${MOCK_COMPOSER_VSYNC_PERIOD:-33333333}"
@@ -1293,6 +1305,67 @@ for mode in nested_task wrong_activity settings_replaced system_replaced; do
     grep -Fq 'About-phone activity did not remain stable' "$tmp/about-$mode.log"
   fi
   grep -Fxq 'keyevent KEYCODE_HOME' "$tmp/about-$mode/home"
+done
+
+mkdir "$tmp/connected-bin"
+cat >"$tmp/connected-bin/command" <<'MOCK'
+#!/bin/sh
+set -eu
+case "${0##*/}" in
+  am)
+    [ "$MOCK_CONNECTED_CASE" != launch_failure ] || exit 1
+    for component in "$@"; do :; done
+    case " $* " in *' --activity-clear-top '*) ;; *) exit 1 ;; esac
+    printf '%s\n' "$component" >>"$MOCK_CONNECTED_RUN/launches"
+    case "$component:$MOCK_CONNECTED_CASE" in
+      *ConnectedDeviceDashboardActivity:wrong_connected|*PreviouslyConnectedDeviceActivity:wrong_saved)
+        component='com.android.settings/.Settings$MyDeviceInfoActivity' ;;
+    esac
+    printf 'Status: ok\nActivity: %s\n' "$component"
+    ;;
+  pidof)
+    count=0
+    [ ! -f "$MOCK_CONNECTED_RUN/$1" ] || count=$(cat "$MOCK_CONNECTED_RUN/$1")
+    count=$((count+1)); printf '%s\n' "$count" >"$MOCK_CONNECTED_RUN/$1"
+    case "$1:$MOCK_CONNECTED_CASE:$count" in
+      com.android.settings:settings_first:2|com.android.settings:settings_second:3) printf '%s\n' 1385 ;;
+      com.android.settings:*) printf '%s\n' 1384 ;;
+      system_server:system_replaced:2) printf '%s\n' 446 ;;
+      system_server:*) printf '%s\n' 445 ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  input) printf '%s\n' "$*" >>"$MOCK_CONNECTED_RUN/home" ;;
+  sleep) [ "$*" = 4 ] ;;
+  *) exit 1 ;;
+esac
+MOCK
+chmod +x "$tmp/connected-bin/command"
+for command in am pidof input sleep; do ln -s command "$tmp/connected-bin/$command"; done
+for mode in good launch_failure wrong_connected wrong_saved settings_first settings_second system_replaced; do
+  mkdir "$tmp/connected-$mode"
+  status=0
+  PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CONNECTED_BIN="$tmp/connected-bin" \
+    MOCK_CONNECTED_CASE="$mode" MOCK_CONNECTED_RUN="$tmp/connected-$mode" \
+    "$script_dir/assert-runtime.sh" "connected-$mode" >"$tmp/connected-$mode.log" 2>&1 || status=$?
+  if [ "$mode" = good ]; then
+    [ "$status" -eq 0 ]
+    [ "$(wc -l <"$tmp/connected-$mode/launches")" -eq 2 ]
+    grep -Fxq 'com.android.settings/.Settings$ConnectedDeviceDashboardActivity' "$tmp/connected-$mode/launches"
+    grep -Fxq 'com.android.settings/.Settings$PreviouslyConnectedDeviceActivity' "$tmp/connected-$mode/launches"
+  else
+    [ "$status" -ne 0 ]
+    grep -Fq 'connected-device pages did not remain stable' "$tmp/connected-$mode.log"
+  fi
+  grep -Fxq 'keyevent KEYCODE_HOME' "$tmp/connected-$mode/home"
+done
+for mode in crash wtf; do
+  status=0
+  PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_CONNECTED_STATE="$tmp/connected-$mode.state" \
+    MOCK_CONNECTED_POST_ERROR="$mode" "$script_dir/assert-runtime.sh" "connected-$mode" \
+    >"$tmp/error" 2>&1 || status=$?
+  [ "$status" -ne 0 ]
+  grep -Fq 'connected-device workload retained a Settings crash or missing-service WTF' "$tmp/error"
 done
 
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_BAD_ABOUT_PHONE=1 \
