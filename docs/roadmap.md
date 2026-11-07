@@ -4,6 +4,8 @@ This roadmap is ordered by implementation dependency rather than release date. A
 
 ## Android 15 baseline completion
 
+Use the [finite Android 15 completion checklist](android15-completion.md) for the active close-out tasks, acceptance criteria, exclusions and commit/evidence ledger. Historical unchecked items elsewhere in this roadmap do not automatically expand that baseline.
+
 The active acceptance scope is Android 15 x86_64, standard graphical image, software rendering, the low-memory resource profile and privileged rootful Docker. It is not completion of every item below or a claim of general device compatibility.
 
 1. **Implementation:** the reproduced Storage Settings crash (`0063`) and idle Tethering hardware failure (`0062`) have rebuilt-image qualification for the active baseline. Shared `/data` capacity is not a per-instance quota. Investigate recurring diagnostics by their affected invariant; logical network hiding, successful commands and an artificially empty error log do not establish correct behaviour.
