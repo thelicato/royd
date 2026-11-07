@@ -371,7 +371,7 @@ Problem addressed: the first imported Android 15 image could not execute `/royd-
 
 Important evidence discovered:
 
-- External task-046 validation succeeded. The existing Android 15 x86_64 build repackaged successfully and produced both `.work/runtime/android-15/royd-x86_64-standard-graphical.manifest` and `.tar` without the earlier cleanup errors.
+- External task-046 validation succeeded. The existing Android 15 x86_64 build repackaged successfully and produced the rootfs manifest and archive without the earlier cleanup errors.
 - The first `runtime/scripts/import.sh` attempt failed in Docker with `Syntax error - can't find = in "runtime"` because the OCI description label contained spaces without quotes. Quoting the label value on the rented host allowed import to complete, `Image contract passed`, and both the canonical tag and `royd:dev` referenced image ID `d0fd9c6acbff`.
 - `make runtime-host-check` returned zero errors on the rented host. The subsequent smoke test started the container and passed its security check, but the container stopped before Android boot completed.
 - A persistent reproduction exited with code 255, was not OOM-killed, and `docker logs` reported `exec /royd-entrypoint: too many levels of symbolic links`. Attempting `/system/bin/sh` directly failed with the same error before Android init ran.
@@ -553,4 +553,4 @@ cd /root/royd
   --incremental
 ```
 
-Expected evidence to return: `.work/logs/android15-x86_64-standard-graphical-software.log` plus the first genuine failure with approximately 100 surrounding lines. The immediate success criterion is that Kati passes the prior duplicate `vendor/etc/init/allocator.rc` point and the build proceeds into later Ninja work. If it succeeds further, return lines showing compilation/linking and vendor installation of `android.hardware.graphics.allocator-service.royd`, `mapper.royd`, and `android.hardware.graphics.composer3-service.royd`, plus normal `check_vintf` output. Do not bypass VINTF, SELinux, or build failures.
+Retain the complete build log and the first genuine failure with approximately 100 surrounding lines. The immediate success criterion is that Kati passes the prior duplicate `vendor/etc/init/allocator.rc` point and the build proceeds into later Ninja work. If it succeeds further, return lines showing compilation/linking and vendor installation of `android.hardware.graphics.allocator-service.royd`, `mapper.royd`, and `android.hardware.graphics.composer3-service.royd`, plus normal `check_vintf` output. Do not bypass VINTF, SELinux, or build failures.
