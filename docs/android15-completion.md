@@ -33,7 +33,7 @@ T01 through T03 may require several diagnostic or fix commits. Complete every ta
 
 ## Existing candidate evidence and ledger
 
-The starting candidate is `sha256:3ba4f8c1f19e51701b362d112a0bfe58bc925e8e8e8ce752b944a78636653f5e`, built from `a28b296` and locally available as `royd:dev`. These receipts retain their original scope until relevant inputs change:
+The starting candidate is `sha256:3ba4f8c1f19e51701b362d112a0bfe58bc925e8e8e8ce752b944a78636653f5e`, built from `a28b296` and initially available as `royd:dev`. These receipts retain their original scope until relevant inputs change:
 
 - Task177: full qualification/Binder companions and five-minute scrcpy pass. Blank application-area samples and 18 streaming hand-off warnings remain unresolved; decoding is not continuous visual acceptance.
 - Task178, `b1ea0d1`: ordinary-UID DNS/native/WebView HTTPS and self-signed denial pass in both Docker DNS modes.
@@ -41,7 +41,7 @@ The starting candidate is `sha256:3ba4f8c1f19e51701b362d112a0bfe58bc925e8e8e8ce7
 
 Retained completion reports and checksum manifests are under `.work/task177*`, `.work/task178*` and `.work/task179*`. Add each new task's commit and evidence reference here when it is completed. Earlier failed evidence remains retained even when its specific cause is subsequently corrected.
 
-T01 is active. Task181 retained three instrumented app/display captures, including a failed Settings-native capture and explicit later-thread/out-of-order/observer gaps. Task182 independently demonstrates a software Vulkan presentation-ordering defect and implements Patch0085 with source contracts and a real native probe; rebuilt-image acceptance is pending. This subtask does not close the hand-off cause or T02/T03.
+T01 is active. Task181 retained three instrumented app/display captures, including a failed Settings-native capture and explicit later-thread/out-of-order/observer gaps. Task182 independently demonstrates a software Vulkan presentation-ordering defect. Implementation `570189a` adds Patch0085, actual-source contracts and a real native probe. Rebuilt `2493555fb675` passes the single/two-swapchain delayed-producer and exact-pixel controls, full pre/post runtime, complete qualification/Binder companions and fresh scrcpy (303 seconds, 135 cycles, all 4,828 frames decoded). Eight discrete samples show content/transitions without a blank sample; eight streaming hand-off warnings remain. The scoped ordering gate is complete. Source/build/archive/image identities, all five full final logs, failed controls, recording and preservation review are retained under `.work/task182`; see `acceptance-log-review.json`, `packaged-artifact-review.json`, `native-acceptance/result.json`, `qualification/command-result.json`, `scrcpy/manifest.env` and `video-review-stability/review.json`. This subtask does not close the hand-off cause or T02/T03.
 
 ## Separate follow-up work
 
