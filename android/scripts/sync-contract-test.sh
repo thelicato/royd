@@ -33,6 +33,9 @@ case "$1" in
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0083-settings-skip-unavailable-saved-bluetooth.patch"
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0084-settings-respect-printing-availability.patch"
+    python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0085-vulkan-consume-software-present-waits.patch" \
+      frameworks/native/
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
@@ -3018,6 +3021,8 @@ grep -Fq 'func TestUsesLibraryExclusionsMatchDexpreopt(t *testing.T)' \
   "$tmp/src/build/soong/java/app_test.go"
 ROYD_ANDROID15_SWIFTSHADER_SOURCE="$tmp/src" \
   "$android_dir/scripts/android15-swiftshader-workers-test.sh"
+ROYD_ANDROID15_VULKAN_SOURCE="$tmp/src" \
+  "$android_dir/scripts/android15-vulkan-present-test.sh"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \
   "$tmp/src/packages/apps/Settings/src/com/android/settings/accessibility/AccessibilityAudioRoutingFragment.java"
 grep -Fq 'PackageManager.FEATURE_BLUETOOTH_LE)) {' \

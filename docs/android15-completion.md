@@ -16,7 +16,7 @@ Tasks are outcomes, not a promise of twelve unrelated code fixes. T01 and T02 ma
 
 | ID | Task and completion evidence | Kind | State |
 | --- | --- | --- | --- |
-| T00 | Record this scope, dependencies, exclusions and commit/evidence ledger. | Repository | Complete, initial checklist commit |
+| T00 | Record this scope, dependencies, exclusions and commit/evidence ledger. | Repository | Complete, `82ec421` |
 | T01 | Establish the current blank-window/hand-off wait on the active image. Correlate app main/render threads, display-buffer consumers and frame content with adequate thread/lifecycle coverage. Fix a demonstrated defect, or establish the exact benign transition and its limits. Retain failed captures and observer overhead. Require focused regression plus current-image UI/runtime/streaming evidence before closure. | Investigation/implementation | Open |
 | T02 | Establish causal closure for retained WebView/Launcher focus ANRs. Use pre-trigger evidence or a demonstrated link to an already corrected cause; a late unrelated stack or an unrelated passing run is insufficient. Preserve the formal failures, test the affected focus/lifecycle path and keep responsiveness assertions unchanged. | Investigation/implementation | Open |
 | T03 | Establish the startup pre-watchdog critical path and blocked-checker interval. Distinguish role/credential/storage samples from the actual cause; preserve durability, permissions and Watchdog policy. Require targeted startup regression and full single/multi-instance qualification after any fix. | Investigation/implementation | Open |
@@ -40,6 +40,8 @@ The starting candidate is `sha256:3ba4f8c1f19e51701b362d112a0bfe58bc925e8e8e8ce7
 - Task179, `2a897a6`: all five generic restart/persistence phases and verified native framework power tracing pass. This does not establish network/history/quota continuity across restart.
 
 Retained completion reports and checksum manifests are under `.work/task177*`, `.work/task178*` and `.work/task179*`. Add each new task's commit and evidence reference here when it is completed. Earlier failed evidence remains retained even when its specific cause is subsequently corrected.
+
+T01 is active. Task181 retained three instrumented app/display captures, including a failed Settings-native capture and explicit later-thread/out-of-order/observer gaps. Task182 independently demonstrates a software Vulkan presentation-ordering defect and implements Patch0085 with source contracts and a real native probe; rebuilt-image acceptance is pending. This subtask does not close the hand-off cause or T02/T03.
 
 ## Separate follow-up work
 

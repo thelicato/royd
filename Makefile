@@ -825,3 +825,7 @@ runtime-adb-check:
 
 runtime-adb-contract-test:
 	./runtime/scripts/adb-contract-test.sh
+
+.PHONY: android15-vulkan-present-test
+android15-vulkan-present-test:
+	./android/scripts/android15-vulkan-present-test.sh

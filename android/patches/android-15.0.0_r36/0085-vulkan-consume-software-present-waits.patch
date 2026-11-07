@@ -1,0 +1,476 @@
+diff --git a/frameworks/native/vulkan/libvulkan/swapchain.cpp b/frameworks/native/vulkan/libvulkan/swapchain.cpp
+--- a/frameworks/native/vulkan/libvulkan/swapchain.cpp
++++ b/frameworks/native/vulkan/libvulkan/swapchain.cpp
+@@ -1,136 +1,141 @@
+ /*
+  * Copyright 2015 The Android Open Source Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+ #include "vulkan/vulkan_core.h"
+ #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
+ #include <aidl/android/hardware/graphics/common/Dataspace.h>
+ #include <aidl/android/hardware/graphics/common/PixelFormat.h>
+ #include <android/hardware/graphics/common/1.0/types.h>
+ #include <android/hardware_buffer.h>
+ #include <grallocusage/GrallocUsageConversion.h>
+ #include <graphicsenv/GraphicsEnv.h>
+ #include <hardware/gralloc.h>
+ #include <hardware/gralloc1.h>
+ #include <log/log.h>
+ #include <sync/sync.h>
+ #include <system/window.h>
+ #include <ui/BufferQueueDefs.h>
+ #include <utils/StrongPointer.h>
+ #include <utils/Timers.h>
+ #include <utils/Trace.h>
+
+ #include <algorithm>
++#include <atomic>
++#include <cerrno>
++#include <cstdlib>
++#include <cstring>
++#include <sys/stat.h>
+ #include <unordered_set>
+ #include <vector>
+
+ #include "driver.h"
+
+ using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
+ using DataSpace = aidl::android::hardware::graphics::common::Dataspace;
+ using android::hardware::graphics::common::V1_0::BufferUsage;
+
+ namespace vulkan {
+ namespace driver {
+
+ namespace {
+
+ static uint64_t convertGralloc1ToBufferUsage(uint64_t producerUsage,
+                                              uint64_t consumerUsage) {
+     static_assert(uint64_t(GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN) ==
+                       uint64_t(GRALLOC1_PRODUCER_USAGE_CPU_READ_OFTEN),
+                   "expected ConsumerUsage and ProducerUsage CPU_READ_OFTEN "
+                   "bits to match");
+     uint64_t merged = producerUsage | consumerUsage;
+     if ((merged & (GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN)) ==
+         GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN) {
+         merged &= ~uint64_t(GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN);
+         merged |= BufferUsage::CPU_READ_OFTEN;
+     }
+     if ((merged & (GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN)) ==
+         GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN) {
+         merged &= ~uint64_t(GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN);
+         merged |= BufferUsage::CPU_WRITE_OFTEN;
+     }
+     return merged;
+ }
+
+ const VkSurfaceTransformFlagsKHR kSupportedTransforms =
+     VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR |
+     VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR |
+     VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR |
+     VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR |
+     VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR |
+     VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR |
+     VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR |
+     VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR |
+     VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
+
+ VkSurfaceTransformFlagBitsKHR TranslateNativeToVulkanTransform(int native) {
+     // Native and Vulkan transforms are isomorphic, but are represented
+     // differently. Vulkan transforms are built up of an optional horizontal
+     // mirror, followed by a clockwise 0/90/180/270-degree rotation. Native
+     // transforms are built up from a horizontal flip, vertical flip, and
+     // 90-degree rotation, all optional but always in that order.
+
+     switch (native) {
+         case 0:
+             return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_FLIP_H:
+             return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_FLIP_V:
+             return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_ROT_180:
+             return VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_ROT_90:
+             return VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_FLIP_H | NATIVE_WINDOW_TRANSFORM_ROT_90:
+             return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_ROT_90:
+             return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_ROT_270:
+             return VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR;
+         case NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY:
+         default:
+             return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+     }
+ }
+
+ int TranslateVulkanToNativeTransform(VkSurfaceTransformFlagBitsKHR transform) {
+     switch (transform) {
+         case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_ROT_90;
+         case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_ROT_180;
+         case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_ROT_270;
+         case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_FLIP_H;
+         case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                    NATIVE_WINDOW_TRANSFORM_ROT_90;
+         case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_FLIP_V;
+         case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR:
+             return NATIVE_WINDOW_TRANSFORM_FLIP_V |
+                    NATIVE_WINDOW_TRANSFORM_ROT_90;
+         case VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR:
+         case VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR:
+         default:
+             return 0;
+     }
+ }
+
+@@ -2494,278 +2499,328 @@
+     img.release_fence = fence < 0 ? -1 : dup(fence);
+
+     if (swapchain.surface.swapchain_handle == HandleFromSwapchain(&swapchain)) {
+         ANativeWindow* window = swapchain.surface.window.get();
+         if (swapchain_result == VK_SUCCESS) {
+
+             if (presentFence != VK_NULL_HANDLE) {
+                 int fence_copy = fence < 0 ? -1 : dup(fence);
+                 VkImportFenceFdInfoKHR iffi = {
+                     VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR,
+                     nullptr,
+                     presentFence,
+                     VK_FENCE_IMPORT_TEMPORARY_BIT,
+                     VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+                     fence_copy,
+                 };
+                 if (VK_SUCCESS != dispatch.ImportFenceFdKHR(device, &iffi) && fence_copy >= 0) {
+                     // ImportFenceFdKHR takes ownership only if it succeeds
+                     close(fence_copy);
+                 }
+             }
+
+             if (pRegion) {
+                 SetSwapchainSurfaceDamage(window, pRegion);
+             }
+             if (pTime) {
+                 SetSwapchainFrameTimestamp(swapchain, pTime);
+             }
+             if (pPresentMode) {
+                 if (!SetSwapchainPresentMode(window, *pPresentMode))
+                     swapchain_result = WorstPresentResult(swapchain_result,
+                         VK_ERROR_SURFACE_LOST_KHR);
+             }
+
+             err = window->queueBuffer(window, img.buffer.get(), fence);
+             // queueBuffer always closes fence, even on error
+             if (err != android::OK) {
+                 ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
+                 swapchain_result = WorstPresentResult(
+                     swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
+             } else {
+                 if (img.dequeue_fence >= 0) {
+                     close(img.dequeue_fence);
+                     img.dequeue_fence = -1;
+                 }
+                 img.dequeued = false;
+             }
+
+             // If the swapchain is in shared mode, immediately dequeue the
+             // buffer so it can be presented again without an intervening
+             // call to AcquireNextImageKHR. We expect to get the same buffer
+             // back from every call to dequeueBuffer in this mode.
+             if (swapchain.shared && swapchain_result == VK_SUCCESS) {
+                 ANativeWindowBuffer* buffer;
+                 int fence_fd;
+                 err = window->dequeueBuffer(window, &buffer, &fence_fd);
+                 if (err != android::OK) {
+                     ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
+                     swapchain_result = WorstPresentResult(swapchain_result,
+                         VK_ERROR_SURFACE_LOST_KHR);
+                 } else if (img.buffer != buffer) {
+                     ALOGE("got wrong image back for shared swapchain");
+                     swapchain_result = WorstPresentResult(swapchain_result,
+                         VK_ERROR_SURFACE_LOST_KHR);
+                 } else {
+                     img.dequeue_fence = fence_fd;
+                     img.dequeued = true;
+                 }
+             }
+         }
+         if (swapchain_result != VK_SUCCESS) {
+             OrphanSwapchain(device, &swapchain);
+         }
+         // Android will only return VK_SUBOPTIMAL_KHR for vkQueuePresentKHR,
+         // and only when the window's transform/rotation changes.  Extent
+         // changes will not cause VK_SUBOPTIMAL_KHR because of the
+         // application issues that were caused when the following transform
+         // change was added.
+         int window_transform_hint;
+         err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
+                             &window_transform_hint);
+         if (err != android::OK) {
+             ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
+                   strerror(-err), err);
+             swapchain_result = WorstPresentResult(
+                 swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
+         }
+         if (swapchain.pre_transform != window_transform_hint) {
+             swapchain_result =
+                 WorstPresentResult(swapchain_result, VK_SUBOPTIMAL_KHR);
+         }
+     } else {
+         ReleaseSwapchainImage(device, swapchain.shared, nullptr, fence,
+                               img, true);
+         swapchain_result = VK_ERROR_OUT_OF_DATE_KHR;
+     }
+
+     return swapchain_result;
+ }
+
++// SwiftShader's Android release hook drains its queue but ignores its input
++// semaphores. Submit the waits once at the presentation-batch boundary so its
++// existing queue drain honours them, including a batch with multiple swapchains.
++static bool UseRoydSoftwarePresentWait(VkQueue queue) {
++#if defined(__x86_64__)
++    const char* container = getenv("ROYD_CONTAINER");
++    if (!container || strcmp(container, "1") != 0) return false;
++    struct stat info;
++    if (stat("/sys/fs/selinux/enforce", &info) != -1 || errno != ENOENT) return false;
++
++    VkPhysicalDevice physical_device = GetData(queue).driver_physical_device;
++    const auto& driver = GetData(physical_device).driver;
++    if (!driver.GetPhysicalDeviceProperties2) return false;
++    VkPhysicalDeviceDriverProperties driver_properties = {};
++    driver_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
++    VkPhysicalDeviceProperties2 properties = {};
++    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
++    properties.pNext = &driver_properties;
++    driver.GetPhysicalDeviceProperties2(physical_device, &properties);
++    return driver_properties.driverID == VK_DRIVER_ID_GOOGLE_SWIFTSHADER;
++#else
++    (void)queue;
++    return false;
++#endif
++}
++
+ VKAPI_ATTR
+ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
+     ATRACE_CALL();
+
+     ALOGV_IF(present_info->sType != VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+              "vkQueuePresentKHR: invalid VkPresentInfoKHR structure type %d",
+              present_info->sType);
+
+     VkResult final_result = VK_SUCCESS;
+
+     // Look at the pNext chain for supported extension structs:
+     const VkPresentRegionsKHR* present_regions = nullptr;
+     const VkPresentTimesInfoGOOGLE* present_times = nullptr;
+     const VkSwapchainPresentFenceInfoEXT* present_fences = nullptr;
+     const VkSwapchainPresentModeInfoEXT* present_modes = nullptr;
+
+     const VkPresentRegionsKHR* next =
+         reinterpret_cast<const VkPresentRegionsKHR*>(present_info->pNext);
+     while (next) {
+         switch (next->sType) {
+             case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR:
+                 present_regions = next;
+                 break;
+             case VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE:
+                 present_times =
+                     reinterpret_cast<const VkPresentTimesInfoGOOGLE*>(next);
+                 break;
+             case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT:
+                 present_fences =
+                     reinterpret_cast<const VkSwapchainPresentFenceInfoEXT*>(next);
+                 break;
+             case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODE_INFO_EXT:
+                 present_modes =
+                     reinterpret_cast<const VkSwapchainPresentModeInfoEXT*>(next);
+                 break;
+             default:
+                 ALOGV("QueuePresentKHR ignoring unrecognized pNext->sType = %x",
+                       next->sType);
+                 break;
+         }
+         next = reinterpret_cast<const VkPresentRegionsKHR*>(next->pNext);
+     }
+     ALOGV_IF(
+         present_regions &&
+             present_regions->swapchainCount != present_info->swapchainCount,
+         "VkPresentRegions::swapchainCount != VkPresentInfo::swapchainCount");
+     ALOGV_IF(present_times &&
+                  present_times->swapchainCount != present_info->swapchainCount,
+              "VkPresentTimesInfoGOOGLE::swapchainCount != "
+              "VkPresentInfo::swapchainCount");
+     ALOGV_IF(present_fences &&
+              present_fences->swapchainCount != present_info->swapchainCount,
+              "VkSwapchainPresentFenceInfoEXT::swapchainCount != "
+              "VkPresentInfo::swapchainCount");
+     ALOGV_IF(present_modes &&
+              present_modes->swapchainCount != present_info->swapchainCount,
+              "VkSwapchainPresentModeInfoEXT::swapchainCount != "
+              "VkPresentInfo::swapchainCount");
+
+     const VkPresentRegionKHR* regions =
+         (present_regions) ? present_regions->pRegions : nullptr;
+     const VkPresentTimeGOOGLE* times =
+         (present_times) ? present_times->pTimes : nullptr;
+
++    uint32_t wait_count = present_info->waitSemaphoreCount;
++    const VkSemaphore* wait_semaphores = present_info->pWaitSemaphores;
++    if (wait_count && present_info->swapchainCount && UseRoydSoftwarePresentWait(queue)) {
++        std::vector<VkPipelineStageFlags> stages(wait_count, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
++        VkSubmitInfo wait = {};
++        wait.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
++        wait.waitSemaphoreCount = wait_count;
++        wait.pWaitSemaphores = wait_semaphores;
++        wait.pWaitDstStageMask = stages.data();
++        VkResult result = GetData(queue).driver.QueueSubmit(queue, 1, &wait, VK_NULL_HANDLE);
++        if (result != VK_SUCCESS) {
++            if (present_info->pResults) {
++                std::fill_n(present_info->pResults, present_info->swapchainCount, result);
++            }
++            return result;
++        }
++        static std::atomic_flag logged = ATOMIC_FLAG_INIT;
++        if (!logged.test_and_set(std::memory_order_relaxed)) {
++            ALOGI("ROYD: consuming software Vulkan presentation semaphores once per batch");
++        }
++        wait_count = 0;
++        wait_semaphores = nullptr;
++    }
++
+     for (uint32_t sc = 0; sc < present_info->swapchainCount; sc++) {
+         Swapchain& swapchain =
+             *SwapchainFromHandle(present_info->pSwapchains[sc]);
+
+         VkResult swapchain_result = PresentOneSwapchain(
+             queue,
+             swapchain,
+             present_info->pImageIndices[sc],
+             (regions && !swapchain.mailbox_mode) ? &regions[sc] : nullptr,
+             times ? &times[sc] : nullptr,
+             present_fences ? present_fences->pFences[sc] : VK_NULL_HANDLE,
+             present_modes ? &present_modes->pPresentModes[sc] : nullptr,
+-            present_info->waitSemaphoreCount,
+-            present_info->pWaitSemaphores);
++            wait_count,
++            wait_semaphores);
+
+         if (present_info->pResults)
+             present_info->pResults[sc] = swapchain_result;
+
+         if (swapchain_result != final_result)
+             final_result = WorstPresentResult(final_result, swapchain_result);
+     }
+
+     return final_result;
+ }
+
+ VKAPI_ATTR
+ VkResult GetRefreshCycleDurationGOOGLE(
+     VkDevice,
+     VkSwapchainKHR swapchain_handle,
+     VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
+     ATRACE_CALL();
+
+     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
+     VkResult result = swapchain.get_refresh_duration(pDisplayTimingProperties->refreshDuration);
+
+     return result;
+ }
+
+ VKAPI_ATTR
+ VkResult GetPastPresentationTimingGOOGLE(
+     VkDevice,
+     VkSwapchainKHR swapchain_handle,
+     uint32_t* count,
+     VkPastPresentationTimingGOOGLE* timings) {
+     ATRACE_CALL();
+
+     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
+     if (swapchain.surface.swapchain_handle != swapchain_handle) {
+         return VK_ERROR_OUT_OF_DATE_KHR;
+     }
+
+     ANativeWindow* window = swapchain.surface.window.get();
+     VkResult result = VK_SUCCESS;
+
+     if (!swapchain.frame_timestamps_enabled) {
+         ALOGV("Calling native_window_enable_frame_timestamps(true)");
+         native_window_enable_frame_timestamps(window, true);
+         swapchain.frame_timestamps_enabled = true;
+     }
+
+     if (timings) {
+         // Get the latest ready timing count before copying, since the copied
+         // timing info will be erased in copy_ready_timings function.
+         uint32_t n = get_num_ready_timings(swapchain);
+         copy_ready_timings(swapchain, count, timings);
+         // Check the *count here against the recorded ready timing count, since
+         // *count can be overwritten per spec describes.
+         if (*count < n) {
+             result = VK_INCOMPLETE;
+         }
+     } else {
+         *count = get_num_ready_timings(swapchain);
+     }
+
+     return result;
+ }
+
+ VKAPI_ATTR
+ VkResult GetSwapchainStatusKHR(
+     VkDevice,
+     VkSwapchainKHR swapchain_handle) {
+     ATRACE_CALL();
+
+     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
+     VkResult result = VK_SUCCESS;
+
+     if (swapchain.surface.swapchain_handle != swapchain_handle) {
+         return VK_ERROR_OUT_OF_DATE_KHR;
+     }
+
+     // TODO(b/143296009): Implement this function properly
+
+     return result;
+ }
+
+ VKAPI_ATTR void SetHdrMetadataEXT(
+     VkDevice,
+     uint32_t swapchainCount,
+     const VkSwapchainKHR* pSwapchains,
+     const VkHdrMetadataEXT* pHdrMetadataEXTs) {
+     ATRACE_CALL();
+
+     for (uint32_t idx = 0; idx < swapchainCount; idx++) {
+         Swapchain* swapchain = SwapchainFromHandle(pSwapchains[idx]);
+         if (!swapchain)
+             continue;
+
+         if (swapchain->surface.swapchain_handle != pSwapchains[idx]) continue;
+
+         ANativeWindow* window = swapchain->surface.window.get();
+
+         VkHdrMetadataEXT vulkanMetadata = pHdrMetadataEXTs[idx];
+         const android_smpte2086_metadata smpteMetdata = {
+             {vulkanMetadata.displayPrimaryRed.x,

@@ -58,3 +58,33 @@ An experimental host GPU path is configured for Android 10 and newer. It uses AO
 The available backends are `host-gpu-generic` and the x86_64-only `host-gpu-intel`. Android 15 selects the modern composer3 service when either backend is requested, but the host-GPU allocator path is not yet qualified against Android 15's modern allocator/mapper contract. Do not treat that combination as build- or runtime-supported until later validation closes the gap. See [`host-gpu.md`](host-gpu.md).
 
 Qualifying this Android 15 host-GPU path is required for competitive interactive performance on machines with suitable DRM render nodes. Adding RAM alone cannot remove the CPU cost of ANGLE over SwiftShader. Software and host-GPU benchmarks must therefore be reported separately.
+
+## Android 15 software Vulkan presentation ordering
+
+Patch0085 makes the Android Vulkan loader submit a presentation batch's binary semaphore waits once before releasing its images. It applies only on x86_64 with `ROYD_CONTAINER=1`, an SELinux enforcement-interface probe failing exactly with `ENOENT`, and a queried `VK_DRIVER_ID_GOOGLE_SWIFTSHADER`. Missing property-query support, another driver and every other environment retain the stock path. Zero-wait batches require no extra submission. Submission errors are returned for the batch and its per-swapchain results; surface damage, timing, present fences/modes and image-release errors retain their existing handling.
+
+The pinned SwiftShader Android release hook ignores its wait-semaphore arguments and drains only its own queue before returning an already-signalled native fence. A producer on another queue/device can therefore remain pending when an image is released. Android's [Vulkan implementation contract](https://source.android.com/docs/core/graphics/implement-vulkan#release-images) requires those dependencies to finish. The loader also forwards the same waits to each swapchain, so adding consumption independently to every image release would consume a batch's waits repeatedly. The scoped loader submission handles the dependencies once and leaves SwiftShader's existing synchronous queue drain and image preparation intact. It emits one `ROYD: consuming software Vulkan presentation semaphores once per batch` marker per process after the first successful wait submission. An unused path need not emit it.
+
+Task182 reproduces premature release on unchanged `3ba4f8c1f19e` through both the private driver hook and public Vulkan swapchains. A second logical device has submitted binary-semaphore signals behind a timeline wait; a controlled host signal later releases that producer. The public one/two-swapchain failures and explicit-wait positive controls retain correct readback of every pixel. These establish presentation ordering, not the cause of task181's HWUI/BufferQueue hand-off stalls, older blank samples, focus ANRs or startup pre-watchdogs. Rebuilt-image acceptance remains required.
+
+Build the diagnostic separately from the product image:
+
+```sh
+./runtime/scripts/vulkan-present-build.sh .work/vulkan-present-probe-new
+```
+
+Use an owned disposable Android 15 software container and a fresh in-container directory. Verify its init environment before supplying the container gate to an exec process, which does not inherit init's exported environment:
+
+```sh
+docker exec "$container" sh -ec 'tr "\000" "\n" < /proc/1/environ | grep -Fxq ROYD_CONTAINER=1'
+probe_dir=$(docker exec "$container" mktemp -d /data/local/tmp/royd-vulkan-present.XXXXXX)
+docker cp .work/vulkan-present-probe-new/probe "$container:$probe_dir/probe"
+docker exec "$container" chmod 0755 "$probe_dir/probe"
+docker exec "$container" env ROYD_CONTAINER=1 timeout 15 "$probe_dir/probe" 0 1 0
+docker exec "$container" env ROYD_CONTAINER=1 timeout 15 "$probe_dir/probe" 1 1 0
+docker exec "$container" env ROYD_CONTAINER=1 timeout 15 "$probe_dir/probe" 2 2 0
+docker exec "$container" env ROYD_CONTAINER=1 timeout 15 "$probe_dir/probe" 1 1 1
+docker exec "$container" env ROYD_CONTAINER=1 timeout 15 "$probe_dir/probe" 2 2 1
+```
+
+Arguments are wait count, swapchain count and explicit diagnostic wait submission. The last two cases exercise the positive control without relying on the loader fix. The probe requires the CPU SwiftShader identity, real ImageReader swapchains, pending imported binary-semaphore producers and exact red/green pixel readback. Its host-signal receipt assertion targets this known synchronous SwiftShader path, not generic Vulkan return latency or every renderer. No wait lacking a pending signal is submitted. Retain command exits, source/ELF checksums, full logs/inspect and pre/post runtime checks before removing the owned container. Repository contracts alone do not qualify the rebuilt path or ordinary-app permissions.

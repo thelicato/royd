@@ -76,6 +76,7 @@ run ./android/scripts/android15-settings-saved-bluetooth-container-test.sh
 run ./android/scripts/android15-settings-printing-container-test.sh
 run python3 ./android/scripts/android15-telecom-preopt-check.py --self-test
 run ./android/scripts/android15-swiftshader-workers-test.sh
+run ./android/scripts/android15-vulkan-present-test.sh
 run ./android/scripts/android15-networkmonitor-wifi-container-test.sh
 run ./android/scripts/android15-netpolicy-wifi-container-test.sh
 run ./android/scripts/android15-metered-deny-container-test.sh
