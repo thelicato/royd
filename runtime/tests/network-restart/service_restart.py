@@ -36,6 +36,9 @@ cmd package list packages -U org.chromium.webview_shell
 
     def body(self):
         self.prepare_container()
+        self.restart_backend()
+
+    def restart_backend(self):
         self.manifest.update(WORKLOAD_STATUS='fail', CONTROLLER_STATUS='pass', DETACH_STATUS='pass')
         self.dx(['sh', '-ec', r'''
 printf '%s\n' "$1" > /data/local/tmp/royd-service-restart

@@ -24,6 +24,10 @@ import org.json.JSONObject;
 public final class QuotaControlProbe {
     private static final ArrayList<JSONObject> callbacks = new ArrayList<>();
     private static Listener listener;
+    private static android.os.IBinder listenerService;
+    // Guard death receipts with the existing callback ledger lock.
+    private static int listenerDeaths;
+    private static long listenerDeathNs;
     private static volatile String listenerNonce;
     private static final class Listener extends INetdUnsolicitedEventListener.Stub {
         @Override public void onQuotaLimitReached(String name, String iface) {
@@ -150,7 +154,23 @@ public final class QuotaControlProbe {
             require(netd != null && netd.isAlive(), "netd unavailable");
             listenerNonce = nonce;listener = new Listener();
             netd.registerUnsolicitedEventListener(listener);
+            listenerService = netd.asBinder();
+            listenerService.linkToDeath(() -> {
+                synchronized (callbacks) {
+                    listenerDeaths++;
+                    listenerDeathNs = SystemClock.elapsedRealtimeNanos();
+                }
+            }, 0);
             return new JSONObject().put("listening", true);
+        }
+        if (op.equals("listener-status")) {
+            require(listener != null && listenerService != null, "listener not registered");
+            synchronized (callbacks) {
+                return new JSONObject().put("netd_alive", listenerService.isBinderAlive())
+                        .put("pid", Process.myPid()).put("uid", Process.myUid())
+                        .put("deaths", listenerDeaths).put("death_ns", listenerDeathNs)
+                        .put("sampled_ns", SystemClock.elapsedRealtimeNanos());
+            }
         }
         if (op.equals("callbacks")) {
             require(listener != null, "listener not registered");
