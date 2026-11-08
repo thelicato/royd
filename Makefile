@@ -140,6 +140,13 @@ runtime-network-service-restart-contract-test:
 runtime-network-interface-alert-restart-test:
 	./runtime/scripts/network-interface-alert-restart-test.sh
 
+.PHONY: runtime-network-policy-usage-test runtime-network-policy-usage-contract-test
+runtime-network-policy-usage-test:
+	./runtime/scripts/network-policy-usage-test.sh
+
+runtime-network-policy-usage-contract-test:
+	./runtime/scripts/network-policy-usage-contract-test.sh
+
 runtime-network-quota-isolated-test:
 	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
 
@@ -656,6 +663,10 @@ android15-networkmonitor-wifi-container-test:
 
 android15-netpolicy-wifi-container-test:
 	./android/scripts/android15-netpolicy-wifi-container-test.sh
+
+.PHONY: android15-network-policy-oci-stats-test
+android15-network-policy-oci-stats-test:
+	./android/scripts/android15-network-policy-oci-stats-test.sh
 
 android15-metered-deny-container-test:
 	./android/scripts/android15-metered-deny-container-test.sh

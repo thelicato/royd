@@ -173,6 +173,10 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 OCI network publication is missing in %s\n' "$container" >&2
     exit 1
   fi
+  if ! docker logs "$container" 2>&1 | grep -Fq 'ROYD: observing OCI Ethernet usage for network policy'; then
+    printf 'error: Android 15 OCI Ethernet policy observer is missing in %s\n' "$container" >&2
+    exit 1
+  fi
   if docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: leaving the active network stats map unchanged because the PF_KEY RCU barrier is unavailable'; then
     printf 'error: Android 15 froze UID statistics instead of completing RCU-protected rotation in %s\n' "$container" >&2

@@ -36,6 +36,9 @@ case "$1" in
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0085-vulkan-consume-software-present-waits.patch" \
       frameworks/native/
+    python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0086-services-observe-oci-ethernet-policy-usage.patch" \
+      frameworks/base/services/core/java/com/android/server/net/
     mkdir -p build system/core/init system/vold frameworks/native/cmds/servicemanager \
       frameworks/native/libs/binder/include/binder frameworks/native/libs/binder \
       system/hardware/interfaces/suspend/1.0/default system/security/keystore2/selinux/src \
@@ -3492,6 +3495,8 @@ grep -Fq 'bool* enabled = bpf_data_saver_enabled_map_lookup_elem(&key);' "$tmp/s
 grep -Fq 'if (royd_metered_uid_blocked(skb->ifindex, uid)) return DROP;' "$tmp/src/packages/modules/Connectivity/bpf/progs/netd.c"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/packages/modules/NetworkStack/src/com/android/server/connectivity/NetworkMonitor.java"
 grep -Fq 'mSkipRoydWifi = shouldSkipRoydWifi(context);' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
+grep -Fq 'registerNetworkStatsCallbacks(executor);' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
+grep -Fq 'new NetworkTemplate.Builder(NetworkTemplate.MATCH_ETHERNET).build()' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
 grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"

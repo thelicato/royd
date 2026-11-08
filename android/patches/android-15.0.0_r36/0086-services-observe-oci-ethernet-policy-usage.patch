@@ -1,0 +1,49 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 7de2815eba6b3ec3ece5aa53ee38af429d3960e3..9dee1e52f9d8cda14ee2e8d5dba405031d341dd0 100644
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -1156,10 +1156,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
+
+             // listen for stats updated callbacks for interested network types.
+             final Executor executor = new HandlerExecutor(mHandler);
+-            mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_MOBILE).build(),
+-                    0 /* thresholdBytes */, executor, mStatsCallback);
+-            mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_WIFI).build(),
+-                    0 /* thresholdBytes */, executor, mStatsCallback);
++            registerNetworkStatsCallbacks(executor);
+
+             // Listen for snooze from notifications
+             mContext.registerReceiver(mSnoozeReceiver,
+@@ -1463,6 +1460,32 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
+         }
+     }
+
++    private final boolean mObserveRoydEthernetStats = shouldObserveRoydEthernetStats();
++
++    private static boolean shouldObserveRoydEthernetStats() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
++
++    private void registerNetworkStatsCallbacks(Executor executor) {
++        mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_MOBILE).build(),
++                0 /* thresholdBytes */, executor, mStatsCallback);
++        mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_WIFI).build(),
++                0 /* thresholdBytes */, executor, mStatsCallback);
++        if (mObserveRoydEthernetStats) {
++            // Keep the readiness guard dependent on real usage of the OCI transport.
++            mNetworkStats.registerUsageCallback(
++                    new NetworkTemplate.Builder(NetworkTemplate.MATCH_ETHERNET).build(),
++                    0 /* thresholdBytes */, executor, mStatsCallback);
++            Slog.i(TAG, "ROYD: observing OCI Ethernet usage for network policy");
++        }
++    }
++
+     /**
+      * Listener that watches for {@link NetworkStatsManager} updates, which
+      * NetworkPolicyManagerService uses to check against {@link NetworkPolicy#warningBytes}.

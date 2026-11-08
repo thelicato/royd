@@ -378,6 +378,7 @@ case "$1" in
     fi
     if [ "${MOCK_WRITABLE_HOST_CLOCK:-0}" != 1 ]; then printf '%s\n' 'SystemClockTime: ROYD: host wall clock is read-only'; fi
     if [ "${MOCK_NO_OCI_NETWORK:-0}" != 1 ]; then printf '%s\n' 'RoydOciNetwork: ROYD: published OCI-owned eth0 network 100'; fi
+    if [ "${MOCK_MISSING_OCI_STATS:-0}" != 1 ]; then printf '%s\n' 'NetworkPolicy: ROYD: observing OCI Ethernet usage for network policy'; fi
     if [ "${MOCK_NO_METERED_BACKEND:-0}" != 1 ]; then
       printf '%s\n' 'BpfNetMaps: ROYD: enforcing OCI metered UID deny policy through cgroup BPF'
       if [ "${MOCK_MISSING_SAVER:-0}" != 1 ]; then
@@ -1482,6 +1483,12 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_NO_OCI_NETWORK=1 \
   exit 1
 fi
 grep -Fq 'Android 15 OCI network publication is missing' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_OCI_STATS=1 \
+    "$script_dir/assert-runtime.sh" no-oci-stats >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an absent OCI policy stats observer' >&2
+  exit 1
+fi
+grep -Fq 'Android 15 OCI Ethernet policy observer is missing' "$tmp/error"
 if MOCK_NO_METERED_BACKEND=1 MOCK_SDK=35 PATH="$tmp:$PATH" "$script_dir/assert-runtime.sh" royd >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted an absent metered deny backend' >&2
   exit 1

@@ -42,6 +42,7 @@ run ./android/scripts/android15-interface-accounting-container-test.sh
 run ./android/scripts/android15-global-alert-container-test.sh
 run ./android/scripts/android15-interface-quota-container-test.sh
 run ./android/scripts/android15-interface-alert-container-test.sh
+run ./android/scripts/android15-network-policy-oci-stats-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/android15-network-stats-rcu-container-test.sh
 run ./android/scripts/android15-packet-rcu-container-test.sh
@@ -128,6 +129,7 @@ run ./runtime/scripts/assert-runtime-contract-test.sh
 run ./runtime/scripts/app-lifecycle-contract-test.sh
 run ./runtime/scripts/restart-contract-test.sh
 run ./runtime/scripts/network-service-restart-contract-test.sh
+run ./runtime/scripts/network-policy-usage-contract-test.sh
 run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
 run ./runtime/scripts/network-history-contract-test.sh
