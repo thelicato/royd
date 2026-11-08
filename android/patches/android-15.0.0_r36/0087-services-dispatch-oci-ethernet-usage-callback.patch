@@ -1,0 +1,100 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 9dee1e52f9d8cda14ee2e8d5dba405031d341dd0..829305bc49ac8f7956f4be58846a0f2e1f3c4dd4 100644
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -1458,81 +1458,95 @@
+                 updateNotificationsNL();
+             }
+         }
+     }
+
+     private final boolean mObserveRoydEthernetStats = shouldObserveRoydEthernetStats();
+
+     private static boolean shouldObserveRoydEthernetStats() {
+         if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
+         try {
+             android.system.Os.stat("/sys/fs/selinux/enforce");
+             return false;
+         } catch (android.system.ErrnoException error) {
+             return error.errno == android.system.OsConstants.ENOENT;
+         }
+     }
+
+     private void registerNetworkStatsCallbacks(Executor executor) {
+         mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_MOBILE).build(),
+                 0 /* thresholdBytes */, executor, mStatsCallback);
+         mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_WIFI).build(),
+                 0 /* thresholdBytes */, executor, mStatsCallback);
+         if (mObserveRoydEthernetStats) {
+             // Keep the readiness guard dependent on real usage of the OCI transport.
+             mNetworkStats.registerUsageCallback(
+                     new NetworkTemplate.Builder(NetworkTemplate.MATCH_ETHERNET).build(),
+                     0 /* thresholdBytes */, executor, mStatsCallback);
+             Slog.i(TAG, "ROYD: observing OCI Ethernet usage for network policy");
+         }
+     }
+
+     /**
+      * Listener that watches for {@link NetworkStatsManager} updates, which
+      * NetworkPolicyManagerService uses to check against {@link NetworkPolicy#warningBytes}.
+      */
+     private final StatsCallback mStatsCallback = new StatsCallback();
+     private class StatsCallback extends NetworkStatsManager.UsageCallback {
+         private boolean mIsAnyCallbackReceived = false;
+
+         @Override
++        public void onThresholdReached(NetworkTemplate template) {
++            if (mObserveRoydEthernetStats
++                    && template.getMatchRule() == NetworkTemplate.MATCH_ETHERNET) {
++                handleThresholdReached();
++            } else {
++                super.onThresholdReached(template);
++            }
++        }
++
++        @Override
+         public void onThresholdReached(int networkType, String subscriberId) {
++            handleThresholdReached();
++        }
++
++        private void handleThresholdReached() {
+             mIsAnyCallbackReceived = true;
+
+             synchronized (mNetworkPoliciesSecondLock) {
+                 updateNetworkRulesNL();
+                 updateNetworkEnabledNL();
+                 updateNotificationsNL();
+             }
+         }
+
+         /**
+          * Return whether any callback is received.
+          * Used to determine if NetworkStatsService is ready.
+          */
+         public boolean isAnyCallbackReceived() {
+             // Warning : threading for this member is broken. It should only be read
+             // and written on the handler thread ; furthermore, the constructor
+             // is called on a different thread, so this stops working if the default
+             // value is not false or if this member ever goes back to false after
+             // being set to true.
+             // TODO : fix threading for this member.
+             return mIsAnyCallbackReceived;
+         }
+     };
+
+     /**
+      * Receiver that watches for {@link Notification} control of
+      * {@link NetworkPolicy#lastWarningSnooze}.
+      */
+     final private BroadcastReceiver mSnoozeReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+             // on background handler thread, and verified MANAGE_NETWORK_POLICY
+             // permission above.
+
+             final NetworkTemplate template = intent.getParcelableExtra(EXTRA_NETWORK_TEMPLATE, android.net.NetworkTemplate.class);
+             if (ACTION_SNOOZE_WARNING.equals(intent.getAction())) {
+                 performSnooze(template, TYPE_WARNING);
+             } else if (ACTION_SNOOZE_RAPID.equals(intent.getAction())) {
+                 performSnooze(template, TYPE_RAPID);
+             }

@@ -53,6 +53,8 @@ Task190 identifies a framework-owned finite-policy fault on that image: 86,481 r
 
 Registration-only rebuild `1594376b1562` passes complete qualification/Binder companions but still fails the usage gate: all 26 snapshots grant 89,530 bytes despite 86,974 recorded bytes. Source execution identifies the inherited template adapter dropping Ethernet callbacks. Keep finite traffic/recalculation untested and usage acceptance open. Binary XML capture also fails after successful policy removal/MAX restoration. Task191 repairs only raw capture, verifies the actual ABX copy/checksums and restored state, and completes ownership-checked cleanup without changing the failed manifest. Focused contracts and real Android probe compilation pass; no Android rebuild or broader acceptance follows from this host-only fix.
 
+Task192 corrects that dispatch through Patch0087: the received Ethernet template enters the unchanged policy handler only inside the existing strict gate; other templates/environments retain their inherited adapter. Actual upstream-adapter regressions reproduce the original loss and check callback lifecycle, executor/handler failures and stock behaviour. The append-only sync fixture covers both patches. This changes an Android build input; require CI, rebuild/provenance and the complete real usage/runtime/streaming gates before closure. T08 and every remaining final-candidate gate stay open.
+
 ## Separate follow-up work
 
 - C01: independently qualify a pinned comparator on a disposable kernel-isolated host, reviewing host-global side effects and actual build/renderer/configuration parity.

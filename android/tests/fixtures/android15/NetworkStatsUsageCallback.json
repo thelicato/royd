@@ -1,0 +1,13 @@
+{
+  "project": "platform/packages/modules/Connectivity",
+  "commit": "64cd443febd3ee0fd5c90b47089d82b96850c1e9",
+  "path": "framework-t/src/android/app/usage/NetworkStatsManager.java",
+  "blob_sha1": "18c839f68e742ed3ab93c75ed2889e02fb51c735",
+  "source_sha256": "121c7ca170960554d0e756d4c6ba4199554b167298fc161e5a23961aab0ed3d3",
+  "fixture_sha256": "1c8773dc21cef164afcbef5aa3575f21e27755a88b19a27e3c4f4803a08c8a1c",
+  "classes": [
+    "UsageCallback",
+    "UsageCallbackWrapper"
+  ],
+  "source_url": "https://android.googlesource.com/platform/packages/modules/Connectivity/+/64cd443febd3ee0fd5c90b47089d82b96850c1e9/framework-t/src/android/app/usage/NetworkStatsManager.java"
+}
