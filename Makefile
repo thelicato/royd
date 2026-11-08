@@ -125,6 +125,10 @@ runtime-network-accounting-contract-test:
 runtime-network-interface-alert-isolated-test:
 	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-interface-alert-test.sh
 
+.PHONY: runtime-network-quota-transport-test
+runtime-network-quota-transport-test:
+	./runtime/scripts/network-quota-transport-test.sh
+
 runtime-network-quota-isolated-test:
 	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
 

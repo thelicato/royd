@@ -60,6 +60,22 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(t.manifest['RESULT_STATUS'], 'fail')
         self.assertTrue(t.failures)
 
+    def test_unfinished_transport_helper_preserves_captured_container_and_volume(self):
+        from transport import TransportTrial
+        from unittest.mock import Mock
+        t = self.configure()
+        t.transport_cleanup_ok = False
+        t.before_owned_cleanup = lambda: TransportTrial.before_owned_cleanup(t)
+        t.link = Mock()
+        t.finish()
+        self.assertEqual(t.manifest['CAPTURE_STATUS'], 'pass')
+        self.assertEqual(t.manifest['RESTORE_STATUS'], 'pass')
+        self.assertEqual(t.manifest['CLEANUP_STATUS'], 'fail')
+        self.assertFalse(any(isinstance(x, list) and x[:2] == ['docker', 'rm'] for x in self.calls))
+        self.assertFalse(any(isinstance(x, list) and x[:3] == ['docker', 'volume', 'rm'] for x in self.calls))
+        t.link.cleanup.assert_not_called()
+        self.assertTrue(any('Transport helper cleanup incomplete' in x for x in t.failures))
+
     def test_missing_ready_worker_archive_prevents_cleanup(self):
         t = self.configure()
         t.workers = dict(a=dict(directory='/owned/missing', ready=dict(uid=10096, pid=50)))

@@ -28,6 +28,7 @@ class Trial:
     quota_inspect_mode = 'inspect-quota'
     quota_observe_mode = 'observe-quota'
     extra_required = ()
+    header_receive_buffer = 0
 
     def __init__(self):
         self.out = Path(os.environ.get('ROYD_QUOTA_OUTPUT_DIR', ROOT/'.work'/('network-quota-'+time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())+'-'+str(os.getpid())))).resolve()
@@ -329,6 +330,9 @@ class Trial:
     def before_close_controllers(self):
         pass
 
+    def before_owned_cleanup(self):
+        pass
+
     def replay_packets(self):
         return replay(self.out)
 
@@ -375,9 +379,11 @@ class Trial:
         self.header_directory = self.out/'packet-headers'
         self.header_directory.mkdir()
         self.manifest['PACKET_HEADERS_STATUS'] = 'fail'
-        self.header_process = subprocess.Popen(['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net',
+        args = ['nsenter', '--net=/proc/'+str(self.host_pid)+'/ns/net',
                 sys.executable, str(ROOT/'runtime/tests/network-quota/packet_headers.py'), str(self.header_directory),
-                self.namespace, str(self.initial['ifindex']), str(os.getpid())],
+                self.namespace, str(self.initial['ifindex']), str(os.getpid())]
+        if self.header_receive_buffer: args.append(str(self.header_receive_buffer))
+        self.header_process = subprocess.Popen(args,
                 stdout=(self.out/'packet-headers.log').open('x'), stderr=subprocess.STDOUT)
         self.wait(lambda: (self.header_directory/'ready.json').exists() or self.header_process.poll() is not None,
                   5, 'packet header observer')
@@ -386,6 +392,10 @@ class Trial:
         need(value['namespace'] == self.namespace and value['ifindex'] == self.initial['ifindex']
              and value['pid'] == self.header_process.pid
              and os.readlink('/proc/'+str(value['pid'])+'/ns/net') == self.namespace, 'packet observer identity')
+        need(value['requested_receive_buffer_bytes'] == self.header_receive_buffer
+             and (not self.header_receive_buffer
+                  or value['effective_receive_buffer_bytes'] == 2*self.header_receive_buffer),
+             'packet observer receive budget mismatch')
 
     def prepare_measurement(self):
         if self.link is None: return
@@ -750,6 +760,7 @@ class Trial:
         if capture_ok and (not self.observers or self.manifest['DETACH_STATUS'] == 'pass'):
             self.manifest['CLEANUP_STATUS'] = 'fail'
             def cleanup():
+                self.before_owned_cleanup()
                 self.owner()
                 self.run(['docker', 'rm', '-f', self.cid], 'container-cleanup.log')
                 owner = self.run(['docker', 'volume', 'inspect', '--format', '{{index .Labels "org.royd.test.owner"}}', self.volume]).stdout.strip()

@@ -9,6 +9,6 @@ struct observe_stats {
 #define TCP_RECORD_LIMIT 4096
 struct tcp_record {
     __u32 skb_len, ip_len, ip_total, tcp_len, sequence, gso_size, gso_segs;
-    __u32 flags, source, destination, source_port, destination_port;
+    __u32 flags, source, destination, source_port, destination_port, cpu;
 };
 #endif

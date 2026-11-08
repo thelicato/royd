@@ -4,8 +4,8 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-from packet_headers import metadata, timestamp, observe, SO_TIMESTAMPNS
+from unittest.mock import patch, Mock
+from packet_headers import metadata, timestamp, observe, receive_buffer, SO_TIMESTAMPNS, SO_RCVBUFFORCE, MAX_RECEIVE_BUFFER
 import runner_test
 
 
@@ -128,7 +128,8 @@ class Headers(unittest.TestCase):
                         (directory/'stop').touch()
                         return len(frame), [(socket.SOL_SOCKET, SO_TIMESTAMPNS, struct.pack('@ll', 123, 456))], \
                             socket.MSG_TRUNC, ('eth0', 0x800, 0, 1, b'')
-                    def getsockopt(self, *args): return struct.pack('=II', packets, drops)
+                    def getsockopt(self, *args):
+                        return 212992 if args == (socket.SOL_SOCKET, socket.SO_RCVBUF) else struct.pack('=II', packets, drops)
                 with patch('packet_headers.os.readlink', side_effect=['private', 'host']), \
                         patch('packet_headers.socket.if_nametoindex', return_value=2), \
                         patch('packet_headers.socket.socket', return_value=Receiver()) as create, \
@@ -140,6 +141,34 @@ class Headers(unittest.TestCase):
                 self.assertNotIn('payload-canary', (directory/'headers.jsonl').read_text())
                 create.assert_called_once_with(socket.AF_PACKET, socket.SOCK_RAW, 0)
                 self.assertEqual(calls, [('option', socket.SOL_SOCKET, SO_TIMESTAMPNS, 1), ('bind', ('eth0', 3))])
+
+
+class HeaderBuffer(unittest.TestCase):
+    def test_explicit_bounded_socket_budget_and_unchanged_default(self):
+        receiver = Mock()
+        receiver.getsockopt.return_value = 2*MAX_RECEIVE_BUFFER
+        self.assertEqual(receive_buffer(receiver, MAX_RECEIVE_BUFFER), 2*MAX_RECEIVE_BUFFER)
+        receiver.setsockopt.assert_called_once_with(socket.SOL_SOCKET, SO_RCVBUFFORCE, MAX_RECEIVE_BUFFER)
+        receiver.reset_mock()
+        receiver.getsockopt.return_value = 212992
+        self.assertEqual(receive_buffer(receiver, 0), 212992)
+        receiver.setsockopt.assert_not_called()
+
+    def test_invalid_request_permission_failure_and_short_buffer_never_fall_back(self):
+        for requested in (-1, 1, 65535, MAX_RECEIVE_BUFFER+1, True, '4194304'):
+            receiver = Mock()
+            with self.subTest(requested=requested), self.assertRaises(ValueError):
+                receive_buffer(receiver, requested)
+            receiver.setsockopt.assert_not_called()
+            receiver.getsockopt.assert_not_called()
+        receiver = Mock()
+        receiver.setsockopt.side_effect = PermissionError('CAP_NET_ADMIN unavailable')
+        with self.assertRaises(PermissionError): receive_buffer(receiver, MAX_RECEIVE_BUFFER)
+        receiver.getsockopt.assert_not_called()
+        receiver = Mock()
+        receiver.getsockopt.return_value = 212992
+        with self.assertRaises(ValueError): receive_buffer(receiver, MAX_RECEIVE_BUFFER)
+        receiver.setsockopt.assert_called_once()
 
 
 class HeaderCleanup(unittest.TestCase):

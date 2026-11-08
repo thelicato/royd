@@ -18,6 +18,7 @@ struct { __uint(type, BPF_MAP_TYPE_ARRAY); __uint(max_entries, 2 * TCP_RECORD_LI
     __type(key, __u32); __type(value, struct tcp_record); } tcp_records SEC(".maps");
 static void* (*lookup)(void*, const void*) = (void*)BPF_FUNC_map_lookup_elem;
 static long (*load)(const struct __sk_buff*, __u32, void*, __u32) = (void*)BPF_FUNC_skb_load_bytes;
+static __u32 (*cpu_id)(void) = (void*)BPF_FUNC_get_smp_processor_id;
 static __attribute__((always_inline)) inline int collect(struct __sk_buff* skb, __u32 direction) {
     __u32 zero = 0;
     struct observe_config* cfg = lookup(&observe_config, &zero);
@@ -46,6 +47,7 @@ static __attribute__((always_inline)) inline int collect(struct __sk_buff* skb, 
                 .flags = ((__u8*)&tcp)[13], .source = __builtin_bswap32(ip.saddr),
                 .destination = __builtin_bswap32(ip.daddr),
                 .source_port = __builtin_bswap16(tcp.source), .destination_port = __builtin_bswap16(tcp.dest),
+                .cpu = cpu_id(),
             };
             return -1;
         }

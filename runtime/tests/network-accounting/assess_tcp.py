@@ -35,7 +35,8 @@ def direction(records):
     intervals, packet_count, header_bytes, gso_skbs = [], 0, 0, 0
     widths = set()
     for r in records:
-        assert set(r) == RECORD_FIELDS
+        # Older receipts have no CPU field and retain their original scope.
+        assert set(r) in (RECORD_FIELDS, RECORD_FIELDS | {'cpu'})
         assert all(type(v) is int and 0 <= v < 1 << 32 for v in r.values())
         assert r['ip_len'] == 20 and 20 <= r['tcp_len'] <= 60 and r['tcp_len'] % 4 == 0
         assert not r['flags'] & 4, 'TCP reset'

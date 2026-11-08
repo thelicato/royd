@@ -125,7 +125,7 @@ type flow struct {
 	first   int64
 }
 
-func server(listen string, tcpMode, policyMode bool) {
+func server(listen string, tcpMode, policyMode, quotaFixture bool) {
 	host, port, e := net.SplitHostPort(listen)
 	ip := net.ParseIP(host)
 	require(e == nil && ip != nil && ip.To4() != nil && ip.IsPrivate() && port == "0", "private bridge and ephemeral port required")
@@ -185,11 +185,17 @@ func server(listen string, tcpMode, policyMode bool) {
 				e = send(c, joined, peer, true)
 				require(e == nil, "fixture UDP_SEGMENT: "+fmt.Sprint(e))
 				f.sent += batch
+				if quotaFixture {
+					emit(map[string]any{"event": "quota-udp-batch", "phase": phase, "uid": uid, "first_sequence": base, "packets": batch, "segmented": true, "peer": peer.String(), "payload_sha256": digest(joined), "time_ns": mono()})
+				}
 			}
 		} else {
 			e = send(c, data, peer, false)
 			require(e == nil, "fixture reply")
 			f.sent++
+			if quotaFixture {
+				emit(map[string]any{"event": "quota-udp-batch", "phase": phase, "uid": uid, "first_sequence": seq, "packets": 1, "segmented": false, "peer": peer.String(), "payload_sha256": digest(data), "time_ns": mono()})
+			}
 		}
 		if len(f.seen) == count && f.sent == count {
 			emit(map[string]any{"event": "complete", "phase": phase, "uid": uid, "packets": count, "payload_bytes": count * size, "segmented": seg, "peer": peer.String(), "first_ns": f.first, "end_ns": mono()})
@@ -335,13 +341,19 @@ func main() {
 	rawMode := flag.Bool("raw", false, "root IPv4 raw socket")
 	loop := flag.Bool("loopback", false, "owned loopback echo")
 	tcpMode := flag.Bool("tcp", false, "controlled bidirectional TCP stream")
+	quotaCrossing := flag.Bool("quota-crossing", false, "controlled segmented or raw quota crossing")
+	quotaFixture := flag.Bool("quota-fixture", false, "retain each echoed quota datagram batch")
 	policyMode := flag.Bool("policy", false, "ordinary-app UID-policy fixture")
 	flag.Parse()
 	if *mode == "server" {
-		server(*listen, *tcpMode, *policyMode)
+		require(!*quotaCrossing, "quota crossing is a worker mode")
+		server(*listen, *tcpMode, *policyMode, *quotaFixture)
 	} else {
-		require(*mode == "worker", "mode")
-		if *tcpMode {
+		require(*mode == "worker" && !*quotaFixture, "worker mode")
+		if *quotaCrossing {
+			require(!*tcpMode && !*loop, "quota datagram flags")
+			quotaDatagramProbe(*address, *nonce, *phase, *uid, *count, *seg, *rawMode)
+		} else if *tcpMode {
 			require(!*seg && !*rawMode && !*loop, "TCP options")
 			tcpWorker(*address, *nonce, *phase, *uid)
 		} else {

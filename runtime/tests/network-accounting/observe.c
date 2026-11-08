@@ -64,8 +64,8 @@ static void tcp_json(FILE* f, int records, unsigned direction, uint64_t count) {
     fprintf(f,"[");
     for (uint64_t n = 0; n < count; n++) {
         struct tcp_record r; read_map(records,direction * TCP_RECORD_LIMIT + n,&r);
-        fprintf(f,"%s{\"skb_len\":%u,\"ip_len\":%u,\"ip_total\":%u,\"tcp_len\":%u,\"sequence\":%u,\"gso_size\":%u,\"gso_segs\":%u,\"flags\":%u,\"source\":%u,\"destination\":%u,\"source_port\":%u,\"destination_port\":%u}",
-            n ? "," : "",r.skb_len,r.ip_len,r.ip_total,r.tcp_len,r.sequence,r.gso_size,r.gso_segs,r.flags,r.source,r.destination,r.source_port,r.destination_port);
+        fprintf(f,"%s{\"skb_len\":%u,\"ip_len\":%u,\"ip_total\":%u,\"tcp_len\":%u,\"sequence\":%u,\"gso_size\":%u,\"gso_segs\":%u,\"flags\":%u,\"source\":%u,\"destination\":%u,\"source_port\":%u,\"destination_port\":%u,\"cpu\":%u}",
+            n ? "," : "",r.skb_len,r.ip_len,r.ip_total,r.tcp_len,r.sequence,r.gso_size,r.gso_segs,r.flags,r.source,r.destination,r.source_port,r.destination_port,r.cpu);
     }
     fprintf(f,"]");
 }
@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
     int quota_trial=quota || (argc>1 && !strcmp(argv[1],"observe-quota-pre"));
     check((argc==4 && (!strcmp(argv[1],"inspect") || !strcmp(argv[1],"inspect-quota") || !strcmp(argv[1],"inspect-quota-alert")))
             || ((argc==7 || argc==8) && !strcmp(argv[1],"observe"))
-            || (argc==7 && (!strcmp(argv[1],"observe-quota") || !strcmp(argv[1],"observe-quota-pre") || !strcmp(argv[1],"observe-quota-alert"))),"arguments");
+            || ((argc==7 || argc==8) && (!strcmp(argv[1],"observe-quota") || !strcmp(argv[1],"observe-quota-pre") || !strcmp(argv[1],"observe-quota-alert"))),"arguments");
     const char* quota_root=quota ? argv[2]:NULL;
     char ns[128]={}; ssize_t size=readlink("/proc/self/ns/net",ns,sizeof(ns)-1);
     check(size>0 && !strcmp(ns,argv[3]),"owned network namespace");

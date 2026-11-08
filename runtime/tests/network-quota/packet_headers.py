@@ -11,6 +11,7 @@ import traceback
 
 PREFIX_BYTES, MAX_FRAMES, LIFETIME_SECONDS = 128, 4096, 600
 SOL_PACKET, PACKET_STATISTICS, SO_TIMESTAMPNS = 263, 6, 35
+SO_RCVBUFFORCE, MAX_RECEIVE_BUFFER = 33, 4 * 1024 * 1024
 
 
 def need(value, reason):
@@ -90,7 +91,20 @@ def publish(directory, name, value):
     temporary.unlink()
 
 
-def observe(directory, expected_namespace, expected_ifindex, parent_pid):
+def receive_buffer(receiver, requested):
+    need(type(requested) is int and (requested == 0 or 65536 <= requested <= MAX_RECEIVE_BUFFER),
+         'packet receive buffer request outside bounds')
+    if requested:
+        # Linux doubles this per-socket budget. Failure is fatal, never a
+        # fallback or a shared rmem_max/sysctl change.
+        receiver.setsockopt(socket.SOL_SOCKET, SO_RCVBUFFORCE, requested)
+    effective = receiver.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+    need(type(effective) is int and effective > 0 and (not requested or effective == 2 * requested),
+         'packet receive buffer not established')
+    return effective
+
+
+def observe(directory, expected_namespace, expected_ifindex, parent_pid, requested_buffer=0):
     need(os.readlink('/proc/self/ns/net') == expected_namespace
          and expected_namespace != os.readlink('/proc/'+str(parent_pid)+'/ns/net'), 'private network namespace required')
     need(socket.if_nametoindex('eth0') == expected_ifindex and expected_ifindex > 1, 'eth0 identity changed')
@@ -99,13 +113,15 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
     opened = time.monotonic_ns()
     # Protocol zero registers no receive hook. Arm only the selected private eth0.
     with socket.socket(socket.AF_PACKET, socket.SOCK_RAW, 0) as receiver, (directory/'headers.jsonl').open('x') as output:
+        effective_buffer = receive_buffer(receiver, requested_buffer)
         receiver.setsockopt(socket.SOL_SOCKET, SO_TIMESTAMPNS, 1)
         receiver.settimeout(.1)
         receiver.bind(('eth0', 3))  # ETH_P_ALL, host order in Python's address tuple.
         try:
             publish(directory, 'ready', dict(namespace=expected_namespace, ifindex=expected_ifindex,
                     pid=os.getpid(), prefix_bytes=PREFIX_BYTES, max_frames=MAX_FRAMES,
-                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened, metadata_format=3))
+                    lifetime_seconds=LIFETIME_SECONDS, monotonic_ns=opened, metadata_format=3,
+                    requested_receive_buffer_bytes=requested_buffer, effective_receive_buffer_bytes=effective_buffer))
             while True:
                 need(time.monotonic_ns()-opened < LIFETIME_SECONDS*1000000000, 'header observer lifetime exceeded')
                 if (directory/'stop').exists(): receiver.setblocking(False)
@@ -131,11 +147,13 @@ def observe(directory, expected_namespace, expected_ifindex, parent_pid):
     if packets != frames or drops != 0: errors.append('packet socket loss/pending frames: '+repr((packets, frames, drops)))
     result = dict(status='fail' if errors else 'pass', frames=frames, packets=packets, drops=drops,
                   errors=errors, namespace=expected_namespace, ifindex=expected_ifindex,
-                  closed_monotonic_ns=time.monotonic_ns(), metadata_format=3)
+                  closed_monotonic_ns=time.monotonic_ns(), metadata_format=3,
+                  requested_receive_buffer_bytes=requested_buffer, effective_receive_buffer_bytes=effective_buffer)
     publish(directory, 'result', result)
     return 0 if not errors else 1
 
 
 if __name__ == '__main__':
-    need(len(sys.argv) == 5, 'usage: packet_headers.py OUTPUT_DIRECTORY NETNS IFINDEX PARENT_PID')
-    sys.exit(observe(Path(sys.argv[1]), sys.argv[2], int(sys.argv[3]), int(sys.argv[4])))
+    need(len(sys.argv) in (5, 6), 'usage: packet_headers.py OUTPUT_DIRECTORY NETNS IFINDEX PARENT_PID [RECEIVE_BUFFER_BYTES]')
+    sys.exit(observe(Path(sys.argv[1]), sys.argv[2], int(sys.argv[3]), int(sys.argv[4]),
+                     int(sys.argv[5]) if len(sys.argv) == 6 else 0))
