@@ -29,6 +29,7 @@ class Trial:
     quota_observe_mode = 'observe-quota'
     extra_required = ()
     header_receive_buffer = 0
+    result_name = 'Interface quota'
 
     def __init__(self):
         self.out = Path(os.environ.get('ROYD_QUOTA_OUTPUT_DIR', ROOT/'.work'/('network-quota-'+time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())+'-'+str(os.getpid())))).resolve()
@@ -319,6 +320,9 @@ class Trial:
         self.run([SCRIPTS/'assert-runtime.sh', self.cid], name, timeout=180,
                  env=dict(os.environ, ROYD_HAL_PROFILE='graphical', ROYD_GRAPHICS_BACKEND='software', ROYD_RESOURCE_PROFILE='low-memory'))
 
+    def validate_runtime_identity(self, current):
+        need(current == self.initial_identity, 'Android/Docker identity changed')
+
     def available_channel(self, uid=0):
         channel = self.channels.get(uid)
         if channel is None: return None  # Initial registration has no controller yet.
@@ -429,7 +433,7 @@ class Trial:
         need(self.capture_peer('packet-peer-after') == self.header_peer, 'packet peer identity changed')
         self.manifest['PACKET_HEADERS_STATUS'] = 'pass'
 
-    def body(self):
+    def prepare_container(self):
         need(os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock').startswith('unix://'), 'local Docker required')
         need(self.run(['docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}']).stdout.strip().startswith('unix://'), 'local Docker context required')
         image = json.loads(self.run(['docker', 'image', 'inspect', self.image]).stdout)[0]
@@ -498,6 +502,9 @@ class Trial:
                                    self.link.holders['gateway']['namespace'])
             self.link.owner('gateway')
         self.nonce = self.fixture.nonce.hex()
+
+    def body(self):
+        self.prepare_container()
         # Drain startup connections before ordinary services begin their idle clock.
         # Header capture starts afterwards so its original lifetime remains bounded.
         self.prepare_measurement()
@@ -713,7 +720,7 @@ class Trial:
             self.manifest['RUNTIME_STATUS'] = 'fail'
             def post():
                 self.runtime('after-runtime.log')
-                need(self.identity('identity-after.json') == self.initial_identity, 'Android/Docker identity changed')
+                self.validate_runtime_identity(self.identity('identity-after.json'))
                 need(self.oci('oci-after.log') == self.initial_oci, 'OCI networking/qdisc changed')
                 self.manifest['RUNTIME_STATUS'] = 'pass'
             self.attempt('post runtime', post)
@@ -797,7 +804,7 @@ def main(trial_class=Trial):
     try: trial.body()
     except BaseException: trial.failures.append('workload: '+traceback.format_exc())
     finally: trial.finish()
-    print('Interface quota result:', trial.manifest['RESULT_STATUS'], 'evidence:', trial.out)
+    print(trial.result_name+' result:', trial.manifest['RESULT_STATUS'], 'evidence:', trial.out)
     if trial.failures: print('\n'.join(trial.failures), file=sys.stderr)
     return 0 if trial.manifest['RESULT_STATUS'] == 'pass' else 1
 

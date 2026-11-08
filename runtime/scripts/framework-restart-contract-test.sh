@@ -7,9 +7,10 @@ mkdir "$tmp/bin"
 cat >"$tmp/bin/docker" <<'MOCK'
 #!/bin/sh
 set -eu
+printf '%s\n' "$*" >>"$MOCK_STATE/docker.log"
 [ "$1" = exec ] && [ "$2" = framework-contract ]
 [ "$3" = timeout ] && [ "$4" = 5 ] && [ "$5" = sh ] && [ "$6" = -c ]
-sh -c '. "$MOCK_ENV"; eval "$1"' sh "$7"
+sh -c '. "$MOCK_ENV"; program=$1; shift; eval "$program"' sh "$7" "$9"
 MOCK
 chmod +x "$tmp/bin/docker"
 cat >"$tmp/android.sh" <<'MOCK'
@@ -43,6 +44,12 @@ getprop() {
 pidof() {
   step=$(cat "$MOCK_STATE/step")
   case "$1:$step:$MOCK_CASE" in
+    netd:0:missing_old_netd) return 1 ;;
+    netd:0:multiple_old_netd) printf '%s\n' '300 301' ;;
+    netd:0:*|netd:*:old_netd) printf '%s\n' 300 ;;
+    netd:*:missing_new_netd) return 1 ;;
+    netd:*:multiple_new_netd) printf '%s\n' '400 401' ;;
+    netd:*) printf '%s\n' 400 ;;
     zygote64:0:missing_old) return 1 ;;
     system_server:0:multiple_old) printf '%s\n' '101 102' ;;
     zygote64:0:*|zygote64:*:old_zygote) printf '%s\n' 100 ;;
@@ -56,7 +63,7 @@ pidof() {
   esac
 }
 setprop() {
-  [ "$*" = 'ctl.restart zygote' ]
+  [ "$*" = "ctl.restart ${MOCK_SERVICE:-zygote}" ]
   printf '%s\n' "$*" >>"$MOCK_STATE/writes"
   [ "$MOCK_CASE" != request_failure ] || return 1
   printf '%s\n' 1 >"$MOCK_STATE/step"
@@ -87,4 +94,27 @@ for mode in good wrong_sdk not_booted not_ready missing_old multiple_old request
     exit 1
   fi
 done
+for mode in good missing_old_netd multiple_old_netd old_netd missing_new_netd multiple_new_netd no_reset no_recovery old_zygote old_system; do
+  state="$tmp/netd-$mode"
+  mkdir "$state"
+  printf '%s\n' 0 >"$state/step"
+  status=0
+  PATH="$tmp/bin:$PATH" MOCK_ENV="$tmp/android.sh" MOCK_STATE="$state" MOCK_CASE="$mode" MOCK_SERVICE=netd \
+    "$script_dir/framework-restart-transition.sh" framework-contract 5 netd >"$state/readiness.tsv" 2>&1 || status=$?
+  if [ "$mode" = good ]; then
+    [ "$status" -eq 0 ]
+    grep -Fxq 'ctl.restart netd' "$state/writes"
+    [ "$(wc -l <"$state/writes")" -eq 1 ]
+    awk -F '\t' '$1 == "recovered" && $6 == 400 { found=1 } END { exit !found }' "$state/readiness.tsv"
+  elif [ "$status" -eq 0 ]; then
+    printf 'error: netd restart transition accepted %s\n' "$mode" >&2
+    exit 1
+  fi
+done
+mkdir "$tmp/invalid-service"
+status=0
+PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/invalid-service" \
+  "$script_dir/framework-restart-transition.sh" framework-contract 5 invalid >"$tmp/invalid-service.log" 2>&1 || status=$?
+[ "$status" -eq 2 ]
+[ ! -e "$tmp/invalid-service/docker.log" ]
 printf '%s\n' 'Android 15 framework restart transition contract test passed'

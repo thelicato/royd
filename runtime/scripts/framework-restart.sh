@@ -1,9 +1,11 @@
 #!/bin/sh
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-container=${1:?usage: framework-restart.sh CONTAINER OUTPUT_DIR TIMEOUT}
-output=${2:?usage: framework-restart.sh CONTAINER OUTPUT_DIR TIMEOUT}
+container=${1:?usage: framework-restart.sh CONTAINER OUTPUT_DIR TIMEOUT [zygote|netd]}
+output=${2:?usage: framework-restart.sh CONTAINER OUTPUT_DIR TIMEOUT [zygote|netd]}
 limit=${3:-180}
+service=${4:-zygote}
+case "$service" in zygote|netd) ;; *) exit 2 ;; esac
 assert_runner=${ROYD_RESTART_ASSERT_RUNNER:-$script_dir/assert-runtime.sh}
 trace_pid=
 suspend_trace_pid=
@@ -96,7 +98,7 @@ done
 [ "$attached" = 1 ]
 printf 'HOST_INIT=%s\nHOST_SUSPEND=%s\nINIT_TRACER_PID=%s\nSUSPEND_TRACER_PID=%s\nATTACHED=1\n' \
   "$host_init" "$host_suspend" "$trace_pid" "$suspend_trace_pid" >"$output/trace-attachment.env"
-"$script_dir/framework-restart-transition.sh" "$container" "$limit" >"$output/readiness.tsv" 2>"$output/transition.log"
+"$script_dir/framework-restart-transition.sh" "$container" "$limit" "$service" >"$output/readiness.tsv" 2>"$output/transition.log"
 ROYD_HAL_PROFILE=graphical "$assert_runner" "$container" >"$output/runtime.log" 2>&1
 # Require the tracer to remain attached throughout recovery and the workload.
 verify_attachments
@@ -115,4 +117,8 @@ docker logs "$container" >"$output/markers.log" 2>&1
 [ "$(grep -Fc 'ROYD: routing init diagnostics to container stderr' "$output/markers.log")" -eq 1 ]
 [ "$(grep -Fc 'ROYD: starting framework service initialisation' "$output/markers.log")" -eq 2 ]
 [ "$(grep -Fc 'ROYD: framework services initialised' "$output/markers.log")" -eq 2 ]
-printf '%s\n' 'Framework restart recovered with native host-power isolation'
+if [ "$service" = zygote ]; then
+  printf '%s\n' 'Framework restart recovered with native host-power isolation'
+else
+  printf '%s\n' 'Netd and framework restart recovered with native host-power isolation'
+fi

@@ -127,7 +127,7 @@ run ./runtime/scripts/android15-display-capture-contract-test.sh
 run ./runtime/scripts/assert-runtime-contract-test.sh
 run ./runtime/scripts/app-lifecycle-contract-test.sh
 run ./runtime/scripts/restart-contract-test.sh
-run ./runtime/scripts/framework-restart-contract-test.sh
+run ./runtime/scripts/network-service-restart-contract-test.sh
 run ./runtime/scripts/network-http-contract-test.sh
 run ./runtime/scripts/network-dns-contract-test.sh
 run ./runtime/scripts/network-history-contract-test.sh

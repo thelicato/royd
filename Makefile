@@ -129,6 +129,13 @@ runtime-network-interface-alert-isolated-test:
 runtime-network-quota-transport-test:
 	./runtime/scripts/network-quota-transport-test.sh
 
+.PHONY: runtime-network-service-restart-test runtime-network-service-restart-contract-test
+runtime-network-service-restart-test:
+	./runtime/scripts/network-service-restart-test.sh
+
+runtime-network-service-restart-contract-test:
+	./runtime/scripts/network-service-restart-contract-test.sh
+
 runtime-network-quota-isolated-test:
 	ROYD_QUOTA_NETWORK_MODE=isolated ROYD_QUOTA_PACKET_HEADERS=1 ./runtime/scripts/network-quota-test.sh
 
