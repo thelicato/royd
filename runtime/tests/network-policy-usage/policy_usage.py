@@ -1,5 +1,5 @@
 """Owned ordinary/native packets under a stock finite Ethernet network policy."""
-import json, sys
+import hashlib, json, sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'runtime/tests/network-quota'))
@@ -38,6 +38,19 @@ class PolicyUsageTrial(Trial):
         self.save(label+'.json',r)
         return r
 
+    def capture_policy(self,name):
+        target=self.out/name
+        need(not target.exists() and not target.is_symlink(),'Policy evidence already exists')
+        source='/data/system/netpolicy.xml'
+        before=self.dx(['sha256sum',source],name+'.source-before.log').split()[0]
+        self.run(['docker','cp',self.cid+':'+source,target],name+'.copy.log')
+        after=self.dx(['sha256sum',source],name+'.source-after.log').split()[0]
+        need(target.is_file() and not target.is_symlink(),'Policy evidence is not a regular file')
+        data=target.read_bytes()
+        digest=hashlib.sha256(data).hexdigest()
+        need(data and digest==before==after,'Policy evidence differs from the live file')
+        self.save(name+'.capture.json',dict(source=source,bytes=len(data),sha256=digest))
+
     def workload(self):
         self.manifest['POLICY_STATUS']='fail'
         self.flow('baseline-a-send','a','send',1,1,None)
@@ -56,7 +69,7 @@ class PolicyUsageTrial(Trial):
         self.wait(ready,10,'Framework finite allowance after recorded usage')
         self.save('policy-install-samples.json',samples)
         before=samples[-1];self.expected_quota=before['post']['quota']
-        self.dx(['cat','/data/system/netpolicy.xml'],'installed-netpolicy.xml')
+        self.capture_policy('installed-netpolicy.xml')
         self.manifest.update(POLICY_STATUS='pass',USAGE_STATUS='fail')
         self.flow('finite-a-send','a','send',1,1,IP_BYTES+100)
         self.flow('finite-system-receive','system','receive',1,1,100)
@@ -70,7 +83,7 @@ class PolicyUsageTrial(Trial):
             return q['present'] and q['limit']==q['remaining']==100 and q['generation']>consumed['post']['quota']['generation']
         self.wait(recalculated,10,'Framework policy recalculation without allowance inflation')
         self.save('recalculation-samples.json',controls)
-        self.dx(['cat','/data/system/netpolicy.xml'],'recalculated-netpolicy.xml')
+        self.capture_policy('recalculated-netpolicy.xml')
         case=dict(nonce=self.nonce,absolute_limit=self.policy_limit,baseline=base,installed=installed,
                   polled=polled,before=before,consumed=consumed,after=controls[-1])
         self.save('policy-usage-case.json',case);self.save('policy-usage-assessment.json',assess(case))
@@ -117,7 +130,7 @@ class PolicyUsageTrial(Trial):
                     return q['present'] and q['limit']==MAXIMUM and q['invalid']==q['contention']==0
                 self.wait(unlimited,10,'Restored framework default MAX policy')
                 self.save('policy-restoration-samples.json',rows)
-                self.dx(['cat','/data/system/netpolicy.xml'],'restored-netpolicy.xml')
+                self.capture_policy('restored-netpolicy.xml')
                 self.manifest['POLICY_RESTORE_STATUS']='pass'
             self.attempt('restore owned framework policy',restore)
         else:self.manifest['POLICY_RESTORE_STATUS']='pass'

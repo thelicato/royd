@@ -51,6 +51,8 @@ Task189 closes only explicit associated-alert re-registration after both restart
 
 Task190 identifies a framework-owned finite-policy fault on that image: 86,481 recorded cycle bytes are treated as zero when installing an 89,037-byte Ethernet policy, granting the full limit instead of 2,556 bytes. The failed diagnostic restores policy/default quota and passes full pre/post runtime; finite traffic and exhaustion feedback are untested. Patch0086 adds the missing real Ethernet usage callback behind the strict container gate, preserving the readiness guard. [The usage gate](network-quotas.md#ethernet-policy-usage-readiness) requires a rebuilt image and real usage deduction/recalculation before local closure. This remains T08 implementation/acceptance work, with no historical ANR/watchdog or final-candidate closure.
 
+Registration-only rebuild `1594376b1562` passes complete qualification/Binder companions but still fails the usage gate: all 26 snapshots grant 89,530 bytes despite 86,974 recorded bytes. Source execution identifies the inherited template adapter dropping Ethernet callbacks. Keep finite traffic/recalculation untested and usage acceptance open. Binary XML capture also fails after successful policy removal/MAX restoration. Task191 repairs only raw capture, verifies the actual ABX copy/checksums and restored state, and completes ownership-checked cleanup without changing the failed manifest. Focused contracts and real Android probe compilation pass; no Android rebuild or broader acceptance follows from this host-only fix.
+
 ## Separate follow-up work
 
 - C01: independently qualify a pinned comparator on a disposable kernel-isolated host, reviewing host-global side effects and actual build/renderer/configuration parity.
