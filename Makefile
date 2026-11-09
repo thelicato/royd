@@ -140,6 +140,10 @@ runtime-network-service-restart-contract-test:
 runtime-network-interface-alert-restart-test:
 	./runtime/scripts/network-interface-alert-restart-test.sh
 
+.PHONY: runtime-network-policy-limit-test
+runtime-network-policy-limit-test:
+	./runtime/scripts/network-policy-limit-test.sh
+
 .PHONY: runtime-network-policy-usage-test runtime-network-policy-usage-contract-test
 runtime-network-policy-usage-test:
 	./runtime/scripts/network-policy-usage-test.sh
@@ -674,6 +678,10 @@ android15-metered-deny-container-test:
 .PHONY: android15-global-alert-container-test
 android15-global-alert-container-test:
 	./android/scripts/android15-global-alert-container-test.sh
+
+.PHONY: android15-quota-events-container-test
+android15-quota-events-container-test:
+	./android/scripts/android15-quota-events-container-test.sh
 
 .PHONY: android15-interface-alert-container-test
 android15-interface-alert-container-test:

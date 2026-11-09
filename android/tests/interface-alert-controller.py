@@ -10,7 +10,7 @@ server.mkdir(parents=True)
 fixtures = root/'android/tests/fixtures/android15'
 for suffix in ['cpp', 'h']:
     (server/('BandwidthController.'+suffix)).write_bytes((fixtures/('global-alert-bandwidth.'+suffix)).read_bytes())
-for number in ['0070', '0071', '0072', '0075']:
+for number in ['0070', '0071', '0072', '0075', '0088']:
     patch = next((root/'android/patches/android-15.0.0_r36').glob(number+'-*.patch'))
     parts = patch.read_text().split('diff --git ')
     names = ['BandwidthController.cpp', 'BandwidthController.h', 'RoydInterfaceQuota.h',
@@ -48,6 +48,7 @@ for name in ['setInterfaceQuota', 'getInterfaceQuota', 'removeInterfaceQuota',
 
 program = r'''
 #include <cassert>
+#include <atomic>
 #include <cstdint>
 #include <cerrno>
 #include <memory>
@@ -68,9 +69,13 @@ struct MockAlert {
  int cancel() { ++cancels;return result; }
  int removeQuota() { ++removes;return result; }
 };
+struct MockQuotaEvents {
+ int set(int64_t value) { return android::net::royd::setQuota(value); }
+};
 class BandwidthController {
 public:
  std::unique_ptr<MockAlert> mRoydInterfaceAlert=std::make_unique<MockAlert>();
+ std::unique_ptr<MockQuotaEvents> mRoydQuotaEvents=std::make_unique<MockQuotaEvents>();
  int legacy=0;
  int setInterfaceQuota(const std::string&,int64_t);
  int getInterfaceQuota(const std::string&,int64_t*);

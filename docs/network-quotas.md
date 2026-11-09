@@ -337,6 +337,24 @@ Use generation-aware registration/removal so a delayed event cannot fire for a r
 
 Keep each API layer's existing caller checks, absence/duplicate semantics and errors. Review invalid values and legacy sentinels explicitly rather than inventing one common interpretation across quota and alert APIs. Map/open/update/attach errors must remain visible and must not acknowledge unenforced security state. Define restart ownership and rollback before wiring the new backend into service calls.
 
+## Framework-owned hard-limit feedback
+
+A fresh diagnostic on `0c3d1b342c91` installs an 89,255-byte framework policy after recording 86,699 cycle bytes. Its 2,556-byte allowance admits ordinary egress and native UID1000 ingress, then drops the other app's crossing datagram. Twenty real listener samples over 5.35 seconds contain no hard-limit receipt, despite a live netd Binder subscription and stable process identities. Explicit stock polling records the three attempted packets and derives one byte. Preserve the failed notification outcome; enforcement, independent packet replay, full pre/post runtime, restoration, lossless headers and cleanup pass separately.
+
+[Patch0088](../android/patches/android-15.0.0_r36/0088-netd-notify-oci-interface-quota-exhaustion.patch) bridges the private TCX budget to netd's existing `onQuotaLimitReached("eth0", "eth0")` event only inside the strict container gate. The nominal 250 ms observer validates interface, map/link identities, installed generation, metadata and non-increasing remaining allowance. Packet enforcement remains immediate in TCX. Start the observer before acknowledging a quota; failed writes retain the old window. Successful removal cancels uncommitted notifications. Commit at most one event per installed window and deliver outside quota/alert/controller locks; lifecycle epochs protect a replacement from an old delivery failure. Source/delivery faults remain visible through diagnostics and the mandatory runtime dump. The success marker is required only after actual quota use. Stock paths, permissions and the packet ABI remain unchanged.
+
+After rebuilding, run:
+
+```sh
+ROYD_IMAGE=<rebuilt-pinned-image-id> \
+  ROYD_POLICY_LIMIT_OUTPUT_DIR=<new-directory> \
+  make runtime-network-policy-limit-test
+```
+
+This gate owns the policy through the real framework APIs. It requires recorded-usage deduction, two fitting packets, a denied crossing, a real root-listener receipt and automatic stock statistics/policy recalculation without an explicit post-install poll. Native ingress and ordinary egress must remain denied under the derived one-byte cap, with a further real notification. The saved replay accepts only an exhausted original generation or a fresh one-byte replacement during the notification window. A full-limit/MAX regrant, admitted denied packet, unrelated traffic, source change or fake/global-only receipt fails. Preserve ordinary/native identity, zero-loss header, complete pre/post runtime, raw ABX/checksum, policy/MAX restoration and owned cleanup gates. Retain all samples even on timeout.
+
+`make android15-quota-events-container-test` executes the actual native observer, BPF source reader and controller wiring, including cancellation/replacement, callback re-entry, write/start/read/delivery faults and unchanged stock methods. The usage contracts additionally check the purpose-specific runtime oracle and actual Android probe compilation. These are prerequisites, not rebuilt-image acceptance. Earlier direct-netd finite fixtures bypass framework policy ownership; they do not qualify this feedback path. Concurrent alerts, finite-policy restart behaviour and final-candidate acceptance remain separate work.
+
 ## Ethernet policy usage readiness
 
 NetworkPolicyManager waits for a real usage callback before querying cycle totals. Its stock Mobile/Wi-Fi registrations never receive traffic on this Ethernet-only product. A fresh privileged diagnostic reads 86,481 recorded bytes in the current cycle, installs a framework Ethernet policy of 89,037 bytes and observes the full 89,037-byte kernel allowance instead of 2,556. Twenty-five snapshots agree. The trial fails before finite traffic; exhaustion feedback is untested. Policy restoration, full pre/post runtime, capture and owned cleanup pass. Preserve that failed outcome.

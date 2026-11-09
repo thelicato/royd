@@ -34,6 +34,11 @@ awk '
  copy {print}
 ' "$root/android/patches/android-15.0.0_r36/0075-netd-notify-container-interface-byte-alerts.patch" \
  | patch -s --fuzz=0 -p1 -d "$tmp/fix"
+awk '
+ /^diff --git / {copy=($0 == "diff --git a/system/netd/server/RoydInterfaceQuota.h b/system/netd/server/RoydInterfaceQuota.h")}
+ copy {print}
+' "$root/android/patches/android-15.0.0_r36/0088-netd-notify-oci-interface-quota-exhaustion.patch" \
+ | patch -s --fuzz=0 -p1 -d "$tmp/fix"
 for name in royd_quota.h roydquota.c; do
  cp "$tmp/fix/packages/modules/Connectivity/bpf/progs/$name" "$tmp/$name"
 done

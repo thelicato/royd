@@ -30,6 +30,7 @@ case "$1" in
     if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = netd ]; then
       printf '%s\n' "${MOCK_ACCOUNTING_STATUS:-royd interface accounting: ifindex=42 errors=0 links=ready}"
       printf '%s\n' "${MOCK_QUOTA_STATUS:-royd interface quota: error=0 active=yes generation=1 limit=9223372036854775807 remaining=9223372036854775806 invalid_drops=0 contention_drops=0}"
+      printf '%s\n' "${MOCK_QUOTA_EVENTS_STATUS:-royd quota events: generation=1 bytes=9223372036854775807 armed=yes started=yes committed=0 error=0 sample_ms=250}"
       exit 0
     fi
     if [ "$1" = cat ] && [ "$2" = /sys/class/net/eth0/ifindex ]; then
@@ -390,6 +391,9 @@ case "$1" in
     fi
     if [ "${MOCK_NO_QUOTA_BACKEND:-0}" != 1 ]; then
       printf '%s\n' 'Netd: ROYD: enforcing OCI eth0 byte quotas through private BPF links'
+    fi
+    if [ "${MOCK_MISSING_QUOTA_EVENT_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'Netd: ROYD: observing OCI interface-quota exhaustion'
     fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1608,4 +1612,19 @@ if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_QUOTA_STATUS=missing \
   exit 1
 fi
 grep -Fq 'Android 15 interface quota state is unavailable or inconsistent' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_QUOTA_EVENTS_STATUS=missing \
+    "$script_dir/assert-runtime.sh" quota-event-invalid >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted a missing quota notification dump' >&2
+  exit 1
+fi
+grep -Fq 'quota notification state is unavailable or inconsistent' "$tmp/error"
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_EVENT_MARKER=1 \
+    "$script_dir/assert-runtime.sh" quota-event-unreported >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unreported active quota notification mode' >&2
+  exit 1
+fi
+grep -Fq 'quota notification mode is not reported' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_EVENT_MARKER=1 \
+  MOCK_QUOTA_EVENTS_STATUS='royd quota events: generation=0 bytes=0 armed=no started=no committed=0 error=0 sample_ms=250' \
+  "$script_dir/assert-runtime.sh" unused-quota-events >/dev/null
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

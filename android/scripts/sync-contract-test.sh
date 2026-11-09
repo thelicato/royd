@@ -3499,6 +3499,8 @@ grep -Fq 'registerNetworkStatsCallbacks(executor);' "$tmp/src/frameworks/base/se
 grep -Fq 'new NetworkTemplate.Builder(NetworkTemplate.MATCH_ETHERNET).build()' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
 grep -Fq 'public void onThresholdReached(NetworkTemplate template)' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
 grep -Fq 'private void handleThresholdReached()' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
+grep -Fq 'mRoydQuotaEvents->set(maxBytes)' "$tmp/src/system/netd/server/BandwidthController.cpp"
+grep -Fq 'onQuotaLimitReached("eth0", "eth0")' "$tmp/src/system/netd/server/BandwidthController.cpp"
 grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"

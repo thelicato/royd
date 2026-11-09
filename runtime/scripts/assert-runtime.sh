@@ -223,6 +223,15 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 interface quota state is unavailable or inconsistent in %s\n' "$container" >&2
     exit 1
   fi
+  if ! quota_events_state=$(printf '%s\n' "$accounting" | awk -f "$script_dir/assert-quota-events.awk"); then
+    printf 'error: Android 15 quota notification state is unavailable or inconsistent in %s\n' "$container" >&2
+    exit 1
+  fi
+  if [ "$quota_events_state" = used ] && ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: observing OCI interface-quota exhaustion'; then
+    printf 'error: Android 15 quota notification mode is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "$metered_map" | grep -Eq "^[[:space:]]*sRoydMeteredIfaceMap: $metered_ifindex$"; then
     printf 'error: Android 15 OCI metered deny interface does not match eth0 in %s\n' "$container" >&2
     exit 1

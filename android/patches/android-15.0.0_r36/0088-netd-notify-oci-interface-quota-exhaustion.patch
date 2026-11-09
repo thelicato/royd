@@ -1,0 +1,365 @@
+diff --git a/system/netd/server/BandwidthController.cpp b/system/netd/server/BandwidthController.cpp
+index 022a3813641c1f77699a30cd63560d491ccda8d4..f2c651d5bb657cc2040ff2d7df195561a25b3fd2 100644
+--- a/system/netd/server/BandwidthController.cpp
++++ b/system/netd/server/BandwidthController.cpp
+@@ -29,6 +29,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <atomic>
+ #include <string>
+ #include <vector>
+
+@@ -55,6 +56,7 @@
+ #include "RoydGlobalAlertSource.h"
+ #include "RoydInterfaceQuota.h"
+ #include "RoydInterfaceAlertSource.h"
++#include "RoydQuotaEventSource.h"
+ #include <netdutils/DumpWriter.h>
+ #include "NetdConstants.h"
+ #include "android/net/INetd.h"
+@@ -284,12 +286,34 @@
+                                     generation);
+                 return success;
+             });
++        mRoydQuotaEvents = std::make_unique<royd::QuotaEvents>(
++            [](royd::QuotaEventSample& sample) {
++                const int result = royd::readQuotaEvent(sample);
++                if (result) ALOGE("ROYD: quota exhaustion sampling failed: %d", result);
++                return result;
++            }, [](int64_t bytes, uint64_t& generation) {
++                return royd::setQuota(bytes, &generation);
++            }, [] { return royd::removeQuota(); },
++            [](uint64_t generation) {
++                const auto listeners = gCtls->eventReporter.getNetdUnsolicitedEventListenerMap();
++                bool success = !listeners.empty();
++                for (const auto& listener : listeners) {
++                    const auto result = listener.first->onQuotaLimitReached("eth0", "eth0");
++                    auto entry = gUnsolicitedLog.newEntry().function("onQuotaLimitReached")
++                            .args("eth0", "eth0");
++                    gUnsolicitedLog.log(entry.withAutomaticDuration());
++                    if (!result.isOk()) success = false;
++                }
++                if (!success) ALOGE("ROYD: quota exhaustion delivery failed for generation %" PRIu64,
++                                    generation);
++                return success;
++            });
+         mRoydInterfaceAlert = std::make_unique<royd::InterfaceAlert>(
+             [](royd::InterfaceAlertSample& sample) {
+                 const int result = royd::readInterfaceAlert(sample);
+                 if (result) ALOGE("ROYD: interface alert sampling failed: %d", result);
+                 return result;
+-            }, [] { return royd::removeQuota(); },
++            }, [this] { return mRoydQuotaEvents->remove(); },
+             [](uint64_t generation) {
+                 const auto listeners = gCtls->eventReporter.getNetdUnsolicitedEventListenerMap();
+                 bool success = !listeners.empty();
+@@ -310,6 +334,13 @@
+ BandwidthController::~BandwidthController() = default;
+
+ void BandwidthController::dumpRoydGlobalAlert(android::netdutils::DumpWriter& writer) {
++    if (mRoydQuotaEvents) {
++        const auto state = mRoydQuotaEvents->status();
++        writer.println("royd quota events: generation=%" PRIu64 " bytes=%" PRIu64
++                       " armed=%s started=%s committed=%" PRIu64 " error=%d sample_ms=250",
++                       state.generation, state.bytes, state.armed ? "yes" : "no",
++                       state.started ? "yes" : "no", state.committed, state.error);
++    }
+     if (mRoydInterfaceAlert) {
+         const auto state = mRoydInterfaceAlert->status();
+         writer.println("royd interface alert: generation=%" PRIu64 " bytes=%" PRIu64
+@@ -478,7 +509,13 @@
+ int BandwidthController::setInterfaceQuota(const std::string& iface, int64_t maxBytes) {
+     if (android::net::royd::enabled() && iface == "eth0") {
+         using namespace android::net;
+-        return maxBytes == -1 ? mRoydInterfaceAlert->removeQuota() : royd::setQuota(maxBytes);
++        if (maxBytes == -1) return mRoydInterfaceAlert->removeQuota();
++        const int result = mRoydQuotaEvents->set(maxBytes);
++        static std::atomic_flag logged = ATOMIC_FLAG_INIT;
++        if (!result && !logged.test_and_set()) {
++            ALOGI("ROYD: observing OCI interface-quota exhaustion");
++        }
++        return result;
+     }
+     const std::string& cost = iface;
+
+diff --git a/system/netd/server/BandwidthController.h b/system/netd/server/BandwidthController.h
+index 3d61ae97d145154dafaf90a12109833465d5fae8..bc87f507323ee4a4a0032158911ed38661dda717 100644
+--- a/system/netd/server/BandwidthController.h
++++ b/system/netd/server/BandwidthController.h
+@@ -24,7 +24,7 @@
+ #include <mutex>
+ #include <memory>
+
+-namespace android::net::royd { class GlobalAlert; class InterfaceAlert; }
++namespace android::net::royd { class GlobalAlert; class InterfaceAlert; class QuotaEvents; }
+ namespace android::netdutils { class DumpWriter; }
+
+ #include "NetdConstants.h"
+@@ -127,6 +127,7 @@
+     int64_t mSharedQuotaBytes = 0;
+     int64_t mGlobalAlertBytes = 0;
+     std::unique_ptr<android::net::royd::GlobalAlert> mRoydGlobalAlert;
++    std::unique_ptr<android::net::royd::QuotaEvents> mRoydQuotaEvents;
+     std::unique_ptr<android::net::royd::InterfaceAlert> mRoydInterfaceAlert;
+
+     std::map<std::string, QuotaInfo> mQuotaIfaces;
+diff --git a/system/netd/server/RoydInterfaceQuota.h b/system/netd/server/RoydInterfaceQuota.h
+index ab31b293b44cfb0d63912568ced27be5352f8ced..552ba1b626aca66e6bbed0f1af84855fdb152f19 100644
+--- a/system/netd/server/RoydInterfaceQuota.h
++++ b/system/netd/server/RoydInterfaceQuota.h
+@@ -98,7 +98,7 @@
+             || value.remaining > value.limit) return -EIO;
+     return 0;
+ }
+-inline int setQuota(int64_t bytes) {
++inline int setQuota(int64_t bytes, uint64_t* generation = nullptr) {
+     if (bytes <= 0) return -ERANGE;
+     std::lock_guard guard(quotaMutex());
+     uint32_t index = 0;
+@@ -117,6 +117,7 @@
+     QuotaValue fresh = {uint64_t(bytes), uint64_t(bytes),
+                        tick > old.generation ? tick : old.generation + 1};
+     if (update(map.get(), index, fresh, BPF_ANY)) return -errno;
++    if (generation) *generation = fresh.generation;
+     return 0;
+ }
+ inline int removeQuota() {
+diff --git a/system/netd/server/RoydQuotaEvents.h b/system/netd/server/RoydQuotaEvents.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..bcd887defca20147a90c1aea0b1e7fe28cf3ca97
+--- /dev/null
++++ b/system/netd/server/RoydQuotaEvents.h
+@@ -0,0 +1,180 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++#include <array>
++#include <cerrno>
++#include <chrono>
++#include <condition_variable>
++#include <cstdint>
++#include <functional>
++#include <mutex>
++#include <pthread.h>
++#include <utility>
++
++namespace android::net::royd {
++struct QuotaEventSample {
++    // Interface, budget/drop/accounting maps and all four production links.
++    std::array<uint32_t, 8> identity{};
++    uint64_t generation = 0, limit = 0, remaining = 0;
++    bool present = false;
++};
++
++// Observe an exhausted kernel budget. Packet enforcement stays in TCX.
++class QuotaEvents {
++  public:
++    using Read = std::function<int(QuotaEventSample&)>;
++    using Set = std::function<int(int64_t, uint64_t&)>;
++    using Remove = std::function<int()>;
++    using Notify = std::function<bool(uint64_t)>;
++    using Start = int (*)(pthread_t*, const pthread_attr_t*, void* (*)(void*), void*);
++    struct Status {
++        uint64_t generation = 0, bytes = 0, committed = 0;
++        bool armed = false, started = false;
++        int error = 0;
++    };
++    QuotaEvents(Read read, Set set, Remove remove, Notify notify,
++                std::chrono::milliseconds interval = std::chrono::milliseconds(250),
++                Start start = pthread_create)
++        : mRead(std::move(read)), mSet(std::move(set)), mRemove(std::move(remove)),
++          mNotify(std::move(notify)), mInterval(interval), mStart(start) {}
++    ~QuotaEvents() {
++        {
++            std::lock_guard guard(mLock);
++            mStop = true;
++            mChanged.notify_all();
++        }
++        if (mState.started) pthread_join(mThread, nullptr);
++    }
++    QuotaEvents(const QuotaEvents&) = delete;
++    QuotaEvents& operator=(const QuotaEvents&) = delete;
++
++    int set(int64_t bytes) {
++        if (bytes <= 0) return -ERANGE;
++        std::lock_guard guard(mLock);
++        if (mState.error) return -mState.error;
++        if (mEpoch == UINT64_MAX) return -EOVERFLOW;
++        QuotaEventSample sample;
++        const int result = mRead(sample);
++        if (result) return result;
++        if (!valid(sample)) return -ENODATA;
++        if (mHaveSource && (sample.identity != mIdentity
++                || (mState.bytes ? !installed(sample) : sample.present))) {
++            failLocked(ESTALE);
++            return -ESTALE;
++        }
++        if (!mState.started) {
++            const int error = mStart(&mThread, nullptr, work, this);
++            if (error) return -error;
++            mState.started = true;
++        }
++        uint64_t generation = 0;
++        const int update = mSet(bytes, generation);
++        if (update) return update; // The old policy/window survives a failed write.
++        if (!generation) {
++            failLocked(EIO);
++            return -EIO;
++        }
++        mHaveSource = true;
++        mIdentity = sample.identity;
++        mState.generation = generation;
++        mState.bytes = uint64_t(bytes);
++        mLastRemaining = uint64_t(bytes);
++        // A distinct lifecycle epoch also protects a reinstalled kernel
++        // generation after removal on a coarse monotonic clock.
++        ++mEpoch;
++        mState.armed = true;
++        mChanged.notify_all();
++        return 0;
++    }
++    int remove() {
++        std::lock_guard guard(mLock);
++        const int result = mRemove();
++        if (!result) {
++            mState.bytes = 0;
++            mState.armed = false;
++            mChanged.notify_all();
++        }
++        return result;
++    }
++    Status status() {
++        std::lock_guard guard(mLock);
++        return mState;
++    }
++
++  private:
++    static bool valid(const QuotaEventSample& sample) {
++        if (sample.identity[0] <= 1) return false;
++        for (const auto id : sample.identity) if (!id) return false;
++        for (unsigned a = 1; a < 4; ++a)
++            for (unsigned b = a + 1; b < 4; ++b)
++                if (sample.identity[a] == sample.identity[b]) return false;
++        for (unsigned a = 4; a < 8; ++a)
++            for (unsigned b = a + 1; b < 8; ++b)
++                if (sample.identity[a] == sample.identity[b]) return false;
++        return sample.present
++                ? sample.generation && sample.limit && sample.limit <= INT64_MAX
++                        && sample.remaining <= sample.limit
++                : !sample.generation && !sample.limit && !sample.remaining;
++    }
++    bool installed(const QuotaEventSample& sample) const {
++        return sample.present && sample.generation == mState.generation
++                && sample.limit == mState.bytes && sample.remaining <= mLastRemaining;
++    }
++    void failLocked(int error) {
++        mState.error = error;
++        mState.armed = false;
++    }
++    static void* work(void* self) {
++        static_cast<QuotaEvents*>(self)->run();
++        return nullptr;
++    }
++    void run() {
++        pthread_setname_np(pthread_self(), "royd-quota-msg");
++        std::unique_lock guard(mLock);
++        while (!mStop) {
++            if (!mState.armed) {
++                mChanged.wait(guard, [&] { return mStop || mState.armed; });
++                continue;
++            }
++            const uint64_t epoch = mEpoch;
++            if (mChanged.wait_for(guard, mInterval, [&] {
++                    return mStop || !mState.armed || epoch != mEpoch;
++                })) continue;
++            // Serialise the bounded BPF read and commitment with quota writes.
++            QuotaEventSample sample;
++            const int result = mRead(sample);
++            if (result || !valid(sample)) {
++                failLocked(result < 0 ? -result : EIO);
++                continue;
++            }
++            if (sample.identity != mIdentity || !installed(sample)) {
++                failLocked(ESTALE);
++                continue;
++            }
++            mLastRemaining = sample.remaining;
++            if (sample.remaining) continue;
++            mState.armed = false;
++            ++mState.committed;
++            const uint64_t generation = mState.generation;
++            // Committed delivery cannot be recalled. No quota, alert or
++            // BandwidthController lock is held while calling Binder listeners.
++            guard.unlock();
++            const bool delivered = mNotify(generation);
++            guard.lock();
++            if (!delivered && epoch == mEpoch && mState.bytes) failLocked(EIO);
++        }
++    }
++    Read mRead;
++    Set mSet;
++    Remove mRemove;
++    Notify mNotify;
++    const std::chrono::milliseconds mInterval;
++    Start mStart;
++    std::mutex mLock;
++    std::condition_variable mChanged;
++    pthread_t mThread{};
++    bool mStop = false, mHaveSource = false;
++    uint64_t mEpoch = 0, mLastRemaining = 0;
++    std::array<uint32_t, 8> mIdentity{};
++    Status mState;
++};
++} // namespace android::net::royd
+diff --git a/system/netd/server/RoydQuotaEventSource.h b/system/netd/server/RoydQuotaEventSource.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..005d123df9eae3b6c206354e44ac4bf1dd3f6926
+--- /dev/null
++++ b/system/netd/server/RoydQuotaEventSource.h
+@@ -0,0 +1,46 @@
++/* Copyright 2026 The royd Authors. SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++#include "RoydInterfaceQuota.h"
++#include "RoydQuotaEvents.h"
++
++namespace android::net::royd {
++inline int readQuotaEvent(QuotaEventSample& sample) {
++    std::lock_guard guard(quotaMutex());
++    uint32_t index = 0;
++    if (!quotaReady(index)) return -EIO;
++    unique_fd budget(object("map_roydquota_quota_budget"));
++    unique_fd faults(object("map_roydquota_quota_drops"));
++    unique_fd accounting(object("map_netd_iface_stats_map"));
++    if (!budget.ok() || !faults.ok() || !accounting.ok()) return -EIO;
++    QuotaDrops drops = {};
++    if (!lookup(faults.get(), 0, drops) || drops.invalid || drops.contention) return -EIO;
++    QuotaValue value = {};
++    sample.present = lookup(budget.get(), index, value);
++    if (!sample.present && errno != ENOENT) return -EIO;
++    if (sample.present && (!value.generation || !value.limit || value.limit > INT64_MAX
++            || value.remaining > value.limit)) return -EIO;
++    sample.identity[0] = index;
++    const int maps[] = {budget.get(), faults.get(), accounting.get()};
++    for (unsigned n = 0; n < 3; ++n) {
++        struct bpf_map_info map = {};
++        if (!info(maps[n], map, offsetof(bpf_map_info, id) + sizeof(map.id)) || !map.id) return -EIO;
++        sample.identity[n + 1] = map.id;
++    }
++    const char* names[] = {"link_royd_iface_ingress", "link_royd_iface_egress",
++                           "link_royd_quota_ingress", "link_royd_quota_egress"};
++    for (unsigned n = 0; n < 4; ++n) {
++        unique_fd fd(object(names[n]));
++        struct bpf_link_info link = {};
++        if (!fd.ok() || !info(fd.get(), link, offsetof(bpf_link_info, id) + sizeof(link.id))
++                || !link.id) return -EIO;
++        sample.identity[n + 4] = link.id;
++    }
++    uint32_t current = 0;
++    if (!quotaReady(current) || current != index || !lookup(faults.get(), 0, drops)
++            || drops.invalid || drops.contention) return -EIO;
++    sample.generation = value.generation;
++    sample.limit = value.limit;
++    sample.remaining = value.remaining;
++    return 0;
++}
++} // namespace android::net::royd
