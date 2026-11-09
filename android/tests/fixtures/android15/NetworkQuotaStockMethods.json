@@ -1,0 +1,27 @@
+{
+  "fixture_sha256": "82c057520ad32e43705dd10ce5cc191baf24ce57d8f579f2aa95b2a887bf7337",
+  "sources": [
+    {
+      "path": "frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java",
+      "commit": "396d32905ded85c082232bc510b525c9e372e585",
+      "blob": "74f0d9cf3e39eae5007fce20399d994217ae78b0",
+      "method": "removeInterfaceQuota",
+      "sha256": "cf23dcfb4c42f93df42bf79318f30735dd69b459b10e84ee3f6c4703d28a1166"
+    },
+    {
+      "path": "frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java",
+      "commit": "396d32905ded85c082232bc510b525c9e372e585",
+      "blob": "7de2815eba6b3ec3ece5aa53ee38af429d3960e3",
+      "method": "setInterfaceLimit",
+      "sha256": "386a7e402f39880ad93715ab280f791167575304a6c6a56dfe37ff4aa00826f5"
+    },
+    {
+      "path": "frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java",
+      "commit": "396d32905ded85c082232bc510b525c9e372e585",
+      "blob": "7de2815eba6b3ec3ece5aa53ee38af429d3960e3",
+      "method": "removeInterfaceLimit",
+      "sha256": "07a9e0097d51fd38a6ed2144ea617a0d34761cf94e368599f42e75f4f4f0bec1"
+    }
+  ],
+  "scope": "Unchanged actual stock methods; compile with the actual replacement patch fragments"
+}

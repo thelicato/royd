@@ -232,6 +232,23 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 quota notification mode is not reported in %s\n' "$container" >&2
     exit 1
   fi
+  quota_replacement=$(docker exec "$container" timeout 15 dumpsys network_management)
+  if ! quota_replacement_used=$(printf '%s\n' "$quota_replacement" | awk '
+    /^royd interface quota replacement:/ {
+      count++
+      if (NF!=6 || $5!="mode=atomic" || ($6!="used=yes" && $6!="used=no")) bad=1
+      used=$6
+    }
+    END { if (bad || count!=1) exit 1; print used }
+  '); then
+    printf 'error: Android 15 OCI interface quota replacement state is unavailable or inconsistent in %s\n' "$container" >&2
+    exit 1
+  fi
+  if [ "$quota_replacement_used" = used=yes ] && ! docker logs "$container" 2>&1 | grep -Fq \
+      'ROYD: replacing OCI eth0 byte quotas atomically'; then
+    printf 'error: Android 15 OCI interface quota replacement mode is not reported in %s\n' "$container" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "$metered_map" | grep -Eq "^[[:space:]]*sRoydMeteredIfaceMap: $metered_ifindex$"; then
     printf 'error: Android 15 OCI metered deny interface does not match eth0 in %s\n' "$container" >&2
     exit 1

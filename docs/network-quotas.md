@@ -337,6 +337,26 @@ Use generation-aware registration/removal so a delayed event cannot fire for a r
 
 Keep each API layer's existing caller checks, absence/duplicate semantics and errors. Review invalid values and legacy sentinels explicitly rather than inventing one common interpretation across quota and alert APIs. Map/open/update/attach errors must remain visible and must not acknowledge unenforced security state. Define restart ownership and rollback before wiring the new backend into service calls.
 
+## Framework quota replacement continuity
+
+Task194's fresh diagnostic on `90e3c6168eeb` reproduces a bypass while Android updates an exhausted policy. A native UID1001 client with no effective capabilities sends 1,536 nonce datagrams under a framework-owned 2,556-byte allowance. Eighteen arrive, but the admitted-byte counter advances by only 2,456 bytes: sixteen packets pass uncharged. All attempts reconcile with the independent interface/observer counters, exact fixture identities and zero noise/errors. Fourteen real hard-limit and three global callbacks arrive, and the final quota is one byte. The native call log records repeated removal/reinstallation. Full pre/post runtime, lossless headers, policy/MAX restoration and owned cleanup pass; continuity remains failed.
+
+NetworkPolicyManager removes each quota before setting its replacement, and NetworkManagementService rejects replacement while its bookkeeping still contains that interface. The private TCX hook admits valid IPv4 without an admitted-counter charge only when no budget is registered. The observed sixteen uncharged datagrams identify that path. Twelve during-stream snapshots miss the short absence intervals; this is source/packet/call-log attribution, without a per-packet map trace or precise gap-duration measurement. Preserve the failed trial and its concurrent global alerts.
+
+[Patch0089](../android/patches/android-15.0.0_r36/0089-services-replace-oci-ethernet-quotas-atomically.patch) lets NPM retain enforcement only for `eth0` under its existing strict container gate. NMS detects the same `ROYD_CONTAINER=1` and exact SELinux-interface `ENOENT` condition, and permits an existing positive `eth0` quota to use netd's acknowledged atomic update. Its permission check and quota lock remain mandatory; bookkeeping changes only after native success, and associated alerts survive replacement. Retain provider updates, existing errors, explicit removal, invalid/sentinel handling and every other environment. A gated NMS dump exposes atomic mode and successful use; emit the bounded marker only after a successful replacement and require it only once used.
+
+After rebuilding, run:
+
+```sh
+ROYD_IMAGE=<rebuilt-pinned-image-id> \
+  ROYD_POLICY_CONTINUITY_OUTPUT_DIR=<new-directory> \
+  make runtime-network-policy-continuity-test
+```
+
+The owned client sends 24 bounded batches of 64 UDP datagrams, with a normal socket, actual UID/GID1001 and no effective capabilities. Require exactly two fitting admissions, 1,534 denials and 2,456 charged bytes; any uncharged admission, observed absent/regranted budget, wrong receipt, source change or unrelated traffic fails. Keep real callbacks, automatic recorded-usage progress and the final one-byte cap. Stock polling can coalesce denied attempts, so this gate does not require every final attempt to appear immediately in history. Retain native output, all observer samples, packet headers, policies/checksums, full pre/post runtime, restoration and guarded cleanup. This is a controlled native stream with an ordinary-app baseline, not general application or concurrent associated-alert acceptance.
+
+`make android15-atomic-quota-container-test` executes the actual old/new NMS method and NPM message with pinned stock helpers, reproducing the open interval and checking strict gates, permissions, failed-write state, alert preservation, provider failures and bounded/unused mode reporting. The runtime evidence contracts also reject the exact retained eighteen-admission failure. Source contracts alone do not close this case: require CI, rebuilt provenance, this continuity gate, the prior hard-limit gate, complete qualification and fresh streaming. Finite-policy restarts, associated-alert ownership, historical ANRs/watchdogs and final-candidate acceptance remain separate.
+
 ## Framework-owned hard-limit feedback
 
 A fresh diagnostic on `0c3d1b342c91` installs an 89,255-byte framework policy after recording 86,699 cycle bytes. Its 2,556-byte allowance admits ordinary egress and native UID1000 ingress, then drops the other app's crossing datagram. Twenty real listener samples over 5.35 seconds contain no hard-limit receipt, despite a live netd Binder subscription and stable process identities. Explicit stock polling records the three attempted packets and derives one byte. Preserve the failed notification outcome; enforcement, independent packet replay, full pre/post runtime, restoration, lossless headers and cleanup pass separately.

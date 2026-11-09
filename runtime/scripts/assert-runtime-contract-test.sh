@@ -33,6 +33,10 @@ case "$1" in
       printf '%s\n' "${MOCK_QUOTA_EVENTS_STATUS:-royd quota events: generation=1 bytes=9223372036854775807 armed=yes started=yes committed=0 error=0 sample_ms=250}"
       exit 0
     fi
+    if [ "$1" = timeout ] && [ "$3" = dumpsys ] && [ "$4" = network_management ]; then
+      printf '%s\n' "${MOCK_QUOTA_REPLACEMENT_STATUS:-royd interface quota replacement: mode=atomic used=yes}"
+      exit 0
+    fi
     if [ "$1" = cat ] && [ "$2" = /sys/class/net/eth0/ifindex ]; then
       printf '%s\n' "${MOCK_METERED_IFINDEX:-42}"
       exit 0
@@ -394,6 +398,9 @@ case "$1" in
     fi
     if [ "${MOCK_MISSING_QUOTA_EVENT_MARKER:-0}" != 1 ]; then
       printf '%s\n' 'Netd: ROYD: observing OCI interface-quota exhaustion'
+    fi
+    if [ "${MOCK_MISSING_QUOTA_REPLACEMENT_MARKER:-0}" != 1 ]; then
+      printf '%s\n' 'NetworkManagement: ROYD: replacing OCI eth0 byte quotas atomically'
     fi
     if [ "$MOCK_SDK" = 35 ] && [ "${MOCK_MISSING_DISPLAY_CONFIG_VALIDATION:-0}" != 1 ]; then
       printf '%s\n' '[royd] display: runtime configuration validated'
@@ -1627,4 +1634,23 @@ grep -Fq 'quota notification mode is not reported' "$tmp/error"
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_EVENT_MARKER=1 \
   MOCK_QUOTA_EVENTS_STATUS='royd quota events: generation=0 bytes=0 armed=no started=no committed=0 error=0 sample_ms=250' \
   "$script_dir/assert-runtime.sh" unused-quota-events >/dev/null
+for quota_replacement_status in missing \
+    'royd interface quota replacement: mode=stock used=yes' \
+    'royd interface quota replacement: mode=atomic used=maybe'; do
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_QUOTA_REPLACEMENT_STATUS="$quota_replacement_status" \
+      "$script_dir/assert-runtime.sh" bad-quota-replacement >"$tmp/error" 2>&1; then
+    printf '%s\n' 'error: runtime assertion accepted an invalid quota replacement state' >&2
+    exit 1
+  fi
+  grep -Fq 'quota replacement state is unavailable or inconsistent' "$tmp/error"
+done
+if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_REPLACEMENT_MARKER=1 \
+    "$script_dir/assert-runtime.sh" unreported-quota-replacement >"$tmp/error" 2>&1; then
+  printf '%s\n' 'error: runtime assertion accepted an unreported used quota replacement mode' >&2
+  exit 1
+fi
+grep -Fq 'quota replacement mode is not reported' "$tmp/error"
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_REPLACEMENT_MARKER=1 \
+  MOCK_QUOTA_REPLACEMENT_STATUS='royd interface quota replacement: mode=atomic used=no' \
+  "$script_dir/assert-runtime.sh" unused-quota-replacement >/dev/null
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

@@ -1,0 +1,123 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java b/frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java
+index 74f0d9cf3e39eae5007fce20399d994217ae78b0..45d3f71d5fea76d83f66b37d09e43a8b2bea805f 100644
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java
+@@ -143,16 +143,20 @@ public class NetworkManagementService extends INetworkManagementService.Stub {
+     /**
+      * If both locks need to be held, then they should be obtained in the order:
+      * first {@link #mQuotaLock} and then {@link #mRulesLock}.
+      */
+     private final Object mQuotaLock = new Object();
+     private final Object mRulesLock = new Object();
+
+     private final boolean mUseMeteredFirewallChains;
++    private final boolean mUseRoydOciQuotaReplacement = shouldUseRoydOciQuotaReplacement();
++
++    @GuardedBy("mQuotaLock")
++    private boolean mRoydQuotaReplacementReported;
+
+     /** Set of interfaces with active quotas. */
+     @GuardedBy("mQuotaLock")
+     private HashMap<String, Long> mActiveQuotas = Maps.newHashMap();
+     /** Set of interfaces with active alerts. */
+     @GuardedBy("mQuotaLock")
+     private HashMap<String, Long> mActiveAlerts = Maps.newHashMap();
+     /** Set of UIDs denied on metered networks. */
+@@ -825,30 +829,47 @@ public class NetworkManagementService extends INetworkManagementService.Stub {
+     public void shutdown() {
+         // TODO: remove from aidl if nobody calls externally
+
+         super.shutdown_enforcePermission();
+
+         Slog.i(TAG, "Shutting down");
+     }
+
++    private static boolean shouldUseRoydOciQuotaReplacement() {
++        if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
++        try {
++            android.system.Os.stat("/sys/fs/selinux/enforce");
++            return false;
++        } catch (android.system.ErrnoException error) {
++            return error.errno == android.system.OsConstants.ENOENT;
++        }
++    }
++
+     @Override
+     public void setInterfaceQuota(String iface, long quotaBytes) {
+         PermissionUtils.enforceNetworkStackPermission(mContext);
+
+         synchronized (mQuotaLock) {
+-            if (mActiveQuotas.containsKey(iface)) {
++            final boolean exists = mActiveQuotas.containsKey(iface);
++            final boolean roydReplace = exists && quotaBytes > 0
++                    && mUseRoydOciQuotaReplacement && "eth0".equals(iface);
++            if (exists && !roydReplace) {
+                 throw new IllegalStateException("iface " + iface + " already has quota");
+             }
+
+             try {
+                 // TODO: support quota shared across interfaces
+                 mNetdService.bandwidthSetInterfaceQuota(iface, quotaBytes);
+
+                 mActiveQuotas.put(iface, quotaBytes);
++                if (roydReplace && !mRoydQuotaReplacementReported) {
++                    mRoydQuotaReplacementReported = true;
++                    Slog.i(TAG, "ROYD: replacing OCI eth0 byte quotas atomically");
++                }
+             } catch (RemoteException | ServiceSpecificException e) {
+                 throw new IllegalStateException(e);
+             }
+         }
+     }
+
+     @Override
+     public void removeInterfaceQuota(String iface) {
+@@ -1286,16 +1307,20 @@ public class NetworkManagementService extends INetworkManagementService.Stub {
+     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+         if (!DumpUtils.checkDumpPermission(mContext, TAG, pw)) return;
+
+         pw.println("Flags:");
+         pw.println(Flags.FLAG_USE_METERED_FIREWALL_CHAINS + ": " + mUseMeteredFirewallChains);
+         pw.println();
+
+         synchronized (mQuotaLock) {
++            if (mUseRoydOciQuotaReplacement) {
++                pw.println("royd interface quota replacement: mode=atomic used="
++                        + (mRoydQuotaReplacementReported ? "yes" : "no"));
++            }
+             pw.print("Active quota ifaces: "); pw.println(mActiveQuotas.toString());
+             pw.print("Active alert ifaces: "); pw.println(mActiveAlerts.toString());
+             pw.print("Data saver mode: "); pw.println(mDataSaverMode);
+             synchronized (mRulesLock) {
+                 dumpUidRuleOnQuotaLocked(pw, "denied UIDs", mUidRejectOnMetered);
+                 dumpUidRuleOnQuotaLocked(pw, "allowed UIDs", mUidAllowOnMetered);
+             }
+         }
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 829305bc49ac8f7956f4be58846a0f2e1f3c4dd4..b44fe2dd8d4f4a7e51fca656e9718081a6beea50 100644
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -5889,18 +5889,21 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
+                     // for 2MB threshold for 2GB/month rules.
+                     final long persistThreshold = lowestRule / 1000;
+                     // TODO: Sync internal naming with the API surface.
+                     mNetworkStats.setDefaultGlobalAlert(persistThreshold);
+                     return true;
+                 }
+                 case MSG_UPDATE_INTERFACE_QUOTAS: {
+                     final IfaceQuotas val = (IfaceQuotas) msg.obj;
+-                    // TODO: Consider set a new limit before removing the original one.
+-                    removeInterfaceLimit(val.iface);
++                    // The OCI backend replaces its budget without removing enforcement.
++                    if (!mObserveRoydEthernetStats || !"eth0".equals(val.iface)) {
++                        // TODO: Consider set a new limit before removing the original one.
++                        removeInterfaceLimit(val.iface);
++                    }
+                     setInterfaceLimit(val.iface, val.limit);
+                     mNetworkStats.setStatsProviderWarningAndLimitAsync(val.iface, val.warning,
+                             val.limit);
+                     return true;
+                 }
+                 case MSG_REMOVE_INTERFACE_QUOTAS: {
+                     final String iface = (String) msg.obj;
+                     removeInterfaceLimit(iface);
