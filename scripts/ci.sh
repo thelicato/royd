@@ -44,6 +44,7 @@ run ./android/scripts/android15-interface-quota-container-test.sh
 run ./android/scripts/android15-interface-alert-container-test.sh
 run ./android/scripts/android15-quota-events-container-test.sh
 run ./android/scripts/android15-atomic-quota-container-test.sh
+run ./android/scripts/android15-quota-readiness-container-test.sh
 run ./android/scripts/android15-network-policy-oci-stats-test.sh
 run ./android/scripts/android15-clat-bpf-container-test.sh
 run ./android/scripts/android15-network-stats-rcu-container-test.sh

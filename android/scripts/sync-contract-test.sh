@@ -36,6 +36,11 @@ case "$1" in
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0085-vulkan-consume-software-present-waits.patch" \
       frameworks/native/
+    PYTHONDONTWRITEBYTECODE=1 python3 "$ROYD_SYNC_FREEZER_FIXTURES/NetworkQuotaReadinessPatchFixture.py" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0086-services-observe-oci-ethernet-policy-usage.patch" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0087-services-dispatch-oci-ethernet-usage-callback.patch" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0089-services-replace-oci-ethernet-quotas-atomically.patch" \
+      "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0090-services-bound-oci-quota-before-usage-readiness.patch"
     PYTHONDONTWRITEBYTECODE=1 python3 "$ROYD_SYNC_FREEZER_FIXTURES/NetworkPolicyUsagePatchFixture.py" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0086-services-observe-oci-ethernet-policy-usage.patch" \
       "$ROYD_SYNC_FREEZER_FIXTURES/../../../patches/android-15.0.0_r36/0087-services-dispatch-oci-ethernet-usage-callback.patch"
@@ -3504,6 +3509,8 @@ grep -Fq 'mRoydQuotaEvents->set(maxBytes)' "$tmp/src/system/netd/server/Bandwidt
 grep -Fq 'onQuotaLimitReached("eth0", "eth0")' "$tmp/src/system/netd/server/BandwidthController.cpp"
 grep -Fq 'final boolean roydReplace = exists && quotaBytes > 0' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkManagementService.java"
 grep -Fq 'if (!mObserveRoydEthernetStats || !"eth0".equals(val.iface))' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
+grep -Fq 'roydInterfaceQuotaLimit(iface, limitBytes, roydAwaitingUsage)' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
+grep -Fq 'royd Ethernet quota readiness: received=' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java"
 grep -Fq 'if (mSkipRoydWifi) {' "$tmp/src/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerShellCommand.java"
 grep -Fq 'private static final boolean sRoydHostClockReadOnly = detectRoydHostClock();' "$tmp/src/frameworks/base/services/core/java/com/android/server/SystemClockTime.java"
 grep -Fq 'if (SystemClockTime.isRoydHostClockReadOnly()) {' "$tmp/src/frameworks/base/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java"

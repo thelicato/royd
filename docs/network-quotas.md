@@ -401,6 +401,23 @@ Policy evidence is copied as raw bytes, including Android binary XML, with match
 
 `make android15-network-policy-oci-stats-test` executes the actual patched registration/probe methods, including stock and non-ENOENT controls, preserved executor/callback/threshold and failed registration. Its dispatch contract uses the pinned actual framework callback/adapter and old/new policy classes, reproduces the lost Ethernet event, and checks queued/released/rejected callbacks, unchanged locking and propagated policy errors. The sync fixture applies both append-only patches in order. `make runtime-network-policy-usage-contract-test` checks recorded-usage subtraction, regrant rejection and actual Android compilation when build inputs are available. Android source and the runtime marker assertion require a rebuilt image. Repository tests alone do not qualify this fix. This gate covers post-readiness usage deduction and explicit-poll recalculation, not instantaneous policy application, exhaustion notifications, finite-policy startup/restart guarantees, concurrent alerts or final-candidate acceptance.
 
+## Finite-policy restart readiness
+
+Task195 on `7fb0f35c7873` retains 84,529 recorded bytes and the byte-identical persisted policy after an explicit netd restart, but reinstalls its full 8,473,137-byte limit instead of the remaining 8,388,608. Default backend/persistence, actual Binder death, native host-power tracing, policy restoration and full runtime checks pass; finite recovery fails before packet preparation. Preserve that failure. Actual-source execution reproduces the policy readiness guard's zero-usage calculation without querying an unready statistics service.
+
+Patch0090 preserves that guard. Only under the existing strict container gate, an active, cycled and unsnoozed Ethernet limit on `eth0` uses a one-byte conservative allowance until a real usage callback permits the normal recorded-usage calculation. Capture readiness before querying: callback publication races with the policy lock. Keep warnings, snoozes, no-limit/no-cycle policies, other interfaces/templates, query errors, permissions and stock environments unchanged. The bounded marker is `ROYD: holding OCI Ethernet quotas at one byte until usage is ready`; the permission-checked policy dump reports actual callback readiness and conservative use. Neither is a substitute for packet validation.
+
+```sh
+ROYD_IMAGE=sha256:<rebuilt-image> ROYD_NETWORK_RESTART_SERVICE=netd \
+  make runtime-network-policy-restart-test
+ROYD_IMAGE=sha256:<rebuilt-image> ROYD_NETWORK_RESTART_SERVICE=zygote \
+  make runtime-network-policy-restart-test
+```
+
+Each fresh disposable instance explicitly flushes stock statistics before installing an owned policy. Observe restored history, native allowance, raw policy/checksums and the old client's real Binder death before any explicit post-restart poll. A distinct listener and one capability-free native UID1001 datagram exercise real recovery: require automatic stock calculation of the positive remaining allowance and actual callback readiness, not a permanent one-byte block. This early startup observation does not claim a noise-free packet interval. Give the unchanged prepared hard-limit matrix its own nonce/fixture and another fresh listener; retain every packet/noise, receipt, source, restoration and full runtime assertion. Native host-power tracing covers the unchanged post-restart runtime gate after policy restoration. Keep full evidence and refuse cleanup of unfinished helpers or unrestored policy.
+
+`make android15-quota-readiness-container-test` executes the actual old/new calculation and dispatch, strict gates, callback race, resumption, snooze/warning/stock controls and failures. The usage contracts validate the saved recovery oracle and ownership-checked runtime continuation. CI, rebuild/provenance, both real restart modes, prior continuity, complete qualification and fresh streaming remain required. Source contracts do not close T08, uninterrupted enforcement throughout restart, unflushed durability, associated-alert concurrency or final-candidate acceptance.
+
 ## Required qualification
 
 1. **Accounting:** controlled ordinary-UID upload/download on the actual metered interface, matching application receipts, advancing native/UID/interface counters and independent namespace-local link controls. Include system traffic, blocked traffic, segmentation and concurrent flows; specify loopback and unrelated-traffic inclusion/exclusion against the relevant API semantics. Do not require equality between counters with different layer semantics.

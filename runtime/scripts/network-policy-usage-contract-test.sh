@@ -3,7 +3,8 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 export PYTHONDONTWRITEBYTECODE=1
 sh -n "$root/runtime/scripts/network-policy-usage-test.sh" "$root/runtime/scripts/network-policy-usage-build.sh" \
- "$root/runtime/scripts/network-policy-limit-test.sh" "$root/runtime/scripts/network-policy-continuity-test.sh"
+ "$root/runtime/scripts/network-policy-limit-test.sh" "$root/runtime/scripts/network-policy-continuity-test.sh" \
+ "$root/runtime/scripts/network-policy-restart-test.sh"
 python3 -m unittest discover -s "$root/runtime/tests/network-policy-usage" -p '*_test.py'
 tree=${ROYD_QUOTA_TEST_ANDROID_TREE:-}
 if [ -z "$tree" ] && [ -f "$root/.work/android-src-15/out/host/linux-x86/bin/d8" ]; then tree=$root/.work/android-src-15; fi

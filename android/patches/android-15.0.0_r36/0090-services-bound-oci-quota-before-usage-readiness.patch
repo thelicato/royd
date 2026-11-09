@@ -1,0 +1,220 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+--- a/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/frameworks/base/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -1447,36 +1447,39 @@
+          * sub is known, notifications will be re-evaluated by this callback.
+          */
+         private int mDefaultDataSubId = mDeps.getDefaultDataSubId();
+         private int mActiveDataSubId = mDeps.getActivateDataSubId();
+         // Only listen to active data sub change is sufficient because default data sub change
+         // leads to active data sub change as well.
+         @Override
+         public void onActiveDataSubscriptionIdChanged(int subId) {
+             mActiveDataSubId = subId;
+             mDefaultDataSubId = mDeps.getDefaultDataSubId();
+             synchronized (mNetworkPoliciesSecondLock) {
+                 updateNotificationsNL();
+             }
+         }
+     }
+
+     private final boolean mObserveRoydEthernetStats = shouldObserveRoydEthernetStats();
+
++    @GuardedBy("mNetworkPoliciesSecondLock")
++    private boolean mRoydQuotaUsageWaitReported;
++
+     private static boolean shouldObserveRoydEthernetStats() {
+         if (!"1".equals(System.getenv("ROYD_CONTAINER"))) return false;
+         try {
+             android.system.Os.stat("/sys/fs/selinux/enforce");
+             return false;
+         } catch (android.system.ErrnoException error) {
+             return error.errno == android.system.OsConstants.ENOENT;
+         }
+     }
+
+     private void registerNetworkStatsCallbacks(Executor executor) {
+         mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_MOBILE).build(),
+                 0 /* thresholdBytes */, executor, mStatsCallback);
+         mNetworkStats.registerUsageCallback(new NetworkTemplate.Builder(MATCH_WIFI).build(),
+                 0 /* thresholdBytes */, executor, mStatsCallback);
+         if (mObserveRoydEthernetStats) {
+             // Keep the readiness guard dependent on real usage of the OCI transport.
+             mNetworkStats.registerUsageCallback(
+@@ -2412,73 +2415,81 @@
+            final NetworkPolicy policy = mNetworkPolicy.valueAt(i);
+
+             // Collect all ifaces that match this policy
+             matchingIfaces.clear();
+             for (int j = identified.size() - 1; j >= 0; j--) {
+                 if (policy.template.matches(identified.valueAt(j))) {
+                     collectIfaces(matchingIfaces, identified.keyAt(j));
+                 }
+             }
+
+             if (LOGD) {
+                 Slog.d(TAG, "Applying " + policy + " to ifaces " + matchingIfaces);
+             }
+
+             final boolean hasWarning = policy.warningBytes != LIMIT_DISABLED;
+             final boolean hasLimit = policy.limitBytes != LIMIT_DISABLED;
+             long limitBytes = Long.MAX_VALUE;
+             long warningBytes = Long.MAX_VALUE;
++            boolean roydAwaitingUsage = false;
+             if ((hasLimit || hasWarning) && policy.hasCycle()) {
+                 final Pair<ZonedDateTime, ZonedDateTime> cycle = NetworkPolicyManager
+                         .cycleIterator(policy).next();
+                 final long start = cycle.first.toInstant().toEpochMilli();
+                 final long end = cycle.second.toInstant().toEpochMilli();
++                // Capture readiness before the query: the callback publishes it before
++                // taking this lock, so a later read could accept a computed zero.
++                roydAwaitingUsage = mObserveRoydEthernetStats
++                        && policy.template.getMatchRule() == NetworkTemplate.MATCH_ETHERNET
++                        && hasLimit && policy.lastLimitSnooze < start
++                        && !mStatsCallback.isAnyCallbackReceived();
+                 final long totalBytes = getTotalBytes(policy.template, start, end);
+
+                 // If the limit notification is not snoozed, the limit quota needs to be calculated.
+                 if (hasLimit && policy.lastLimitSnooze < start) {
+                     // remaining "quota" bytes are based on total usage in
+                     // current cycle. kernel doesn't like 0-byte rules, so we
+                     // set 1-byte quota and disable the radio later.
+                     limitBytes = Math.max(1, policy.limitBytes - totalBytes);
+                 }
+
+                 // If the warning notification was snoozed by user, or the service already knows
+                 // it is over warning bytes, doesn't need to calculate warning bytes.
+                 if (hasWarning && policy.lastWarningSnooze < start
+                         && !policy.isOverWarning(totalBytes)) {
+                     warningBytes = Math.max(1, policy.warningBytes - totalBytes);
+                 }
+             }
+
+             if (hasWarning || hasLimit || policy.metered) {
+                 if (matchingIfaces.size() > 1) {
+                     // TODO: switch to shared quota once NMS supports
+                     Slog.w(TAG, "shared quota unsupported; generating rule for each iface");
+                 }
+
+                 // Set the interface warning and limit. For interfaces which has no cycle,
+                 // or metered with no policy quotas, or snoozed notification; we still need to put
+                 // iptables rule hooks to restrict apps for data saver, so push really high quota.
+                 // TODO: Push NetworkStatsProvider.QUOTA_UNLIMITED instead of Long.MAX_VALUE to
+                 //  providers.
+                 for (int j = matchingIfaces.size() - 1; j >= 0; j--) {
+                     final String iface = matchingIfaces.valueAt(j);
+-                    setInterfaceQuotasAsync(iface, warningBytes, limitBytes);
++                    setInterfaceQuotasAsync(iface, warningBytes,
++                            roydInterfaceQuotaLimit(iface, limitBytes, roydAwaitingUsage));
+                     newMeteredIfaces.add(iface);
+                 }
+             }
+
+             // keep track of lowest warning or limit of active policies
+             if (hasWarning && policy.warningBytes < lowestRule) {
+                 lowestRule = policy.warningBytes;
+             }
+             if (hasLimit && policy.limitBytes < lowestRule) {
+                 lowestRule = policy.limitBytes;
+             }
+         }
+
+         // One final pass to catch any metered ifaces that don't have explicitly
+         // defined policies; typically Wi-Fi networks.
+         for (final NetworkStateSnapshot snapshot : snapshots) {
+             if (!snapshot.getNetworkCapabilities().hasCapability(NET_CAPABILITY_NOT_METERED)) {
+                 matchingIfaces.clear();
+@@ -4090,36 +4101,41 @@
+         for (String arg : args) {
+             argSet.add(arg);
+         }
+
+         synchronized (mUidRulesFirstLock) {
+             synchronized (mNetworkPoliciesSecondLock) {
+                 if (argSet.contains("--unsnooze")) {
+                     for (int i = mNetworkPolicy.size()-1; i >= 0; i--) {
+                         mNetworkPolicy.valueAt(i).clearSnooze();
+                     }
+
+                     handleNetworkPoliciesUpdateAL(true);
+
+                     fout.println("Cleared snooze timestamps");
+                     return;
+                 }
+
+                 fout.print("System ready: "); fout.println(mSystemReady);
++                if (mObserveRoydEthernetStats) {
++                    fout.println("royd Ethernet quota readiness: received="
++                            + (mStatsCallback.isAnyCallbackReceived() ? "yes" : "no")
++                            + " conservative_used=" + (mRoydQuotaUsageWaitReported ? "yes" : "no"));
++                }
+                 fout.print("Restrict background: "); fout.println(mRestrictBackground);
+                 fout.print("Restrict power: "); fout.println(mRestrictPower);
+                 fout.print("Device idle: "); fout.println(mDeviceIdleMode);
+                 fout.print("Restricted networking mode: "); fout.println(mRestrictedNetworkingMode);
+                 fout.print("Low Power Standby mode: "); fout.println(mLowPowerStandbyActive);
+                 synchronized (mMeteredIfacesLock) {
+                     fout.print("Metered ifaces: ");
+                     fout.println(mMeteredIfaces);
+                 }
+
+                 fout.println();
+                 fout.println("Flags:");
+                 fout.println(Flags.FLAG_USE_METERED_FIREWALL_CHAINS + ": "
+                         + mUseMeteredFirewallChains);
+                 fout.println(Flags.FLAG_USE_DIFFERENT_DELAYS_FOR_BACKGROUND_CHAIN + ": "
+                         + mUseDifferentDelaysForBackgroundChain);
+                 fout.println(Flags.FLAG_NEVER_APPLY_RULES_TO_CORE_UIDS + ": "
+                         + mNeverApplyRulesToCoreUids);
+@@ -6347,36 +6363,51 @@
+                 mNetworkManager.setFirewallUidRule(FIREWALL_CHAIN_METERED_ALLOW, uid,
+                         FIREWALL_RULE_DEFAULT);
+             } else {
+                 mNetworkManager.setUidOnMeteredNetworkAllowlist(uid, false);
+                 mLogger.meteredAllowlistChanged(uid, false);
+                 mNetworkManager.setUidOnMeteredNetworkDenylist(uid, false);
+                 mLogger.meteredDenylistChanged(uid, false);
+             }
+         } catch (IllegalStateException e) {
+             Log.wtf(TAG, "problem resetting firewall uid rules for " + uid, e);
+         } catch (RemoteException e) {
+             // ignored; service lives in system_server
+         }
+         if (Process.isApplicationUid(uid)) {
+             resetUidFirewallRules(Process.toSdkSandboxUid(uid));
+         }
+     }
+
++    @GuardedBy("mNetworkPoliciesSecondLock")
++    private long roydInterfaceQuotaLimit(String iface, long limitBytes, boolean awaitingUsage) {
++        if (awaitingUsage && "eth0".equals(iface)) {
++            // Zero means not ready, not an unused cycle. Do not regrant history.
++            // A real usage callback recalculates the normal allowance; exhaustion
++            // keeps the existing hard-limit feedback and stock polling path.
++            if (!mRoydQuotaUsageWaitReported) {
++                mRoydQuotaUsageWaitReported = true;
++                Slog.i(TAG, "ROYD: holding OCI Ethernet quotas at one byte until usage is ready");
++            }
++            return 1;
++        }
++        return limitBytes;
++    }
++
+     @Deprecated
+     private long getTotalBytes(NetworkTemplate template, long start, long end) {
+         // Skip if not ready. NetworkStatsService will block public API calls until it is
+         // ready. To prevent NPMS be blocked on that, skip and fail fast instead.
+         if (!mStatsCallback.isAnyCallbackReceived()) return 0;
+         return mDeps.getNetworkTotalBytes(template, start, end);
+     }
+
+     private boolean isBandwidthControlEnabled() {
+         final long token = Binder.clearCallingIdentity();
+         try {
+             return mNetworkManager.isBandwidthControlEnabled();
+         } catch (RemoteException e) {
+             // ignored; service lives in system_server
+             return false;
+         } finally {
+             Binder.restoreCallingIdentity(token);
+         }

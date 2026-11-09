@@ -11,6 +11,12 @@ for name,text in sources(Path(sys.argv[1]),prefixes=('frameworks/base/services/c
           'if (!mObserveRoydEthernetStats || !"eth0".equals(val.iface))',)
  if all(marker in existing for marker in markers):continue
  assert not any(marker in existing for marker in markers),(name,'partial postimage')
+ if target.name=='NetworkPolicyManagerService.java' and 'case MSG_UPDATE_INTERFACE_QUOTAS: {' in existing:
+  # A later shared fixture has already reconstructed and reversed this exact case.
+  start=text.index('case MSG_UPDATE_INTERFACE_QUOTAS: {')
+  end=text.index('case MSG_REMOVE_INTERFACE_QUOTAS:',start)
+  assert text[start:end].strip() in existing,(name,'different preimage')
+  continue
  rows=existing.splitlines()
  incoming=text.splitlines();rows.extend(['']*max(0,len(incoming)-len(rows)))
  for number,line in enumerate(incoming):
