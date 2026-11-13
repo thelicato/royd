@@ -1,0 +1,34 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/Watchdog.java b/frameworks/base/services/core/java/com/android/server/Watchdog.java
+--- a/frameworks/base/services/core/java/com/android/server/Watchdog.java
++++ b/frameworks/base/services/core/java/com/android/server/Watchdog.java
+@@ -896,6 +896,7 @@
+                         blockedCheckers = getCheckersWithStateLocked(WAITED_UNTIL_PRE_WATCHDOG);
+                         subject = describeCheckersLocked(blockedCheckers);
+                         logRoydPreWatchdog(subject);
++                        logRoydPreWatchdogCheckerTimes(blockedCheckers);
+                         pids = new ArrayList<>(mInterestingJavaPids);
+                         doWaitedPreDump = true;
+                     } else {
+@@ -1061,6 +1062,22 @@
+         }
+     }
+
++    private static void logRoydPreWatchdogCheckerTimes(List<HandlerChecker> checkers) {
++        if (!sRoydLocalDiagnostics) {
++            return;
++        }
++        // The caller holds mLock at the existing pre-watchdog event. Read each
++        // checker's own uptime clock once without changing its pending check.
++        for (HandlerChecker checker : checkers) {
++            final long sampledUptimeMillis = checker.mClock.millis();
++            Slog.i(TAG, "ROYD: pre-watchdog checker timing: name=" + checker.getName()
++                    + " start_uptime_ms=" + checker.mStartTimeMillis
++                    + " sampled_uptime_ms=" + sampledUptimeMillis
++                    + " elapsed_ms=" + (sampledUptimeMillis - checker.mStartTimeMillis)
++                    + " wait_max_ms=" + checker.mWaitMaxMillis);
++        }
++    }
++
+     private void doSysRq(char c) {
+         if (sRoydLocalDiagnostics) {
+             if (sRoydSysRqReported.compareAndSet(false, true)) {
