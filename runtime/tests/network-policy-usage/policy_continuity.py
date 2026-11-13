@@ -36,6 +36,11 @@ class ContinuityTrial(PolicyUsageTrial):
                     now=self.dx(['cat','/proc/'+str(pid)+'/stat']).rsplit(')',1)[1].split()[19]
                     need(now!=self.burst_start_ticks,'Owned native process still alive; preserve resources')
         self.burst_exited=True;self.manifest['NATIVE_CLEANUP_STATUS']='pass'
+    def before_stream(self):pass
+    def during_stream(self):pass
+    def after_stream(self):pass
+    def decorate_case(self,case):pass
+    def assess_case(self,case,receipts):return assess(case,receipts)
     def workload(self):
         need(self.channels[0].request('listen')==dict(listening=True),'Root subscription')
         listener=self.channels[0].request('listener-status');self.save('listener-before.json',listener)
@@ -64,11 +69,12 @@ class ContinuityTrial(PolicyUsageTrial):
         self.dx(['cat','/proc/'+str(r['pid'])+'/status'],'burst-status.log')
         self.burst_start_ticks=self.dx(['cat','/proc/'+str(r['pid'])+'/stat'],'burst-stat.log').rsplit(')',1)[1].split()[19]
         self.fixture.register(1001,r['local']);self.save('burst-ready.json',r)
+        self.before_stream()
         before=self.snapshot('continuous-before');self.burst_process.stdin.write((self.nonce+'\n').encode());self.burst_process.stdin.flush()
         during=[];deadline=time.monotonic()+15
         while self.burst_process.poll() is None:
             need(time.monotonic()<deadline,'Bounded native stream deadline')
-            during.append(self.snapshot('continuous-during-'+str(len(during))));time.sleep(.01)
+            during.append(self.snapshot('continuous-during-'+str(len(during))));self.during_stream();time.sleep(.01)
         need(self.burst_process.returncode==0,'Native stream failed');self.stop_burst()
         self.save('continuous-samples.json',during);time.sleep(.5);settled=[]
         def automatic():
@@ -80,6 +86,7 @@ class ContinuityTrial(PolicyUsageTrial):
         finally:self.save('continuous-settle-samples.json',settled)
         after=self.snapshot('continuous-after')
         rows=[json.loads(v) for v in path.read_text().splitlines()];need(len(rows)==2 and rows[-1]['event']=='finished','Native completion')
+        self.after_stream()
         callbacks=self.channels[0].request('callbacks');live=self.channels[0].request('listener-status')
         self.save('callback-ledger.json',callbacks);self.save('listener-after.json',live)
         final=self.policy('final-inspect','inspect');self.dx(['timeout','15','dumpsys','netd'],'continuous-netd.log')
@@ -88,7 +95,8 @@ class ContinuityTrial(PolicyUsageTrial):
         case=dict(nonce=self.nonce,absolute_limit=self.policy_limit,baseline=base,installed=installed,final_policy=final,
             before=before,after=after,during=during,ready=r,finished=rows[-1],callbacks=callbacks,
             listener_before=listener,listener_after=live)
-        self.save('continuity-case.json',case);result=assess(case,self.fixture.records());self.save('continuity-assessment.json',result)
+        self.decorate_case(case)
+        self.save('continuity-case.json',case);result=self.assess_case(case,self.fixture.records());self.save('continuity-assessment.json',result)
         self.save('plan.json',self.plan);self.manifest.update(RECALCULATION_STATUS='pass',AUTOMATIC_STATS_STATUS='pass')
         self.manifest.update(CONTINUITY_STATUS='pass',WORKLOAD_STATUS='pass')
     def replay_packets(self):
@@ -124,11 +132,12 @@ class ContinuityTrial(PolicyUsageTrial):
                 paths=list((self.out/('observer-'+side)).glob('s*-'+label+'.json'))
                 need(len(paths)==1,'Missing or duplicate raw boundary');raw[side]=json.loads(paths[0].read_text())
             need(case[key]==raw,'Case boundary differs from raw observer output')
-        return assess(case,rows)
+        return self.assess_case(case,rows)
     def finish(self):
         self.attempt('native stream completion',self.stop_burst)
         super().finish()
     def before_owned_cleanup(self):
         need(self.burst_exited,'Native helper not confirmed stopped; preserve resources')
+        super().before_owned_cleanup()
 
 if __name__=='__main__':sys.exit(main(ContinuityTrial))

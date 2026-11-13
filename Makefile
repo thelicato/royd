@@ -144,6 +144,10 @@ runtime-network-interface-alert-restart-test:
 runtime-network-policy-continuity-test:
 	./runtime/scripts/network-policy-continuity-test.sh
 
+.PHONY: runtime-network-policy-concurrent-test
+runtime-network-policy-concurrent-test:
+	./runtime/scripts/network-policy-concurrent-test.sh
+
 .PHONY: runtime-network-policy-limit-test
 runtime-network-policy-limit-test:
 	./runtime/scripts/network-policy-limit-test.sh

@@ -3,7 +3,8 @@ import hashlib
 from fixture import packet,IP_BYTES
 from assess import need
 
-def assess(case,receipts):
+def assess(case,receipts,*,expected_associated=0):
+    need(type(expected_associated) is int and expected_associated in (0,1),'Unsupported associated receipt expectation')
     a,b=case['before'],case['after'];count=1536
     for side in ('pre','post'):
         x,y=a[side],b[side]
@@ -60,9 +61,10 @@ def assess(case,receipts):
     need(0<len(ledger['callbacks'])<=32 and ledger['sampled_ns']<=case['final_policy']['sampled_ns'],'Callback ledger bounds')
     for number,row in enumerate(ledger['callbacks'],1):
         need(row['sequence']==number and row['nonce']==case['nonce'] and row['caller_uid']==row['caller_pid']==0
-             and row['interface']=='eth0' and row['name'] in ('eth0','globalAlert')
+             and row['interface']=='eth0' and row['name'] in (('eth0','globalAlert','eth0Alert') if expected_associated else ('eth0','globalAlert'))
              and 0<row['time_ns']<=ledger['sampled_ns'] and row['time_ns']>=previous,'Callback identity/order')
         previous=row['time_ns']
+    need(sum(row['name']=='eth0Alert' for row in ledger['callbacks'])==expected_associated,'Associated receipt count differs')
     for sample in case['during']+[b]:
         for side in ('pre','post'):
             need(all(sample[side][k]==a[side][k] for k in ('ifindex','map_id','production_links','query')),
