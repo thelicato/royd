@@ -62,8 +62,6 @@ The result file records the selected image identity and each qualification stage
 
 When a Binder companion directory already exists, qualification refuses reuse before opening the previous result or log. Select a fresh `ROYD_RUNTIME_RESULT_FILE` (or fresh results directory for a matrix rerun) to retain earlier attempts.
 
-Task155's rebuilt image `79568439e907` passes one full evidenced qualification after an earlier companion pre-watchdog failure. Five-minute scrcpy, global callbacks and bridge-DNS native/WebView HTTPS also pass locally. A later embedded-DNS run fails before workload on another startup pre-watchdog, this time with only one instance. Its retained log shows startup continuing and `StartServices` taking 33.746 seconds, but its TLS cleanup lost the thread dump. Keep the failed qualification and failed TLS manifest independently; neither a healthy eventual boot nor a later pass explains the wait. Watchdog diagnosis and that mode's new-image HTTPS witness remain open, separately from the Binder capture correction.
-
 Docker can omit health state for a never-started container or an image without a health check. The collector records `health=none` and still captures logs/inspect; an empty log is valid only when `docker logs` succeeds. Present `starting`/`unhealthy` states and Docker errors remain visible, and unavailable inspect/log commands still fail capture. Evidence capture is not boot or health qualification: a failed start remains failed. `make runtime-container-evidence-test` uses Go to execute the production template with strict missing-key checks, plus mocked collection failures; the collector itself requires only Docker and the shell.
 
 Qualify several already-imported images with the resumable matrix runner:

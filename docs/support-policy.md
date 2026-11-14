@@ -26,6 +26,10 @@ A release may be described as supported only after the relevant architecture and
 
 Support claims must state the Android version, architecture, image profile, HAL profile, security mode, and security-profile policy identity they cover. A security-profile digest change invalidates older runtime qualification for support purposes.
 
+## Known limitations and historical failures
+
+Support is scoped to reviewed candidate evidence, with limitations stated explicitly. Earlier Android 15 ANRs and startup watchdogs have incomplete causal evidence and remain unestablished; exact historical attribution is accepted as a documented limitation. This does not establish that they are fixed or permit a candidate failure to pass. Every final-candidate responsiveness/security assertion remains mandatory, and failed results remain retained. See [known limitations](known-limitations.md) and [the completion checklist](android15-completion.md).
+
 ## Evidence ownership
 
 Generated build and runtime qualification reports under `.work` are local evidence and are not source-of-truth code. For reference-host review, `make runtime-reference-qualify` collects host, image, runtime, memory, and optional capability-reduction evidence into a checksummed bundle. `make runtime-reference-bundle-verify BUNDLE=...` must pass before that bundle is cited for a support decision. A release should only be promoted in repository documentation after the underlying build evidence and verified reference-host bundle have been reviewed and the relevant test environment has been documented.

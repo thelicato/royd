@@ -4,182 +4,90 @@
 </h1>
 <p align="center"><b>royd</b></p>
 
-royd is an experimental Android runtime designed for OCI containers. The goal is to run Android directly on the host Linux kernel without QEMU or a guest kernel, while keeping the normal user experience as close as possible to running any other container.
+royd runs Android directly in OCI containers on the host Linux kernel, without QEMU, KVM or a guest kernel. Docker and Compose are the primary interfaces; no royd daemon or host launcher is required. The optional Go CLI provides convenience commands.
 
-royd is an independent AOSP-based project. Prior art and influences are documented in [`docs/acknowledgements.md`](docs/acknowledgements.md). The project carries its own Android integration, product definitions, runtime helpers, patches, and container tooling.
-
-## Android versions
-
-royd carries pinned build configurations from Android 8.0 through Android 17. Android 15 remains the default baseline. Android 8.0 through 10 use an explicit legacy compatibility path, while every non-baseline version still requires clean build and boot validation before it can be called supported.
-
-```sh
-make android-versions
-make android-sync-9
-make android-config-check-13
-make android-build-x86_64-16
-```
-
-See [`docs/android-versions.md`](docs/android-versions.md) for the support matrix and version-selection rules, and [`docs/legacy-android.md`](docs/legacy-android.md) for the Android 8.0 through 10 build, partition, and memfd compatibility path.
+royd is an independent AOSP-based project with owned products, runtime helpers and Android patches. See [acknowledgements](docs/acknowledgements.md) for prior art.
 
 > [!IMPORTANT]
-> royd is currently in early development. There is no published royd image yet. The repository can build a local development image from the pinned AOSP baseline and repository-owned Android integration, but the independent container boot and graphics path are not yet broadly validated.
+> royd is experimental and has no published image yet. The active baseline is Android 15 x86_64, standard graphical, software rendering and privileged rootful Docker. Local component validation is available; final clean-build and reference-host acceptance remain pending. Read [known limitations](docs/known-limitations.md) and [security](docs/security.md) before use.
 
-## Goals
+## Requirements
 
-- Run Android as an OCI container without QEMU or KVM.
-- Make plain `docker run` and `docker compose up` the primary interfaces.
-- Keep host setup minimal and distribution-independent where the Linux kernel permits it.
-- Define royd's required host and virtual hardware contract explicitly instead of inheriting hidden emulator assumptions.
-- Prefer private binderfs instances over statically allocated host Binder devices.
-- Prefer modern Android and Linux interfaces such as `memfd`, cgroup v2, and PSI-aware memory management.
-- Reduce Android memory usage through build-time configuration and removal of unnecessary components.
-- Expose Android `logcat` output through container stdout and stderr so `docker logs` is useful by default.
-- Support multiple isolated Android containers on one host efficiently.
-- Keep any royd CLI optional. The OCI image must remain fully usable without it.
+- A Linux host with Android Binder IPC and binderfs. royd allocates private Binder devices; it does not compile or install kernel modules.
+- Rootful Docker Engine, with Compose v2 for the Compose workflow. Privileged operation is the current baseline.
+- The kernel facilities required by the enabled memory and network backends, including the declared BPF/TCX capabilities. See [hardware contract](docs/hardware-contract.md).
+- A locally built and imported royd image. Software rendering needs no GPU or `/dev/dri` access.
 
-## Intended usage
-
-The target Docker interface is deliberately small. A locally built development image is currently tagged `royd:dev`:
+Run host preflight before booting Android:
 
 ```sh
-docker run --privileged \
+make runtime-host-check
+```
+
+The image is built from pinned AOSP and repository-owned integration:
+
+```sh
+./build.sh --android 15 --arch x86_64 --jobs "$(nproc)"
+```
+
+See [building](docs/building.md) for dependencies, profile selection, packaging and import. The local standard graphical alias is `royd:dev`; [image metadata](docs/runtime.md) records the exact build identity.
+
+## Run Android
+
+```sh
+docker run -d --name royd \
+  --privileged \
   --tmpfs /dev/socket:rw,nosuid,nodev,noexec,mode=0755 \
-  -v android-data:/data \
-  -p 5555:5555 \
+  -v royd-data:/data \
+  -p 127.0.0.1:5555:5555 \
   royd:dev
 ```
 
-The equivalent Compose configuration is provided in `runtime/compose.yaml` and supports optional local overrides through `runtime/.env`:
-
-```yaml
-services:
-  android:
-    image: ${ROYD_IMAGE:-royd:dev}
-    privileged: true
-    ports:
-      - "${ROYD_ADB_BIND:-127.0.0.1}:${ROYD_ADB_PORT:-5555}:5555"
-    volumes:
-      - royd-data:/data
-
-volumes:
-  royd-data:
-    name: ${ROYD_DATA_VOLUME:-royd-data}
-```
-
-`--privileged` remains the development baseline. An experimental restricted mode now uses a versioned exact-capability policy: it drops Docker's default capability set first, then adds the repository-owned inventory and records the resulting kernel-visible security state during qualification. It is not yet a supported minimum. See [`docs/security.md`](docs/security.md).
-
-## Runtime model
-
-royd is intended to share the host Linux kernel rather than boot a virtual machine:
-
-```text
-Linux host kernel
-  -> OCI runtime
-    -> royd container
-      -> private mount namespace
-      -> private binderfs instance
-      -> Android init as PID 1
-      -> Android userspace
-```
-
-Each container should create and manage its own Binder devices where the runtime permits it, while Android continues to see the conventional paths:
-
-```text
-/dev/binder
-/dev/hwbinder
-/dev/vndbinder
-```
-
-The host kernel must provide the required Android Binder functionality. royd will not compile or install kernel modules as part of the normal runtime path. Unsupported hosts should fail early with a clear diagnostic instead of failing later during Android boot.
-
-## Container logs
-
-Android `/init` should remain PID 1. Once Android logging is available, the container should forward useful `logcat` output to stdout and stderr so normal container tooling works as expected:
+Android init becomes PID 1. The container creates its own Binder devices and forwards Android logs to stdout/stderr. The named `/data` volume preserves application data across container replacement.
 
 ```sh
-docker logs -f <container>
+docker logs -f royd
+docker inspect --format '{{.State.Health.Status}}' royd
 ```
 
-Direct Android debugging must remain available independently through ADB:
+Alternatively, use the provided Compose configuration:
 
 ```sh
-adb -s localhost:5555 logcat
+docker compose -f runtime/compose.yaml up -d
+docker compose -f runtime/compose.yaml logs -f
 ```
 
-Startup diagnostics should appear in the same container logs and report relevant compatibility information such as Binder support, binderfs initialisation, cgroup mode, graphics mode, and fatal host incompatibilities. Run `make runtime-host-check` for a host-side preflight before starting Android. `make runtime-kernel-evidence` records the live kernel facilities and relevant Kconfig values used by reference-host qualification without requiring an Android image. For rootless feasibility, run `make runtime-rootless-probe` and see [`docs/rootless.md`](docs/rootless.md).
+Copy `runtime/.env.example` to `runtime/.env` for local overrides. See [runtime usage](docs/runtime.md) and [runtime tooling](runtime/README.md) for lifecycle commands and multi-instance operation.
 
-The default graphics baseline is software-rendered without requiring `/dev/dri`; Android 15 uses AOSP ANGLE from the system image backed by SwiftShader Vulkan (`vulkan.pastel`), while the other pinned releases retain the existing SwiftShader GLES contract pending their own validation. royd also has an experimental Android 10+ host GPU path using AOSP Mesa and minigbm with an explicit `/dev/dri` contract. Separate `graphical` and headless-oriented HAL profiles retain the minimum graphics stack required for Android framework boot. See [`docs/hardware-contract.md`](docs/hardware-contract.md), [`docs/graphics.md`](docs/graphics.md), [`docs/host-gpu.md`](docs/host-gpu.md), and [`docs/hal-profiles.md`](docs/hal-profiles.md).
+## Connect with ADB and scrcpy
 
-## Low-memory direction
-
-Low memory usage is a core engineering goal, but memory targets are benchmark-driven rather than assumed. The Android build enables supported low-RAM behaviour and PSI-based `lmkd`. Runtime display profiles make framebuffer cost easy to compare without rebuilding Android.
-
-Low-memory operation is not a performance ceiling. Android 15 supports an independent `performance` resource profile for containers with ample RAM and CPU. It selects normal-RAM framework behaviour and AOSP's standard 2 GB phone Dalvik heap before Android publishes boot properties. Process-retention, display-timing and accelerated-graphics tuning remain benchmark work. Leading Android container performance is a target, not a current claim, and will be evaluated on identical hosts and workloads.
-
-`make memory-report` captures a running instance, while `make memory-sweep` tests disposable candidate memory limits and produces a comparable report. Candidate limits are not treated as supported minimums. See [`docs/low-memory.md`](docs/low-memory.md), [`docs/profiles.md`](docs/profiles.md), and [`docs/benchmarking.md`](docs/benchmarking.md).
-
-## Optional CLI
-
-An optional `royd` CLI now has an initial Go scaffold for host checks and Docker convenience. It must not be required to run an Android container. The current commands are:
-
-```text
-royd doctor
-royd run
-royd ps
-royd logs
-royd status
-royd adb
-royd shell
-royd stop
-royd rm
-royd version
-```
-
-See [`docs/cli.md`](docs/cli.md) and [`cli/README.md`](cli/README.md) for the current scope.
-
-## Initial roadmap
-
-The current implementation now owns its Android product definitions, Binder allocator, init integration, version-aware standard/minimal image policies, local patch mechanism, software graphics baseline, experimental Android 10+ host-GPU backends, OCI packaging, ADB-over-TCP setup, Docker health checks, runtime arguments, validation tooling, and optional CLI. The normal build fetches only pinned AOSP source. A runtime qualification gate now persists boot, health, graphics, ADB, logging, security, and Binder-isolation evidence for imported images. The next gate is to run clean builds and qualification on documented reference hosts, then validate memory targets and security modes with real workloads.
-
-## Development
-
-Useful development entry points include:
+After Android is ready:
 
 ```sh
-./build.sh --android 15 --arch x86_64 --sync-jobs 1 --jobs "$(nproc)"
+adb connect 127.0.0.1:5555
+adb -s 127.0.0.1:5555 shell
+scrcpy -s 127.0.0.1:5555
+```
+
+Development ADB authentication is disabled by default. Keep the port loopback-only and use an SSH tunnel for remote access. [ADB configuration](docs/adb.md) covers forwarding and required-key authentication. Authentication alone does not encrypt TCP.
+
+## Profiles and compatibility
+
+The default display is 540x960 at 240dpi and 30fps. Android 15 uses ANGLE over SwiftShader Vulkan, memfd-backed allocation and client composition. [Display/resource profiles](docs/profiles.md) are independent of [image profiles](docs/image-profiles.md) and [HAL profiles](docs/hal-profiles.md).
+
+Low-memory mode is the default. A separate performance resource mode selects normal-RAM framework/Dalvik behaviour; no speed advantage or minimum RAM figure is claimed. Measure a named workload with exact host/image/limits before drawing conclusions. See [memory tuning](docs/low-memory.md) and [benchmarking](docs/benchmarking.md).
+
+Pinned configurations exist from Android 8.0 through 17 and for x86_64/arm64. These are build configurations, not a support guarantee. Other releases, host-GPU modes, Podman/rootless and reduced privileges need separate qualification. See [Android versions](docs/android-versions.md), [runtime engines](docs/runtime-engines.md) and [support policy](docs/support-policy.md).
+
+## Development and validation
+
+```sh
 make ci
 make android-matrix-report
-make android-build-matrix-test
-make android-build-results-report
-make check
-make android-version-test
-make android-memory-compat-test
-make android-sync
-make android-contract-test
-make android-config-check
-make android-build-x86_64
-make android-package-x86_64
-make runtime-import-x86_64
-make runtime-kernel-evidence
-make runtime-rootless-probe
-make android-build-headless-x86_64
-make runtime-import-headless-x86_64
-cp runtime/.env.example runtime/.env
-make runtime-up
-make runtime-logs
 make runtime-smoke-test
-make runtime-status
-make runtime-adb-check
-make runtime-reference-report
-make runtime-reference-qualify
 make runtime-qualification
-make runtime-qualification-matrix
-make runtime-qualification-report
-make memory-sweep
-make cli-test
-make cli-build
 ```
 
-The root-level `build.sh` is the convenience path for a fresh build host; [`docs/building.md`](docs/building.md) documents its controls and the lower-level build stages. ADB and Docker health-check behaviour are documented in [`docs/adb.md`](docs/adb.md). Runtime engine portability and the current Docker versus Podman boundary are documented in [`docs/runtime-engines.md`](docs/runtime-engines.md), with rootless feasibility covered separately in [`docs/rootless.md`](docs/rootless.md). Lightweight CI and Android matrix reporting are documented in [`docs/ci.md`](docs/ci.md). Clean-build orchestration and resumable build evidence are documented in [`docs/build-validation.md`](docs/build-validation.md). Runtime qualification is documented in [`docs/runtime-qualification.md`](docs/runtime-qualification.md), reference-host evidence bundles in [`docs/reference-hosts.md`](docs/reference-hosts.md), while [`docs/support-policy.md`](docs/support-policy.md) defines the validation gates required before a release is called supported.
+Runtime tests require an imported image and create disposable resources. Use fresh evidence directories; preserve failures. Full support also requires a clean build, application/network/endurance checks and reviewed host evidence.
 
-See [`AGENTS.md`](AGENTS.md) for persistent project rules, [`docs/architecture.md`](docs/architecture.md) for the current design, and [`docs/acknowledgements.md`](docs/acknowledgements.md) for project credits.
+Start with the [development guide](docs/development-notes.md), [architecture](docs/architecture.md), [runtime validation](docs/validation.md), [reference hosts](docs/reference-hosts.md) and [Android 15 completion checklist](docs/android15-completion.md). [AGENTS.md](AGENTS.md) contains repository working rules; the [roadmap](docs/roadmap.md) lists future priorities.

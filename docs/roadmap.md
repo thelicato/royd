@@ -1,280 +1,36 @@
 # Roadmap
 
-This roadmap is ordered by implementation dependency rather than release date. A milestone is complete only when its behaviour can be reproduced from this repository.
+The current priority is acceptance of the Android 15 container baseline. Detailed release gates live in the [completion checklist](android15-completion.md); validation status is distinct from implementation and support. Read [known limitations](known-limitations.md) before interpreting local results.
 
-## Android 15 baseline completion
+## Android 15 baseline
 
-Use the [finite Android 15 completion checklist](android15-completion.md) for the active close-out tasks, acceptance criteria, exclusions and commit/evidence ledger. Historical unchecked items elsewhere in this roadmap do not automatically expand that baseline.
+| Area | Implemented foundation | Remaining acceptance |
+| --- | --- | --- |
+| Product/build | Independent pinned AOSP products, owned integration/patches, resolved configuration checks, OCI packaging and image metadata. | Final clean build and exact source/archive/image provenance. |
+| Container lifecycle | Init as PID1, private binderfs, delegated cgroup-v2 memory, memfd, persistent data, health and stdout/stderr logging. | Same-candidate Docker/Compose, Binder isolation, ADB modes and restart acceptance. |
+| Apps and graphics | ANGLE/SwiftShader, memfd allocator/mapper, client composition, software codecs, scoped presentation/vsync/worker corrections and optional-feature Settings handling. | Final ordinary-app/search/storage/media workflows, streaming, focus/lifecycle and single/multi-instance responsiveness. |
+| Networking | OCI-owned IPv4 publication, DNS/TLS, cgroup UID/metered/Data Saver policy, TCX accounting/quotas and real alert callbacks. | Final DNS modes, enforcement/restoration, segmentation, recorded history, concurrency and service recovery. |
+| Resources | Low-memory/default display, optional resource/display profiles and measurement tooling. | Defined combined soak, multi-instance workload and reviewed resource growth. No RAM minimum or speed claim. |
+| Host/security | Explicit host contract, scoped host-control protections, experimental exact-capability policy and reference-host bundle tooling. | Reviewed final baseline host/kernel/security evidence. Privileged Docker remains the baseline. |
+| Documentation/release | Runtime/build/validation guides and explicit limitations. | Final same-candidate support review and release instructions. |
 
-The active acceptance scope is Android 15 x86_64, standard graphical image, software rendering, the low-memory resource profile and privileged rootful Docker. It is not completion of every item below or a claim of general device compatibility.
+Historical ANR/watchdog causes remain partly unestablished and are accepted as documented uncertainty. This does not waive any final-candidate responsiveness or security check, change Watchdog policy or permit passing retries to erase failures.
 
-1. **Implementation:** the reproduced Storage Settings crash (`0063`) and idle Tethering hardware failure (`0062`) have rebuilt-image qualification for the active baseline. Shared `/data` capacity is not a per-instance quota. Investigate recurring diagnostics by their affected invariant; logical network hiding, successful commands and an artificially empty error log do not establish correct behaviour.
-2. **Rebuilt-image qualification:** freeze an exact image, then pass fresh boot, app lifecycle, IPv4 DNS/HTTP/native and WebView HTTPS, packet-policy controls, persistence/restarts and timed scrcpy checks. Retain failures and exercise a defined application/network/restart soak. Earlier-image results do not automatically qualify a changed image.
-3. **Build and host acceptance:** record a clean baseline build and reviewed reference-host/kernel evidence, including Binder isolation, OCI configuration and documented limitations. Incremental local builds and lightweight CI alone do not establish support.
+## Compatibility evaluation
 
-On 21 October 2026, rebuilt image `ed6dd897088f` with patch `0063` passes fresh baseline qualification, ordinary-UID storage API/loaded Settings checks, full Data Saver and native/WebView HTTPS/certificate-rejection checks in both Docker DNS modes, and a five-minute scrcpy workload with full post-runtime checks. Container restart/recreation also preserves named state; framework-only restart passes with preserved state and verified native host-power tracing. Fresh 20-round native/WebView HTTPS runs pass in both DNS modes after a test-only visible-window correction; the original display-timeout failure remains retained. This closes the reproduced storage and idle-Tethering blockers and the named HTTPS repetition gate locally. The first storage run remains failed because its post-check selected an existing task's Storage page; an independently retained rerun passes after the host-only About-phone selector correction. Broader applications and longer application/network/restart soaks, clean-build/reference-host review and legacy byte-quota/threshold-alert support remain open. Active physical tethering is not qualified. Other Android versions, arm64, host GPU, alternative profiles and privilege reduction are deferred. A preliminary external comparison still requires independent comparator safety/functionality and matched configuration under [benchmarking](benchmarking.md#competitive-performance-comparison), not completion of the wider version matrix.
+- [x] Evaluate rootless operation separately. The host feasibility probe is implemented; real Android boot, security, resource limits and engine acceptance remain unqualified. See [rootless operation](rootless.md).
 
-The subsequent `0064` image `012e0e603b1b` passes fresh full qualification, five-minute scrcpy and 20 native/WebView HTTPS rounds in each DNS mode. Delayed isolated-UID retirement emits one container-local cleanup marker per long-run log without attempting the host-global legacy write. One original supervising shell exits 143 after its inner bridge result passes; its cause remains unestablished and its evidence is retained separately. Both fresh confirmation commands exit0 and all 40 assessments replay successfully. This closes the scoped legacy cleanup isolation and rebuilt-image gate locally, not complete CPU-accounting isolation. Independent storage API/UI, container restart/recreation and framework-only restart requalification also pass on this image, with preserved named state and verified native host-power tracing. These close the named current-image regression gates, not longer soaks or clean-build/reference-host acceptance.
+## Follow-up priorities
 
-Independent follow-up runs on `012e0e603b1b` requalify OEM UID denial, metered background denial, the full Data Saver packet matrix and continuous-process IPv4 link-loss/recovery in both DNS modes. All eight test commands record exit0, pass full pre/post runtime and unchanged OCI checks, and replay their saved assessments. The private lane also records exit0 before its outer tool wrapper reports 143; that supervision discrepancy and its unestablished cause remain retained, not labelled a clean outer sequence or Android failure. Byte quotas/threshold alerts, TLS continuity through loss, longer soaks and general host acceptance remain open.
+1. Independently qualify a pinned Android-container comparator on a safe disposable host and perform repeated matched measurements. This is separate from product dependencies and wider release support.
+2. Measure normal-RAM/performance resource behaviour under representative workloads; tune only demonstrated bottlenecks.
+3. Qualify host-GPU backends on real DRM hardware, with separate evidence from software rendering.
+4. Investigate minimum capabilities/devices/mounts with one-at-a-time removals and real workloads before promoting restricted mode.
+5. Qualify arm64 and other pinned Android releases through clean build, package and runtime gates.
+6. Evaluate Podman/rootless and broader network/storage compatibility as separate contracts.
 
-The `0065`/`0066` image `f14a08bffee0` has real ordinary-UID IPv4 interface/public-API counter progress in both DNS modes, preserved framework-restart links/maps/counters and passing fresh baseline, five-minute scrcpy, HTTPS and persistence checks. On 23 October, the corrected test launchers complete 36 observed sleeping-display launches across metered/Data Saver matrices in both DNS modes, with passing saved packet/process-state/restoration/runtime assessments. Private link recovery also passes. Both Data Saver outer helpers return2 after their completed Android runs because the agent edited the running helper; independent result replay passes without relabelling those outer commands. Original fixture failures and a separate missing CPU-residency marker pre-check remain retained. Subsequent source review corrects the latter's invalid mandatory boot-marker criterion: the reader reports on demand. Two fresh frozen-script runtime checks pass with unavailable residency explicitly reported; the original read/log ordering remains unknown. Broader accounting acceptance, UID history, quotas/alerts and final build/host acceptance remain open.
+A comparable phone AVD is the Android-facing feature ceiling. Optional omitted peripherals are not required merely for feature completeness. The OCI image remains the product; no roadmap item may make the CLI, a daemon or a host bootstrap service mandatory.
 
-The `0067`/`0068` image `618fa11930c9` restores real RCU-protected stats-map rotation and recorded ordinary-UID Ethernet history in both DNS modes. Both history commands, saved assessment replay, fresh baseline, UID/metered/Data Saver policies, link recovery, native/WebView HTTPS and container/framework restart checks pass. History durability, broader accounting and quotas/alerts remain open. A valid 15-digit Android ID exposed a restart-fixture width assumption; focused contracts, full CI and a fresh framework-restart run pass after accepting the actual unpadded representation.
+## Contribution and evidence rules
 
-The `618fa11930c9` five-minute scrcpy workload remains failed: it records eight `mediaextractor` seccomp aborts at the libcutils memfd probe and then a Settings ringtone-preparation crash, despite a decodable MP4.
-
-The rebuilt `0069` image `787018adad5f` closes that scoped media blocker locally. Five own-asset media preparations and five Sound Settings entries pass with stable service identity and active seccomp/no-new-privileges. Fresh persisted qualification and a five-minute scrcpy workload pass, including full post-runtime checks and complete recording decode. Recorded UID history, OEM UID policy and native/WebView HTTPS checks pass in both DNS modes; storage and container/framework restarts also pass. An initial display-timeout storage fixture failure stays failed; a host-only activity-refresh correction passes focused contracts, full CI and fresh storage validation. See [media shared memory](media-sandbox.md) for scope and retained evidence.
-
-Broader graphical acceptance remains open: the original bridge-history log contains one WebView-shell focus timeout near an intentional force-stop, although the script manifest passes and no formal `am_anr` follows. A fresh sequential bridge-history confirmation passes without reproducing it. The exact cause is unestablished; retain the raw diagnostic and investigate lifecycle responsiveness without generic filtering. Existing media/scrcpy success does not close this independent issue or establish support/comparison readiness.
-
-On 26 October, `787018adad5f` also passes the separate flushed UID-history durability gate across Docker restart/recreation and framework-only restart. All five phase assessments replay with identical recorded buckets before app relaunch, unchanged private seed/UID, normal access denial and full pre/post runtime checks. Native framework power tracing remains verified. The first inactive-directory fixture failure is retained; a corrected host fixture selects the reported APEX-data directory. This closes the scoped history-persistence item locally, with no image change. Broader accounting, byte quotas/threshold alerts, the intermittent focus timeout, longer soaks and clean-build/reference-host acceptance remain open.
-
-A separate 26 October native UDP accounting run on unchanged `787018adad5f` passes exact IPv4 RX/TX totals for root raw sockets, UID1000 with zero effective capabilities, real bidirectional UDP segmentation and overlapping root/system flows. Both TCX hooks observe segmentation; loopback adds no `eth0` traffic. Full pre/post runtime and observer-detachment checks pass, with unchanged production maps/links, SystemServer and OCI identity. These are native init-cgroup workers, not a new ordinary-APK or multi-CPU witness. TCP segmentation and blocked-packet accounting remain open before full accounting acceptance; quotas/alerts, the earlier focus timeout, longer soaks and final build/host review remain open.
-
-The subsequent native TCP gate on `787018adad5f` passes a verified 1 MiB stream in each direction for UID1000 and for overlapping root/system flows, after all five UDP controls. Independent segment-size/sequence/header assessment matches exact product counters, including variable ACK traffic and 32/40-byte TCP headers, with real aggregation at both hooks. Full pre/post runtime, attachment removal and unchanged OCI/qdisc/identity checks pass. This closes the scoped lossless IPv4 TCP segmentation witness without rebuilding Android. Blocked-packet ordering, quota/alert implementation, the earlier focus timeout, longer soaks and final build/host review remain open; actual multi-CPU stress and general lossy TCP remain unqualified.
-
-The ordinary-UID denied-packet gate on unchanged `787018adad5f` passes two persistent background service/socket identities through baseline, OEM target denial, independent control and restoration. During denial, all 64 sends fail with EPERM and no target request reaches the fixture; 64 pushed datagrams count as ingress without app delivery, with zero egress. All other app phases have exact RX/TX64 packets/78,592 IP bytes, and five native controls, full runtime, restoration, zero fixture drops and observer removal pass. This closes the named local IPv4 accounting prerequisite, not quota/alert implementation or general support. Failed TCP repetition (duplicate376 bytes, trigger unknown), host-fixture queue overflow and new APK/API/command-publication attempts remain retained; bounded traffic, real Android API compilation and atomic commands are test corrections. Wider TCP/host coverage, the earlier focus diagnostic, longer soaks and final build/host acceptance remain open.
-
-## 1. Independent AOSP baseline
-
-- [x] Pin Android 8.0 through 17 AOSP releases, with Android 15 as the default baseline.
-- [x] Remove external Android container manifests, device trees, vendor trees, and patch repositories from the build path.
-- [x] Add repository-owned `royd_x86_64` and `royd_arm64` products.
-- [x] Add legacy and transitional build/product/partition families for Android 8.0 through 10.
-- [x] Add a Java 8/Python 2-capable legacy AOSP builder and version-independent binderfs allocator ABI.
-- [x] Implement a repository-owned memfd-backed `libcutils` compatibility path without requiring an out-of-tree ashmem host module.
-- [ ] Validate legacy shared-memory compatibility on clean Android 8.0 through 10 builds and representative workloads.
-- [x] Add static and AOSP-resolved build-contract preflight checks.
-- [x] Define explicit ext4 partition and copy-out requirements for OCI assembly.
-- [x] Add repository-owned vendor integration and Binder allocation.
-- [x] Add a repository-owned local AOSP patch mechanism.
-- [x] Package the generated AOSP root and partition images into an OCI root filesystem.
-- [ ] Run the AOSP-resolved build-contract preflight on a clean synced checkout.
-- [ ] Build both royd products from clean AOSP checkouts using the clean-build matrix.
-- [ ] Boot Android as PID 1 in an OCI container on a documented reference host.
-- [ ] Record a known-good build and boot validation from the independent baseline.
-
-## 2. Container-owned Binder setup
-
-- [x] Add binderfs-first startup integration.
-- [x] Implement the Binder allocation helper inside this repository.
-- [x] Expose private binderfs devices at the conventional Android device paths.
-- [x] Emit actionable Binder compatibility diagnostics to container output.
-- [ ] Validate binderfs-only hosts with no pre-created Binder devices.
-- [x] Add a two-container Binder device-identity isolation test.
-- [ ] Run the Binder isolation test successfully on documented reference hosts.
-
-## 3. Container-native Android hardware surface
-
-- [x] Stop inheriting AOSP emulator product definitions and `emulator_vendor.mk`.
-- [x] Add royd-owned x86_64 and arm64 board configuration.
-- [ ] Build both royd-owned board configurations from a clean AOSP checkout and resolve any missing HAL or image requirements.
-- [x] Add a repository-owned memfd gralloc module and version-matched AOSP composer bridge for the software path.
-- [ ] Validate the software graphics path with clean builds and real SurfaceFlinger boots across representative Android generations.
-- [x] Implement optional Android 10+ host GPU rendering through explicit `/dev/dri` access with AOSP Mesa/minigbm backends.
-- [x] Define initial graphical and headless-oriented HAL profiles with explicit image identity.
-- [ ] Validate the exact runtime HAL/service set and selected graphics backend for both profiles across representative Android generations and real hosts.
-- [x] Make runtime display parameters take effect before graphics startup through the royd-owned OCI entrypoint and early-init bootstrap.
-
-## 4. Container-native logging and diagnostics
-
-- [x] Add `logcat` forwarding to container stdout and stderr.
-- [x] Keep Android `/init` as PID 1 through an `exec` hand-off from the royd OCI entrypoint.
-- [x] Add Binder, cgroup, and graphics startup diagnostics.
-- [x] Add a reproducible reference-host report.
-- [x] Add checksummed reference-host qualification bundles with policy-staleness and tamper verification.
-- [x] Add a timed scrcpy streaming-stability gate with retained recording and host/container evidence for Android 15 graphical qualification.
-- [x] Add first-class ADB-over-TCP configuration, Docker health checks, and host validation tooling.
-- [x] Add opt-in stock ADB key authentication for Android 15, with a fail-closed built-in property and direct OCI public-key mounts.
-- [x] Add ADB, container-log, health, and SurfaceFlinger checks to the persisted runtime qualification gate.
-- [x] Add a bounded boot watchdog and standalone diagnostic snapshot that write failed-boot evidence directly to container logs.
-- [x] Retain Docker logs, inspect and state evidence when a container never starts and has no health state, without relaxing qualification gates.
-- [x] Make the Android 15 graphical capture check honour MediaStore indexing and exact-owned cleanup instead of generating private-path scan failures.
-- [x] Verify normal `adb logcat` alongside container log forwarding on the local Android 15 baseline with retained simultaneous live-marker evidence.
-- [ ] Confirm boot failures are understandable from `docker logs` on reference hosts.
-
-## 5. Reproducible runtime examples
-
-- [x] Prevent the Android 15 Printing entry-point crash while leaving printing unsupported. Task177 preserves the original null-manager failure and adds strict-gated unavailable UI/search omission with restrictions and stock paths retained. Rebuilt `3ba4f8c1f19e` passes executable/copied-source contracts, CI, repeated component/public-intent and positive page/search controls, unchanged settings and full pre/post runtime. Complete qualification including both Binder companions and fresh scrcpy pass (301 seconds, 122 cycles, all 4,143 frames decoded). Retain sampled blank areas and 18 streaming top-resumed-state-loss warnings independently. Printing support and exhaustive peripheral-link coverage are not completion requirements.
-- [x] Correct and locally qualify Android 15 saved-device controller initialisation without Bluetooth. Task176 preserves the reproduced `80794e116211` crash and uses Patch0083 to gate only Bluetooth work in the two saved-device controllers, retaining independent dock handling and stock paths elsewhere. Contracts, CI and rebuild pass. Rebuilt `c97aaf982d44` passes three launches of each affected page with stable process identities, three 882-key queries with all 43 required exclusions, positive indexable controls and full pre/post runtime. Complete qualification including both Binder companions and fresh scrcpy pass (302 seconds, 137 cycles, all 4,747 frames decoded). Retain both failed collectors, stock Bluetooth summary wording and the independent visual/input/startup failures; physical hardware and arbitrary Settings pages remain unqualified.
-- [x] Correct and locally qualify the owned Android 15 composer's synthetic vsync cadence. Task175 replaces callback-duration-accumulating relative sleeps with monotonic phase deadlines, skips missed ticks and preserves callback lifecycle/error handling. Actual-source delayed-callback/wake/lock and property contracts, CI and rebuild pass. Rebuilt `80794e116211` reports the matching mode/period and fitted 33.33 ms synthetic model, passes full direct pre/post runtime and complete qualification including both Binder companions, then fresh scrcpy (301 seconds, 171 cycles, all 6,305 frames decoded). Eight samples show content/transitions; two top-resumed-state-loss warnings remain in its streaming log. BufferQueue backpressure, earlier blank windows and older watchdog/input causes remain independently open; synthetic tick timestamps do not establish frame presentation or throughput.
-- [x] Bound and locally qualify Android 15 low-memory software Vulkan worker concurrency. Task174 implements a strict-gated automatic four-worker/affinity budget after capturing shader page-fault contention. Rebuilt `3293a3139132` has four observed default workers in SurfaceFlinger and an ordinary WebView UID, full pre/post runtime passes, complete qualification including both Binder companions and fresh scrcpy (301 seconds, 134 cycles, all 4,602 frames decoded). Preserve explicit settings and stock/performance paths. Visual review retains a blank Settings interval and top-resumed-state-loss warnings as unresolved leads; this closes only the named worker-budget gate, without a universal watchdog/input or speed claim.
-- [x] Restore Android 15 Telecom's packaged compiled-code selection. Task173 corrects its redundant IKE manifest/dexpreopt context with ART validation and compiler filters intact. Actual Soong regressions, CI and resolved build verification pass; rebuilt `7c6bb33735b8` selects speed/prebuilt OAT with an executable SystemServer mapping and full pre/post runtime passes. Complete qualification including both Binder companions passes separately.
-- [x] Rebuild and qualify Android 15 software Vulkan presentation ordering. Task182 reproduces release before pending semaphore signals through public single/multi-swapchain calls, with exact pixel readback; explicit queue-wait controls pass. Patch0085 submits waits once per batch under the explicit container/SELinux-disabled/queried-SwiftShader gate, retaining synchronous image preparation, metadata and error paths. Rebuilt `2493555fb675` from `570189a` passes actual-source contracts, CI/build/provenance, native delayed-producer/pixel controls, full pre/post runtime, complete qualification with both Binder companions and fresh scrcpy (303 seconds, 135 cycles, all 4,828 frames decoded). Eight discrete samples show content/transitions without a blank sample; eight streaming hand-off warnings remain. Close only this ordering gate, without establishing the cause of task181 hand-off stalls or historical failures.
-- [ ] Complete Android 15 baseline acceptance. Task177's named page/runtime/streaming gates pass on `3ba4f8c1f19e`, but its recording retains sampled blank application areas at 224/224.5/225 and 270 seconds, with Settings content at 225.5/270.5, and 18 top-resumed-state-loss warnings. Their cause and relationship remain unestablished; samples do not establish whole intervals. Preserve task176's blank samples, task173's formal 5,032 ms WebView focus ANR, task174's longer sampled blank interval and all earlier failed logs/dumps. Establish the affected waits before claiming general visual/latency quality, and complete broader ordinary-app/network/restart and reference-host acceptance. Android-facing scope stays within a comparable Android 15 AVD; omitted printing/peripheral features and exhaustive unsupported-link coverage are not completion requirements. The explicitly preliminary comparison follows its own gate, without waiting for every warning or all broader acceptance.
-- [x] Add a minimal `docker run` example.
-- [x] Add a configurable Docker Compose example.
-- [x] Add Compose lifecycle Make targets.
-- [x] Add persistent `/data` and ADB configuration.
-- [x] Add retained Android 15 persistent-data validation across Docker restart and container recreation, with full per-phase runtime assertions.
-- [x] Qualify named current-image persistence/recovery across Docker restart/recreation and framework-only restart. Task179 passes all five phases on unchanged `3ba4f8c1f19e`, preserving the checksum, durable global setting, Android ID and package UID with full runtime/security checks. Framework readiness/PID changes, unchanged Docker identity and native power-trace coverage pass. Retain cumulative warnings, warm on-demand ART-marker scope and every older visual/startup failure; this does not qualify network/history/quota continuity, longer soaks or reference hosts.
-- [x] Correct and qualify ordinary-UID internal-storage capacity and the loaded Storage Settings dashboard on the shared OCI backing pool, without fabricating a physical device or per-instance quota.
-- [x] Align Android 15 Settings emergency-gesture dashboard/direct-page availability with the omitted emergency provider. Task170's SDK35-only static resource overlay hides the unsupported entry and provides a localised non-interactive fallback for forced links. Rebuilt `1111be37c095` passes three dashboard/direct-page repetitions with stable process identities and full pre/post runtime checks, fresh complete qualification and unchanged five-minute scrcpy (301 seconds, 142 cycles, complete decode). This closes task169's reproduced provider crash locally; retain that failed trial and the separate global search failure below.
-- [x] Correct and locally qualify Settings search without optional hardware/services. Task171's capability guards and SDK35 product flags preserve general Settings and stock supported-hardware handling. Rebuilt `b1b3d64bb56f` passes all 708 diagnostic calls, three global queries with 43 required exclusions, positive indexing, real Font size search and unsupported SOS exclusion with stable process identities and full pre/post runtime. Fresh complete qualification and unchanged five-minute scrcpy pass. Retain task170's original query failure and all failed task171 candidates.
-- [x] Diagnose and implement the strict-gated Accessibility hearing-aid controller fix. Task172 reproduces the discarded-controller crash on a direct launch, preserves its failure, and adds constructible unsupported state plus safe hardware callbacks without changing stock supported-hardware handling. Focused/applied-source contracts and CI pass; rebuilt `76e58fc11f4e` completes three stable dashboard/display/audio repetitions with unchanged size settings.
-- [ ] Diagnose the core startup/input failures retained by task172's Accessibility acceptance. Its completed UI/search controls fail full post-runtime on WebView/Launcher focus events, and Binder companion logs retain pre-watchdogs. The separate passing stream does not explain those waits. Preserve the failed evidence; further unsupported-peripheral-link coverage is deferred outside the Android 15 baseline scope.
-- [x] Add reproducible framework-only restart validation with readiness reset/recovery, persisted-state checks and restricted native host-power tracing.
-- [x] Requalify container restart/recreation and framework-only restart on the `0063` Android 15 baseline, with preserved named state and verified framework-native power tracing.
-- [x] Implement strict container-gated omission of the legacy host-global UID CPU-stat cleanup write, preserving local history removal, reads and stock behaviour outside the gate.
-- [x] Qualify the rebuilt `0064` image through delayed isolated-UID retirement, full runtime checks and retained on-demand policy evidence, without exercising a real host-global accounting deletion.
-- [x] Requalify OEM UID denial, metered background denial, full Data Saver and same-process IPv4 link recovery on the `0064` image in both Docker DNS modes, with full runtime and OCI checks.
-- [x] Requalify storage API/UI, container restart/recreation and framework-only restart on the `0064` image, with preserved state, full runtime checks and verified native host-power tracing.
-- [ ] Validate longer restart/application soaks and review framework-restart evidence on documented reference hosts.
-- [x] Retain a ten-minute local Android 15 Settings/scroll/Home stream with full pre/post checks and supplementary process/readiness/health observations.
-- [x] Add bounded Android 15 memory-controller delegation recovery for transient early external exec processes, retaining domain-controller constraints and explicit persistent-failure diagnostics.
-- [ ] Validate broader early-exec timing and host/runtime combinations; indefinite root-cgroup occupants remain unsupported by bounded recovery.
-- [x] Add multiple-instance Compose and smoke-test workflows.
-- [x] Add persisted runtime qualification results and compatibility-matrix integration.
-- [x] Add controlled application-UID literal-IPv4 HTTP validation with a WebView JavaScript callback and retained network evidence.
-- [x] Add controlled ordinary-app DNS and framework-network diagnostics with direct UDP/HTTP controls and retained failing evidence.
-- [x] Avoid an absent optional FRP-service lookup during container app installation while preserving configured/published FRP and installer security checks.
-- [x] Implement IPv4 `eth0` OCI network publication and per-network resolver integration without taking over interface provisioning.
-- [x] Keep framework host-clock writes read-only before enabling automatic time suggestions through network publication.
-- [x] Avoid NetworkMonitor's unadvertised Wi-Fi lookup during OCI network recovery without bypassing validation or missing-service assertions.
-- [ ] Extend and qualify IPv6, multi-NIC/default-route policies and network transitions beyond the IPv4 bridge baseline.
-- [x] Qualify controlled ordinary-app IPv4 DNS, hostname HTTP, default-network callbacks and unchanged OCI configuration on Docker bridge and embedded DNS, including post-boot link recovery.
-- [x] Add and locally qualify ordinary-UID public IPv4 DNS/HTTPS with platform trust, self-signed certificate rejection, Docker/embedded DNS and retained pre/post runtime evidence.
-- [x] Add ordinary-UID WebView HTTPS document/DOM and untrusted-certificate qualification alongside native TLS controls, with retained independent runtime and OCI evidence.
-- [x] Run the WebView HTTPS qualification on the baseline image in Docker bridge mode and retain passing real-runtime evidence.
-- [x] Run WebView HTTPS qualification with Docker embedded DNS and retain passing real-runtime evidence.
-- [x] Add same-instance ordinary-UID native/WebView HTTPS repetition with fresh app processes, exact round identities, retained failures and per-round runtime/OCI stability checks.
-- [x] Locally qualify 20 native/WebView HTTPS rounds in each Docker DNS mode on the frozen `0063` Android 15 image, preserving the failed original run and full independent post-runtime checks.
-- [x] Add reproducible continuous-process ordinary-UID IPv4 link-loss/recovery validation with ordered default-network callbacks, fresh-name DNS and nonce HTTP, retained phase evidence and independent runtime/OCI checks.
-- [x] Add two-UID stock OEM deny-chain qualification with BPF-map evidence, real UDP/HTTP denial, unaffected control traffic and restoration.
-- [x] Add a Data Saver activation gate distinguishing shell-command success from actual policy/BPF state, with retained failures, restoration and independent ordinary-app controls.
-- [x] Scope the netpolicy shell's optional Wi-Fi lookup to available hardware in the explicit container environment, retaining policy commands and strict post-boot diagnostics.
-- [x] Add a two-UID ordinary-background-service metered-denial diagnostic with packet-level controls, independent policy/map evidence and verified restoration.
-- [x] Implement gated cgroup-BPF user/admin metered denial for the OCI publisher's actual interface, retaining stock UID decisions and independent legacy-policy failures.
-- [x] Implement gated global Data Saver activation and packet enforcement with background, user-exemption/revocation and foreground controls plus restoration. Qualify the rebuilt image independently.
-- [x] Make ordinary network-policy launchers wait for window focus and locally qualify sleeping-display metered/Data Saver packet matrices in both DNS modes, retaining failed attempts and supervision errors.
-- [x] Correct the CPU-residency pre-check's mandatory boot-marker assumption using the pinned reader/CPU-selection contracts; explicitly report unavailable residency and retain real CPU-time/error checks. The original failed run remains failed, and its exact read/log ordering is not recoverable from the saved log.
-- [ ] Investigate and qualify remaining legacy-table-dependent policies, including byte quotas and threshold alerts; cgroup-BPF UID, metered and Data Saver evidence does not qualify these separate capabilities.
-- [x] Implement strictly gated sampled global byte-threshold notification from verified private interface counters, with fresh baselines, one-shot generations, callback lock separation, visible failures and focused source contracts. This is notification source, not packet enforcement or rebuilt-image acceptance.
-- [x] Rebuild and locally qualify two real global byte-alert callbacks, exact native IPv4 threshold boundaries, fresh-window replacement, framework rearming, invalid/denied requests and full runtime/scrcpy checks. Retain the failed noisy trial; a marker or committed counter is insufficient.
-- [ ] Qualify remaining global-alert provider delivery, netd/framework restart/reconnect and failure behaviour. Public global removal is unavailable; pending-read cancellation remains a source contract rather than a runtime witness.
-- [x] Implement strictly gated `eth0` packet-path quotas with a shared atomic budget, whole-skb/GSO rejection, coherent hash replacement, real errors, ordered private links and exact-ELF synthetic kernel contracts. This is source/backend evidence, pending a rebuilt image.
-- [x] Diagnose the first rebuilt quota image's fatal link-order query and supply both program/link ID buffers without weakening setup checks. Preserve failed boot evidence and add a kernel-faithful mock, omission mutation and real ordered/reversed private-netns link checks. Rebuilt `79568439e907` passes one fresh full qualification; the first task155 companion pre-watchdog remains failed and unexplained. Finite-quota packet acceptance is separate.
-- [x] Retain both Binder qualification companions' full failure evidence before owned cleanup. The first task155 rebuilt-image main container passes, but a companion pre-watchdog fails full qualification; the old runner lost its detailed log. Keep that failure and require a fresh evidenced reproduction without relaxing watchdog or isolation checks.
-- [ ] Diagnose startup pre-watchdogs from retained thread dumps and the complete startup critical path. Task156's rebuilt `d65cd2cd7f37` companion B samples LockSettings SQLite completion with `jbd2_log_wait_commit`, but initialisation starts only 496 ms before the pre-watchdog log within a 19.702-second post-dexopt phase. Task157 retains passive scheduling/I/O controls; establish the failing checker interval and cause without weakening durability, security or timeouts, then require full qualification and embedded-DNS HTTPS. Task155's lost companion dump and single-instance embedded-DNS failure remain independently unresolved; later passes do not erase them.
-- [x] Keep Android15 Watchdog's privileged SysRq diagnostics off the shared host under the strict container gate, retain the existing failure decision/termination and expose its mode plus the exact pre-watchdog checker subject. Mocked file-access contracts are separate from rebuilt-image qualification; no real host SysRq request or forced fatal timeout is an acceptable test.
-- [x] Implement strict container TCP-telemetry unavailability for the reproduced complete matching `NLMSG_ERROR(-ENOENT)` reply, with failed polling, unknown metrics, bounded reporting, normal retries and complete two-family recovery. Preserve other replies and stock behaviour outside the gate; require rebuilt-image and application acceptance separately.
-- [x] Locally qualify the rebuilt TCP-telemetry path on `f4b07af19a64`: all six retained container logs report TCP unavailability once without the old type2 error, four owned private-namespace probes still return ENOENT for both families, full qualification and ordinary native/WebView HTTPS pass in both DNS modes, and a fresh five-minute scrcpy gate passes. Keep independent startup/focus failures and other diagnostics open; live capability recovery remains unqualified.
-- [x] Implement the first finite-quota sequential IPv4 UDP qualification gate with two ordinary app UIDs, native UID1000, independent pre/post-quota observations, stock Binder control, complete saved-matrix replay and retained failures. All initial real trials remain failed; crossing-drop component evidence does not close complete packet acceptance.
-- [x] Add and locally validate bounded receive-only private-namespace quota header diagnostics, loss-safe evidence and retained resolver/process context. Identify a fresh mDNS pair and independently account for unrelated ICMPv6/TCP bytes around a correctly rejected limit. This closes the observation gap; the failed full matrix, per-packet caller attribution and late TCP cause remain open.
-- [x] Record the first complete local sequential IPv4 UDP quota witness on `f4b07af19a64`: two ordinary UIDs plus native UID1000, shared RX/TX allowance, crossing/exact-fit drops, replacement, removals and invalid/denied controls, with real receipts, replay, full runtime and cleanup. Persistent test controllers preserve every packet/state/security check. The final-source repetition fails on extra ICMPv6; keep both outcomes separate, without repeatability or reliable-isolation acceptance.
-- [ ] Complete quota repeatability/measurement isolation and wider acceptance: root/raw identity, actual concurrent/multi-CPU competition, GSO/TCP thresholds, in-flight replacement, restart ownership and broader networking/scrcpy regressions.
-- [x] Identify fresh Docker-only host-peer IPv6 Router Solicitations at both ends without Android, and add read-only Ethernet/ICMP and reciprocal-peer evidence. Host-originated mDNS also remains visible. This closes fresh sender/type attribution, not historical packet identity, controlled-link isolation or full-matrix acceptance.
-- [x] Implement an optional owned routed IPv4 quota/alert fixture with a veth entirely outside the host namespace and real upstream DNS/TLS. Isolate host multicast without filtering or changing host policy. Its corrected Android trial passes nine packet phases/one callback and full pre/post runtime but fails on incoming HTTPS FIN/ACK traffic; preserve the failed first APEX bootstrap and corrected trial. Complete repeatability, socket attribution and full-matrix acceptance remain open.
-- [x] Add bounded read-only TCP sequence/socket/FD lifecycle diagnosis and identify fresh late StatementService/WebView connections on the isolated link. Event-adjacent APP_BACKGROUND state and actual-source policy replay explain a compatible ingress-FIN/egress-ACK asymmetry, without changing enforcement. This closes fresh socket attribution, not a live packet-verdict trace, historical failure identity, complete socket drain or quota/alert acceptance.
-- [x] Implement associated interface-alert source with a private admitted-byte counter, fresh requested thresholds, one-shot stock identities, failure-aware removal/cancellation and callback re-entry. Patch0075 requires a rebuilt netd/Tethering APEX; focused source and exact-ELF synthetic checks are not runtime qualification.
-- [x] Implement the real associated interface-alert fixture and saved replay; witness two actual callbacks, one-byte-below controls, positive quota continuity and fresh alert replacement on rebuilt `1e6c1f4092b8`. Fresh full baseline and five-minute scrcpy pass separately. The first matrix rejects extra56-byte ICMPv6 in its finite phase; the independent global regression rejects273 extra outgoing bytes. Preserve both failures and keep complete acceptance open.
-- [x] Implement bounded paired local-TCP/gateway-conntrack preparation and locally qualify the complete nineteen-phase associated IPv4 UDP alert matrix on unchanged `1e6c1f4092b8`: twenty attempts, eighteen admissions, two quota denials, two real callbacks, finite coexistence, cancellation/exhaustion and both removal paths. Full pre/post runtime, frozen-source replay, restoration and cleanup pass. Preserve the first local-only failure; its 208 late bytes prove local socket absence alone insufficient.
-- [x] Qualify the separate original prepared quota matrix on unchanged `1e6c1f4092b8`: twenty-four sequential unsegmented IPv4 UDP phases, twenty-seven attempts, nineteen admissions and eight actual denials, including shared allowance, crossing/exact-fit exhaustion, replacement, both removals and invalid/denied requests. Full pre/post runtime, frozen-source replay, restoration and cleanup pass. This is one controlled-link current-image witness, not repeated, concurrent, GSO/TCP, restart or general host acceptance; retain earlier failures.
-- [ ] Complete associated interface-alert repeatability, restart/reconnect and wider concurrent quota coexistence/traffic acceptance. Retain full packet/runtime evidence and every failed/noisy trial; one prepared sequential IPv4 witness does not establish wider quota support.
-- [x] Reproduce the interface-accounting prerequisite with real ordinary-UID traffic in both DNS modes and define the [quota/alert implementation contract](network-quotas.md), without claiming a backend fix.
-- [x] Qualify native root/raw and system-UID IPv4 UDP accounting, real UDP segmentation at both TCX hooks, overlapping bidirectional flows and loopback exclusion with exact counters and full runtime/attachment evidence. This does not qualify actual multi-CPU stress or Android system-service identities.
-- [x] Locally qualify native IPv4 TCP segmentation with exact verified stream ranges/digests, independent segment-size/header totals including ACKs, actual options/aggregation at both hooks and overlapping root/system flows. This does not qualify lossy TCP or actual multi-CPU stress.
-- [x] Establish the named local IPv4 interface-accounting prerequisites: ordinary-UID interface/API progress in both DNS modes, framework-restart link/map continuity, native UDP/TCP and loopback controls, and real ordinary-UID denied-packet boundaries. This is the scoped baseline foundation for quota/alert implementation, not broader workload/kernel support or actual multi-CPU quota acceptance.
-- [x] Implement private, strictly container-gated `eth0` ingress/egress IP accounting with attachment ownership, duplicate-update prevention and focused packet/native contracts. Rebuilt-image and broader accounting acceptance remain separate from this source milestone.
-- [x] Restore real RCU-protected detailed stats-map rotation and locally qualify recorded ordinary-UID Ethernet history in both DNS modes, with access denial, repeated polls and independent runtime evidence.
-- [x] Locally qualify explicitly flushed recorded UID-history across Docker restart/recreation and framework-only restart on the bridge, with unchanged UID/private seed, exact canonical buckets, ordinary access denial and full runtime/native power evidence. Unflushed crash/power-loss, upgrades and other network modes remain unqualified.
-- [x] Fix and qualify the reproduced mediaextractor memfd sandbox failure and resulting Sound Settings crash, preserving scoped syscall restrictions and full crash-history assertions.
-- [x] Implement a strictly gated, required media shared-memory policy addition with stock/vendor composition, real Minijail/kernel contracts and a zero-permission application/Sound Settings qualification runner. Rebuilt-image and scrcpy qualification remain separate from this source milestone.
-- [x] Reject retained application ANR and unresponsive-window history before and after Android 15 runtime workloads, including native/WindowManager-only reports and recovered processes. This closes the qualification gap, not the original timeout cause.
-- [ ] Diagnose the retained WebView-shell focus-event timeout near lifecycle force-stop and qualify responsiveness; passing command manifests and absence of a formal ANR event do not resolve it.
-- [x] Qualify the current Android 15 image's ordinary-app public DNS/native HTTPS, rendered WebView document and both self-signed certificate-rejection controls for the preliminary comparison gate. Task178 passes both DNS modes on unchanged `3ba4f8c1f19e`, with full pre/post runtime, unchanged OCI/SystemServer/Docker identity, independent replay and retained logs/inspect/available dumps. Reuse task177 runtime/streaming only within its existing scope; retain old visual/startup failures. Comparator safety, live parity and repeated paired measurements remain independent.
-- [ ] Qualify broader network-aware applications, additional WebView pages and certificate/hostname failure modes, and network lifecycle soaks; named public endpoints are not general Internet compatibility.
-- [ ] Validate the multiple-instance example on a documented reference host.
-- [ ] Record the minimum known-good host kernel configuration.
-
-The repository now captures a versioned kernel/Kconfig evidence file in every reference-host qualification bundle. The minimum-known-good item remains open until a successful real Android boot establishes which recorded configuration is actually sufficient.
-
-## 6. Low-memory Android profiles
-
-- [x] Enable Android low-RAM behaviour with PSI-based `lmkd`.
-- [x] Add named display profiles.
-- [x] Add repeatable memory reports and memory-limit sweeps.
-- [x] Add standard and minimal build-time Android image profiles.
-- [x] Add standard-versus-minimal comparison reporting.
-- [ ] Record repeatable idle and workload memory benchmarks on a reference host.
-- [ ] Tune `lmkd` and background process behaviour against container memory limits.
-- [x] Expand the minimal package policy conservatively with version-family rules, a protected core package guard, and immutable policy identity.
-- [x] Require generated memory evidence to record the exact image/profile policy, display configuration, and named workload before figures are published.
-- [x] Add independent Android 15 low-memory and performance resource profiles selected before boot without rebuilding the image.
-- [x] Define a preliminary Android 15 external-comparison gate distinct from release acceptance and wider-version validation.
-- [x] Add a product-neutral single-trial measurement harness with explicit phase boundaries, owned disposable resources and retained failure evidence.
-- [x] Inspect a pinned Android 15 comparator without executing it, recording installed provenance and host-global side effects that block unreviewed shared-host execution.
-- [ ] Independently qualify a matching comparator and retain repeated same-host comparison results using the common measurement procedure.
-
-## 7. Privilege reduction
-
-- [x] Add a versioned deterministic experimental capability inventory with exact Docker/Compose/CLI parity and kernel-visible security evidence.
-- [x] Run the existing smoke, multi-instance, benchmark, CLI, and report tooling through selectable security modes.
-- [x] Add a security-mode comparison report with captured failure diagnostics.
-- [ ] Validate the experimental mode on a known-good reference host.
-- [ ] Remove capabilities that are not demonstrated requirements.
-- [ ] Record any required seccomp, LSM, device, cgroup, or system-path exceptions.
-- [ ] Promote the smallest validated OCI configuration to the default.
-- [x] Document runtime differences across Docker, Podman, and other supported engines.
-- [x] Evaluate rootless operation separately.
-
-## 8. Optional Go CLI
-
-- [x] Add host capability checks.
-- [x] Add run, list, shell, logs, stop, and remove workflows.
-- [x] Keep command output transparent about Docker operations.
-- [x] Keep every core runtime workflow usable without the CLI.
-- [x] Add ADB convenience commands while keeping direct host ADB workflows available.
-
-## Container hardware ownership
-
-Completed in the current baseline:
-
-- repository-owned binderfs allocation and conventional Binder device exposure
-- explicit host preflight checks
-- early-boot cgroup, PSI, and DRM diagnostics
-- AOSP SwiftShader libraries selected as the software EGL baseline
-- runtime assertion of the selected software graphics mode
-
-Remaining work:
-
-- validate the royd-owned board configurations with clean AOSP builds and remove any unnecessary GSI defaults revealed by those builds
-- validate the repository-owned allocator and AOSP composer bridge with clean Android builds and real display output
-- validate the first complete boot without emulator-specific vendor services
-- qualify the implemented Android 10+ Mesa/minigbm host-GPU backends on real DRM drivers and keep only combinations that pass runtime qualification
-
-## OCI image contract
-
-Implemented:
-
-- canonical tags derived from the pinned AOSP ref, image profile, HAL profile, and architecture
-- development aliases kept separate from canonical identity
-- immutable `/royd-release` metadata inside packaged root filesystems
-- archive SHA-256 manifests verified before Docker import
-- OCI and royd-specific image labels
-- post-import image contract inspection without Android boot
-
-## Next milestones
-- Validate every pinned Android version from 8.0 through 17 with resolved AOSP configuration, clean x86_64 and arm64 builds, OCI packaging, and boot smoke tests.
-- Validate the memfd-backed legacy shared-memory path for Android 8.0 through 10 on modern host kernels and identify any direct-ioctl compatibility gaps.
-
-## Build validation automation
-
-- [x] Add a canonical lightweight CI entry point.
-- [x] Add hosted CI for repository contracts without downloading AOSP.
-- [x] Add a version and architecture compatibility matrix report.
-- [x] Add strict matrix mode for dedicated AOSP validation hosts.
-- [ ] Run the strict matrix against real synced Android 8.0 through 17 trees.
-- [x] Add resumable clean-build orchestration and persistent per-tuple build results.
-- [x] Integrate clean-build and package evidence into the compatibility matrix.
-- [ ] Run the clean-build matrix on dedicated build hosts for Android 8.0 through 17.
-
-## Runtime qualification automation
-
-- [x] Add persisted per-tuple runtime qualification results.
-- [x] Add a resumable multi-version and multi-architecture runtime qualification matrix.
-- [x] Add Docker health, runtime, graphics, logging, ADB, security, and Binder-isolation stages.
-- [x] Integrate runtime evidence into the Android compatibility matrix.
-- [ ] Run qualification on successfully built and imported Android 8.0 through 17 images.
-- [ ] Review reference-host, memory, and runtime evidence before promoting any tuple to supported.
+Keep each change cohesive, tested at the affected layer and independently revertible. Use [build validation](build-validation.md), [runtime qualification](runtime-qualification.md) and [reference-host evidence](reference-hosts.md) before changing support claims. Generated evidence stays outside Git; retain failures and exact image/configuration identities. User documentation describes current interfaces and limitations rather than a development-task log.
