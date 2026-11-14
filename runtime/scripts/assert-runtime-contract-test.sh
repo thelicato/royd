@@ -1653,4 +1653,6 @@ grep -Fq 'quota replacement mode is not reported' "$tmp/error"
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_MISSING_QUOTA_REPLACEMENT_MARKER=1 \
   MOCK_QUOTA_REPLACEMENT_STATUS='royd interface quota replacement: mode=atomic used=no' \
   "$script_dir/assert-runtime.sh" unused-quota-replacement >/dev/null
+sh -n "$script_dir/assert-android15-log-history.sh"
+PYTHONDONTWRITEBYTECODE=1 python3 "$script_dir/../tests/runtime-history/late_history_test.py"
 printf '%s\n' 'Runtime version-specific assertion contract test passed'

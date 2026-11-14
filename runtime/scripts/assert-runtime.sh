@@ -148,6 +148,7 @@ assert_property vendor.royd.display.ready 1
 assert_property vendor.royd.boot_watchdog complete
 
 if [ "$sdk" = 35 ]; then
+  "$script_dir/assert-android15-log-history.sh" "$container" "$graphics_backend" "$hal_profile"
   composer_fps=$(docker exec "$container" getprop vendor.royd.display.fps | tr -d '\r')
   case "$composer_fps" in
     [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|1000) ;;
@@ -175,15 +176,6 @@ if [ "$sdk" = 35 ]; then
   fi
   if ! docker logs "$container" 2>&1 | grep -Fq 'ROYD: observing OCI Ethernet usage for network policy'; then
     printf 'error: Android 15 OCI Ethernet policy observer is missing in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      'ROYD: leaving the active network stats map unchanged because the PF_KEY RCU barrier is unavailable'; then
-    printf 'error: Android 15 froze UID statistics instead of completing RCU-protected rotation in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq 'synchronizeKernelRCU( probe)? failed'; then
-    printf 'error: Android 15 UID statistics RCU barrier failed in %s\n' "$container" >&2
     exit 1
   fi
   connectivity=$(docker exec "$container" timeout 15 dumpsys connectivity)
@@ -324,11 +316,6 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   }
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'suspend-service: error (opening|writing).* /sys/power/(state|wakeup_count|wake_lock|wake_unlock)(:|$)'; then
-    printf 'error: Android 15 SystemSuspend attempted host power control in %s\n' "$container" >&2
-    exit 1
-  fi
   stats_dump=$(docker exec "$container" dumpsys stats --metadata 2>&1) || {
     printf 'error: Android 15 statsd Binder metadata dump failed in %s: %s\n' \
       "$container" "$stats_dump" >&2
@@ -343,11 +330,6 @@ if [ "$sdk" = 35 ]; then
       'ROYD: suppressing statsd Binder caller SID request'; then
     printf 'error: Android 15 statsd container Binder SID mode is not reported in %s\n' \
       "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      "StatsManagerService: (Failed to access statsd to register puller|StatsManager failed to)|associateClass: Expecting binder to have class 'android.os.IStatsd' but descriptor is actually ''"; then
-    printf 'error: Android 15 statsd Binder registration failed in %s\n' "$container" >&2
     exit 1
   fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
@@ -374,11 +356,6 @@ if [ "$sdk" = 35 ]; then
       exit 1
     fi
   fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'GpuMem[[:space:]]*: Failed to attach bpf program to gpu_mem/gpu_mem_total tracepoint|GpuMemTracer: Cannot initialize GpuMemTracer before GpuMem'; then
-    printf 'error: Android 15 attempted host-global GPU-memory tracing in %s\n' "$container" >&2
-    exit 1
-  fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: not starting host-global GPU work tracing'; then
     printf 'error: Android 15 container GPU-work tracing policy is not reported in %s\n' \
@@ -394,11 +371,6 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'GpuWork[[:space:]]*: (Failed to (attach bpf program to power/gpu_work_period tracepoint|create bpf map from /sys/fs/bpf/map_gpuWork_|retrieve pinned program from /sys/fs/bpf/prog_gpuWork_)|Initialized!)'; then
-    printf 'error: Android 15 attempted host-global GPU-work tracing in %s\n' "$container" >&2
-    exit 1
-  fi
   for memory_event_marker in \
       'ROYD: not starting host-global OOM event listener' \
       'ROYD: using vmstat fallback without host-global memory-event tracing' \
@@ -409,82 +381,10 @@ if [ "$sdk" = 35 ]; then
       exit 1
     fi
   done
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'memevent failed to attach bpf program to (oom/mark_victim|vmscan/mm_vmscan_)|OomConnection: failed waiting for OOM events|Failed to register (direct reclaim|kswapd) memevents'; then
-    printf 'error: Android 15 attempted host-global memory-event tracing in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
   dropbox_status=$(docker exec "$container" service check dropbox 2>/dev/null | tr -d '\r')
   if [ "$dropbox_status" != 'Service dropbox: found' ]; then
     printf 'error: Android 15 DropBox service is unavailable in %s: %s\n' \
       "$container" "${dropbox_status:-<empty>}" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'No service published for: dropbox'; then
-    printf 'error: Android 15 recursively reported the unpublished DropBox service in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'failed to fetch tether stats'; then
-    printf 'error: Android 15 repeatedly queried unavailable idle tether counters in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'NetlinkUtils: Received unexpected netlink message: NetlinkErrorMessage|InetDiagMessage: Failed to send netlink dump request or receive messages:.*EAGAIN'; then
-    printf 'error: Android 15 repeated unavailable inet-diag socket dumps in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq 'am_wtf.*SystemServiceRegistry'; then
-    printf 'error: Android 15 emitted missing-service WTF diagnostics in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | awk '
-      /Outgoing transactions from this process must be FLAG_ONEWAY/ { remaining = 12 }
-      remaining > 0 && /android\.os\.IServiceManager\$Stub\$Proxy\./ { found = 1; exit }
-      remaining > 0 { remaining-- }
-      END { exit found ? 0 : 1 }
-    '; then
-    printf 'error: Android 15 native ServiceManager proxy triggered a blocking-call WTF in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      "Fstab entries not found for '/system"; then
-    printf 'error: Android 15 ART could not classify the OCI system overlay in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'Failed to verity-protect'; then
-    printf 'error: Android 15 attempted unavailable metadata fs-verity protection in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'No mount point entry for /data'; then
-    printf 'error: Android 15 queried an unavailable physical data-storage device in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq 'am_crash.*com\.android\.settings'; then
-    printf 'error: Android 15 retained a Settings crash in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq 'libminijail\[[0-9]+\]: blocked syscall: memfd_create|Service .mediaextractor.*received signal (6|31)([^0-9]|$)'; then
-    printf 'error: Android 15 retained a mediaextractor sandbox failure or service death in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'SetCgroup::ExecuteFor(Process|Task): failed to open /dev/(cpuctl|cpuset|blkio)/'; then
-    printf 'error: Android 15 attempted unavailable legacy cgroup task profiles in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      "TaskPersister: File error accessing recents directory (directory doesn't exist?)."; then
-    printf 'error: Android 15 recents cleanup could not list its directories in %s\n' \
-      "$container" >&2
     exit 1
   fi
   if docker exec "$container" sh -c '
@@ -508,18 +408,6 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 packages.list is missing or empty in %s\n' "$container" >&2
     exit 1
   }
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'am_wtf.*PackageSettings.*Failed to (get SELinux context|set packages.list SELinux context)'; then
-    printf 'error: Android 15 attempted unavailable packages.list SELinux context setup in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'am_wtf.*CpuMonitorService|CpuMonitorService: Failed to initialize CPU info reader'; then
-    printf 'error: Android 15 started its unavailable CPU frequency monitor in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
   if docker exec "$container" sh -c '
     # royd-runtime-cpu-residency-availability-test
     for policy in /sys/devices/system/cpu/cpufreq/policy*; do
@@ -530,18 +418,6 @@ if [ "$sdk" = 35 ]; then
     # BatteryStats can select per-UID frequency data without calling the legacy reader.
     # Its missing-file diagnostic is on demand, not a boot readiness marker.
     printf '%s\n' 'CPU frequency residency: unavailable (cpufreq policies and fallback interface absent)'
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'KernelCpuSpeedReader: Failed to read cpu-freq: /sys/devices/system/cpu/cpu[0-9]+/cpufreq/stats/time_in_state: open failed: ENOENT'; then
-    printf 'error: Android 15 repeated missing CPU-frequency residency diagnostics in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'KernelCpuUidUserSysTimeReader: (Removing uids |failed to remove uids .* from uid_cputime module)'; then
-    printf 'error: Android 15 attempted host-global UID CPU-stat cleanup in %s\n' \
-      "$container" >&2
-    exit 1
   fi
   # The cleanup policy marker is on demand, not a boot-readiness condition.
   cpu_time_dump=$(docker exec "$container" dumpsys cpuinfo 2>&1) || {
@@ -559,12 +435,6 @@ if [ "$sdk" = 35 ]; then
       "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'LowMemDetector: Failed to register psi trigger|libpsi:.*pressure/memory write failed'; then
-    printf 'error: Android 15 ActivityManager PSI monitor failed to register in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
   docker exec "$container" sh -c '
     # royd-runtime-emulated-storage-test
     grep -F " /mnt rw," /proc/1/mountinfo | grep -Fq " - tmpfs tmpfs rw,"
@@ -574,48 +444,6 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 emulated storage is not mounted in %s\n' "$container" >&2
     exit 1
   }
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'failed to create mount points|am_wtf.*StorageManagerService'; then
-    printf 'error: Android 15 emulated storage mount failed in %s\n' "$container" >&2
-    exit 1
-  fi
-  audio_pid=$(docker exec "$container" pidof audioserver 2>/dev/null) || audio_pid=
-  case "$audio_pid" in
-    ''|0|*[!0-9]*)
-      printf 'error: Android 15 audioserver PID is unavailable in %s\n' "$container" >&2
-      exit 1 ;;
-  esac
-  # The forwarding service uses threadtime. Attribute shared ServiceManager messages to
-  # audioserver, including former instances identified by their own native log tag.
-  audio_waits=$(docker logs "$container" 2>&1 | awk -v current="$audio_pid" '
-    BEGIN { audio[current] = 1 }
-    $3 ~ /^[0-9]+$/ && $6 == "audioserver:" { audio[$3] = 1 }
-    $3 ~ /^[0-9]+$/ && $6 == "ServiceManagerCppClient:" &&
-        $7 == "Waited" && $8 == "one" && $9 == "second" && $10 == "for" {
-      waits[$3, $11] = 1
-    }
-    END {
-      for (pid in audio) {
-        if ((pid, "activity") in waits) print "activity"
-        if ((pid, "sensor_privacy") in waits) print "sensor_privacy"
-      }
-    }
-  ')
-  if printf '%s\n' "$audio_waits" | grep -Fxq activity; then
-    printf 'error: Android 15 blocked audioserver on unpublished ActivityManager in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if printf '%s\n' "$audio_waits" | grep -Fxq sensor_privacy; then
-    printf 'error: Android 15 blocked audioserver on unpublished sensor privacy in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'TcpSocketTracker[^:]*: Expect to get family (2|10) SOCK_DIAG_BY_FAMILY message but get 2([^0-9]|$)'; then
-    printf 'error: Android 15 misclassified a TCP diagnostic netlink error in %s\n' "$container" >&2
-    exit 1
-  fi
   watchdog_dump=$(docker exec "$container" timeout 15 dumpsys system_server_dumper --name com.android.server.Watchdog) || {
     printf 'error: Android 15 Watchdog state is unavailable in %s\n' "$container" >&2
     exit 1
@@ -628,14 +456,6 @@ if [ "$sdk" = 35 ]; then
       END { exit (!bad && count == 1) ? 0 : 1 }
     '; then
     printf 'error: Android 15 Watchdog host SysRq diagnostics are not disabled in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'Watchdog: Failed to write to /proc/sysrq-trigger'; then
-    printf 'error: Android 15 Watchdog attempted host SysRq diagnostics in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'Watchdog: WAITED_UNTIL_PRE_WATCHDOG'; then
-    printf 'error: Android 15 triggered a SystemServer pre-watchdog in %s\n' "$container" >&2
     exit 1
   fi
   assert_property media.c2.hal.selection aidl
@@ -700,12 +520,6 @@ if [ "$sdk" = 35 ] && [ "$graphics_backend" = software ]; then
       "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      "HwcComposer: getDisplayIdentificationData failed Status(-8, EX_SERVICE_SPECIFIC): '8:"; then
-    printf 'error: Android 15 optional display identification was reported as a failure in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
 fi
 
 if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
@@ -717,10 +531,6 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
   if [ "$effective_density" != "Physical density: $display_dpi" ]; then
     printf 'error: Android 15 effective display density does not match %s dpi in %s: %s\n' \
       "$display_dpi" "$container" "$effective_density" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'ro.sf.lcd_density must be defined as a build property'; then
-    printf 'error: Android 15 SurfaceFlinger used its fallback display density in %s\n' "$container" >&2
     exit 1
   fi
   printf 'Android 15 effective display density: %s dpi\n' "$display_dpi"
@@ -764,10 +574,6 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     printf 'error: Android 15 per-process memory.low policy is not active in %s\n' "$container" >&2
     exit 1
   }
-  if docker logs "$container" 2>&1 | grep -Fq '/sys/fs/cgroup/royd/royd/'; then
-    printf 'error: Android 15 duplicated its delegated cgroup root in %s\n' "$container" >&2
-    exit 1
-  fi
 
   docker exec "$container" sh -c '
     # royd-runtime-webview-cgroup-test
@@ -885,16 +691,6 @@ if [ "$sdk" = 35 ] && [ "$hal_profile" = graphical ]; then
     printf 'error: Android 15 graphical capture/MediaStore validation failed in %s\n' "$container" >&2
     exit 1
   }
-  if docker logs "$container" 2>&1 | grep -Eq \
-      '(Trouble scanning|Failed to visit|Requested path) /(data/local/tmp/royd-runtime-video-test\.mp4|storage/emulated/0/Movies/royd-runtime-video-test\.[[:alnum:].-]+\.mp4)'; then
-    printf 'error: Android 15 display capture emitted media-scanner failures in %s\n' "$container" >&2
-    exit 1
-  fi
-  if docker logs "$container" 2>&1 | grep -Fq 'Invalid present fence'; then
-    printf 'error: Android 15 SurfaceFlinger received an invalid present fence in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
 fi
 
 docker exec "$container" sh -c '[ -c /dev/binder ] && [ -c /dev/hwbinder ] && [ -c /dev/vndbinder ]' || {
@@ -946,12 +742,6 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 display runtime configuration was not validated in %s\n' "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Fq \
-      'display: runtime config missing or invalid, using profile defaults'; then
-    printf 'error: Android 15 display bootstrap rejected the runtime configuration in %s\n' \
-      "$container" >&2
-    exit 1
-  fi
   if ! docker logs "$container" 2>&1 | grep -Fq \
       'ROYD: Binder freezing disabled: PID namespace safety is unqualified'; then
     printf 'error: Android 15 Binder-freezer isolation mode is not reported in %s\n' "$container" >&2
@@ -966,14 +756,10 @@ if [ "$sdk" = 35 ]; then
     printf 'error: Android 15 cached-app freezer is not disabled in %s\n' "$container" >&2
     exit 1
   fi
-  if docker logs "$container" 2>&1 | grep -Eq \
-      'Freezer[[:space:]]*: Unable to read freezer info|ActivityManager[[:space:]]*: Unable to (freeze|unfreeze|quick unfreeze) binder for'; then
-    printf 'error: Android 15 attempted unqualified Binder freezer operations in %s\n' "$container" >&2
-    exit 1
-  fi
 fi
 
 if [ "$sdk" = 35 ]; then
+  "$script_dir/assert-android15-log-history.sh" "$container" "$graphics_backend" "$hal_profile"
   "$script_dir/assert-app-responsiveness.sh" "$container"
 fi
 
