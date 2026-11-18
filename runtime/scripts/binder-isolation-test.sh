@@ -69,14 +69,42 @@ retain_and_remove() {
     eval "capture_$side=fail"
     container_owner "$container" "$id" || return 1
     "$script_dir/container-evidence.sh" "$id" "$output/$side" >"$output/$side-capture.log" 2>&1 || return 1
-    # Watchdog thread dumps can live only in the disposable /data volume.
-    # Record an unavailable probe honestly; do not call it proof of no ANR.
-    if timeout 5 docker exec "$id" test -d /data/anr >"$output/$side/anr-capture.log" 2>&1; then
-      docker cp "$id:/data/anr" "$output/$side/anr" >>"$output/$side/anr-capture.log" 2>&1 || return 1
-      printf '%s\n' 'ANR_COPY_STATUS=pass' >"$output/$side/anr-status.env"
-    else
-      printf 'ANR_PROBE_STATUS=%s\n' "$?" >"$output/$side/anr-status.env"
-    fi
+    # Watchdog dumps and persisted DropBox reports can live only in /data.
+    # Keep their raw bytes before deleting the disposable volume. A negative
+    # directory test is unavailable evidence, not proof of no runtime failure.
+    for diagnostic in anr system/dropbox; do
+      kind=${diagnostic##*/}
+      case "$kind" in anr) status_key=ANR ;; dropbox) status_key=DROPBOX ;; esac
+      # An exec transport failure can also return 1. Require a successful
+      # in-container reply rather than treating that exit code as absence.
+      if timeout 5 docker exec "$id" sh -c '
+        if test -d "$1"; then
+          printf "%s\n" ROYD_REPORT_DIRECTORY=present
+        else
+          printf "%s\n" ROYD_REPORT_DIRECTORY=unavailable
+        fi
+      ' royd-report-probe "/data/$diagnostic" >"$output/$side/$kind-capture.log" 2>&1; then
+        probe_reply=$(cat "$output/$side/$kind-capture.log")
+        case "$probe_reply" in
+          ROYD_REPORT_DIRECTORY=present)
+            docker cp "$id:/data/$diagnostic" "$output/$side/$kind" >>"$output/$side/$kind-capture.log" 2>&1 || return 1
+            printf '%s_COPY_STATUS=pass\n' "$status_key" >"$output/$side/$kind-status.env"
+            ;;
+          ROYD_REPORT_DIRECTORY=unavailable)
+            printf '%s_PROBE_STATUS=unavailable\n' "$status_key" >"$output/$side/$kind-status.env"
+            ;;
+          *)
+            printf '%s_PROBE_STATUS=invalid-reply\n' "$status_key" >"$output/$side/$kind-status.env"
+            return 1
+            ;;
+        esac
+      else
+        probe_status=$?
+        printf '%s_PROBE_STATUS=%s\n' "$status_key" "$probe_status" >"$output/$side/$kind-status.env"
+        # Transport errors and timeouts must leave the resources available.
+        return 1
+      fi
+    done
     eval "capture_$side=pass"
     # Recheck before deletion and remove by immutable ID, never a recycled name.
     container_owner "$container" "$id" || return 1

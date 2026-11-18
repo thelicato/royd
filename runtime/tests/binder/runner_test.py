@@ -55,15 +55,30 @@ if args[0]=='rm':
  del state['containers'][name];save();sys.exit(0)
 if args[0]=='exec':
  name,item=container(args[1])
- if args[2:]==['test','-d','/data/anr']:sys.exit(0 if mode in ['runtime_failure','anr_copy_failure'] else 1)
+ if args[2:4]==['sh','-c']:
+  assert args[-2]=='royd-report-probe';source=args[-1]
+  assert source in ['/data/anr','/data/system/dropbox']
+  if name.endswith('-a'):
+   if mode=='anr_probe_failure' and source=='/data/anr':sys.exit(124)
+   if source=='/data/system/dropbox':
+    if mode=='dropbox_probe_failure':
+     print('Error response from daemon: exec failed',file=sys.stderr);sys.exit(1)
+    if mode=='dropbox_shell_failure':sys.exit(127)
+    if mode=='dropbox_invalid_reply':print('unexpected output');sys.exit(0)
+  present=(mode in ['runtime_failure','anr_copy_failure']) if source=='/data/anr' else mode!='diagnostics_absent'
+  print('ROYD_REPORT_DIRECTORY='+('present' if present else 'unavailable'));sys.exit(0)
  assert args[2]=='/vendor/bin/royd-binder-info'
  base=100 if name.endswith('-a') or mode=='shared' else 200
  for n,path in enumerate(['/dev/royd-binderfs/binder-control','/dev/binder','/dev/hwbinder','/dev/vndbinder']):print(path+'='+str(base+n))
  sys.exit(0)
 if args[0]=='cp':
  name,item=container(args[1].split(':',1)[0])
- if mode=='anr_copy_failure' and name.endswith('-a'):sys.exit(9)
- target=Path(args[2]);target.mkdir();(target/'anr_fixture').write_text('full watchdog thread dump');sys.exit(0)
+ source=args[1].split(':',1)[1];assert source in ['/data/anr','/data/system/dropbox']
+ if name.endswith('-a') and ((mode=='anr_copy_failure' and source=='/data/anr') or (mode=='dropbox_copy_failure' and source=='/data/system/dropbox')):sys.exit(9)
+ target=Path(args[2]);target.mkdir()
+ if source=='/data/anr':(target/'anr_fixture').write_text('full watchdog thread dump')
+ else:(target/'system_server_watchdog@123.txt.gz').write_bytes(b'\x1f\x8b\x00raw DropBox report\x00\xff')
+ sys.exit(0)
 raise SystemExit(92)
 '''
 STAGE = r'''#!/usr/bin/env python3
@@ -132,11 +147,12 @@ class Runner(unittest.TestCase):
         return root, result, commands, state, manifest, original
 
     def test_success_and_phase_failures(self):
-        for mode in ['good', 'runtime_failure', 'boot_failure', 'shared', 'interrupted', 'create_failure', 'start_failure']:
+        for mode in ['good', 'diagnostics_absent', 'runtime_failure', 'boot_failure', 'shared', 'interrupted', 'create_failure', 'start_failure']:
             with self.subTest(mode=mode):
                 root, result, commands, state, manifest, _ = self.trial(mode)
-                self.assertEqual(result.returncode == 0, mode == 'good', result.stderr+result.stdout)
-                self.assertEqual(manifest['RESULT_STATUS'], 'pass' if mode == 'good' else 'fail')
+                success = mode in ['good', 'diagnostics_absent']
+                self.assertEqual(result.returncode == 0, success, result.stderr+result.stdout)
+                self.assertEqual(manifest['RESULT_STATUS'], 'pass' if success else 'fail')
                 self.assertEqual(state, dict(containers={}, volumes={}))
                 self.assertEqual(manifest['CAPTURE_A_STATUS'], 'pass')
                 for side in ['a'] if mode == 'create_failure' else ['a', 'b']:
@@ -146,13 +162,20 @@ class Runner(unittest.TestCase):
                     capture = commands.index(['logs', '--timestamps', 'id-'+side])
                     removal = commands.index(['rm', '-f', 'id-'+side])
                     self.assertLess(capture, removal)
+                    if mode == 'diagnostics_absent':
+                        self.assertEqual((evidence/'dropbox-status.env').read_text(), 'DROPBOX_PROBE_STATUS=unavailable\n')
+                        self.assertFalse((evidence/'dropbox').exists())
+                    else:
+                        self.assertEqual((evidence/'dropbox/system_server_watchdog@123.txt.gz').read_bytes(), b'\x1f\x8b\x00raw DropBox report\x00\xff')
+                        self.assertEqual((evidence/'dropbox-status.env').read_text(), 'DROPBOX_COPY_STATUS=pass\n')
+                        self.assertLess(commands.index(['cp','id-'+side+':/data/system/dropbox',str(evidence/'dropbox')]), removal)
                 if mode == 'runtime_failure':
                     self.assertIn('pre-watchdog', (root/'evidence/runtime_a.log').read_text())
                     self.assertIn('pre-watchdog', (root/'evidence/a/container.log').read_text())
                     self.assertEqual((root/'evidence/a/anr/anr_fixture').read_text(), 'full watchdog thread dump')
                     self.assertEqual(manifest['RUNTIME_A_STATUS'], 'fail')
                     self.assertEqual(manifest['RUNTIME_B_STATUS'], 'not-run')
-                if mode == 'good':
+                if success:
                     stages = [json.loads(s)[:2] for s in (root/'stages.jsonl').read_text().splitlines()]
                     self.assertEqual(stages, [['wait','test-a'], ['wait','test-b'], ['assert','test-a'], ['assert','test-b']])
                     self.assertEqual(manifest['IDENTITY_STATUS'], 'pass')
@@ -170,11 +193,12 @@ class Runner(unittest.TestCase):
                 if mode == 'existing_evidence': self.assertEqual((root/'evidence/preserve').read_text(), 'untouched')
 
     def test_capture_ownership_and_cleanup_failures(self):
-        for mode in ['capture_failure', 'anr_copy_failure', 'owner_changed', 'cleanup_failure']:
+        for mode in ['capture_failure', 'anr_copy_failure', 'dropbox_copy_failure', 'anr_probe_failure', 'dropbox_probe_failure', 'dropbox_shell_failure', 'dropbox_invalid_reply', 'owner_changed', 'cleanup_failure']:
             with self.subTest(mode=mode):
-                _, result, commands, state, manifest, _ = self.trial(mode)
+                root, result, commands, state, manifest, _ = self.trial(mode)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(manifest['RESULT_STATUS'], 'fail')
+                self.assertEqual(manifest['CAPTURE_A_STATUS'], 'pass' if mode == 'cleanup_failure' else 'fail')
                 self.assertEqual(manifest['CLEANUP_A_STATUS'], 'fail')
                 self.assertIn('test-a', state['containers'])
                 self.assertIn('test-a-data', state['volumes'])
@@ -182,6 +206,10 @@ class Runner(unittest.TestCase):
                 self.assertNotIn('test-b-data', state['volumes'])
                 if mode != 'cleanup_failure': self.assertNotIn(['rm','-f','id-a'], commands)
                 if mode == 'owner_changed': self.assertNotIn(['logs','--timestamps','id-a'], commands)
+                if mode in ['anr_probe_failure', 'dropbox_probe_failure', 'dropbox_shell_failure', 'dropbox_invalid_reply']:
+                    kind = mode.split('_', 1)[0]
+                    code = dict(anr_probe_failure=124, dropbox_probe_failure=1, dropbox_shell_failure=127, dropbox_invalid_reply='invalid-reply')[mode]
+                    self.assertEqual((root/'evidence/a'/(kind+'-status.env')).read_text(), kind.upper()+'_PROBE_STATUS='+str(code)+'\n')
                 self.assertNotIn('Binder isolation test passed:', result.stdout)
 
 
