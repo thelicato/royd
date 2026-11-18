@@ -1,0 +1,34 @@
+diff --git a/frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp b/frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp
+--- a/frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp
++++ b/frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp
+@@ -23,6 +23,10 @@
+ #include <regex.h>
+
+ #include <algorithm>
++#include <atomic>
++#include <cerrno>
++#include <cstdlib>
++#include <cstring>
+ #include <list>
+ #include <memory>
+ #include <set>
+@@ -861,6 +865,19 @@
+     void maybeFreezeProcess() {
+         if (!freeze || !alive()) return;
+
++        // Freezing the timer's own process also freezes its notifier and release path.
++        if (pid == getpid() && uid >= 0 && static_cast<uid_t>(uid) == getuid()) {
++            const char* container = getenv("ROYD_CONTAINER");
++            if (container != nullptr && strcmp(container, "1") == 0 &&
++                    access("/sys/fs/selinux/enforce", F_OK) != 0 && errno == ENOENT) {
++                static std::atomic_flag logged = ATOMIC_FLAG_INIT;
++                if (!logged.test_and_set(std::memory_order_relaxed)) {
++                    ALOGW("ROYD: skipping ANR-timer self-freeze");
++                }
++                return;
++            }
++        }
++
+         // Construct a unique event ID.  The id*2 spans from the beginning of the freeze to the
+         // end of the freeze.  The id*2+1 spans the period inside the freeze/unfreeze
+         // operations.

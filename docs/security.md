@@ -107,6 +107,8 @@ ROYD_SECURITY_SWEEP_OUTPUT=security-sweep.md make runtime-security-sweep
 
 ## Seccomp and LSM policy
 
+Under `ROYD_CONTAINER=1`, when `/sys/fs/selinux/enforce` is absent with `ENOENT`, Android 15's native ANR timer skips freezing its own reporting process. Freezing that process would also stop the notification and unfreeze paths. Timer expiry, scheduler extensions, other-process freezing and ANR reporting retain stock behaviour. An attempted self-freeze emits a bounded diagnostic and fails runtime qualification; the guard does not make an expired timeout acceptable. Positive self-freeze validation uses mocks, not a forced timeout on a shared host.
+
 The experimental profile does not currently force seccomp unconfined, AppArmor unconfined, SELinux label changes, or `no-new-privileges`. Those controls are intentionally measured rather than changed speculatively.
 
 Android 15 has repository-owned container adaptations for hosts where the kernel reports SELinux disabled. They activate only when both `ROYD_CONTAINER=1` and `is_selinux_enabled() <= 0`; normal SELinux-enabled Android keeps its upstream init and servicemanager policy paths. The servicemanager adaptation allows service-manager operations without SELinux policy lookups only in that explicitly gated SELinux-disabled container case.

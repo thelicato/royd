@@ -206,6 +206,10 @@ if grep -Eq 'Watchdog[[:space:]]*: (WAITED_UNTIL_PRE_WATCHDOG|ROYD: pre-watchdog
   printf 'error: Android 15 triggered a SystemServer pre-watchdog in %s\n' "$container" >&2
   exit 1
 fi
+if grep -Eq 'AnrTimerService[[:space:]]*: ROYD: skipping ANR-timer self-freeze' <"$history"; then
+  printf 'error: Android 15 ANR timer tried to freeze its own reporter in %s\n' "$container" >&2
+  exit 1
+fi
 if grep -Fq \
     'display: runtime config missing or invalid, using profile defaults' <"$history"; then
   printf 'error: Android 15 display bootstrap rejected the runtime configuration in %s\n' \

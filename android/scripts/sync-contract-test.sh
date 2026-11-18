@@ -17,6 +17,11 @@ case "$1" in
     mkdir -p .repo
     ;;
   sync)
+    if [ ! -f frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp ]; then
+      mkdir -p frameworks/base/services/core/jni
+      cp "$ROYD_SYNC_FREEZER_FIXTURES/AnrTimer.cpp" \
+        frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp
+    fi
     # Reconstruct only this patch's context for application/fixture checks.
     # Its executable contracts also run on the resulting applied Java methods.
     python3 "$ROYD_SYNC_FREEZER_FIXTURES/SettingsSearchPatchFixture.py" \
@@ -2997,6 +3002,8 @@ grep -Fq 'return isBinderFreezerAllowed() && nativeIsFreezerSupported();' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/Freezer.java"
 grep -Fq 'if (pid > 0 && mService.getFreezer().isBinderFreezerAllowed())' \
   "$tmp/src/frameworks/base/services/core/java/com/android/server/am/ProcessList.java"
+grep -Fq 'ROYD: skipping ANR-timer self-freeze' \
+  "$tmp/src/frameworks/base/services/core/jni/com_android_server_utils_AnrTimer.cpp"
 grep -Fq 'bool shouldSkipRoydGpuMemoryTracing() {' \
   "$tmp/src/frameworks/native/services/gpuservice/GpuService.cpp"
 grep -Fq 'bool shouldSkipRoydGpuWorkTracing() {' \

@@ -8,17 +8,11 @@ The candidate is Android 15 x86_64, standard graphical, software rendering, low-
 
 Exact causal attribution of earlier WebView/Launcher focus ANRs and startup pre-watchdogs is accepted as a historical uncertainty. Those failures remain recorded and are not described as fixed. This acceptance does not waive any final-candidate runtime, ANR, input-timeout, pre-watchdog, security, packet/noise or restoration check. A failure on the candidate requires diagnosis and affected requalification.
 
-## Frozen candidate
+## Candidate provenance
 
-The clean-output build uses source `bd02d0338d40729c3e45ddc22098312af539627c`, the pinned 1,030-project AOSP manifest and 91 owned patches. Resolved configuration, compilation, packaging, import and source/artefact provenance checks pass. Executable repository inputs match the passing CI snapshot; documentation checks pass independently. This establishes build provenance only, without a runtime or support promotion.
+Freeze one source revision, image digest and archive checksum after resolved configuration, CI, clean compilation, packaging, import and source/artefact provenance checks pass. Preserve the matching pinned manifest, owned patch set, symbols and generated evidence. Pin the image digest for every acceptance gate; a later image-input change reopens affected acceptance.
 
-| Identity | Value |
-| --- | --- |
-| Docker image | `sha256:b582a1a60423c0103dfa3df6daee8c6febf2304fa2b158537e4d72e9d915c655` |
-| Root-filesystem archive SHA-256 | `43a3ab716934ffc7097bd6b716fe2ed4704dd3bc7bde82d6072682748a3dcb5d` |
-| Resolved source-manifest SHA-256 | `9608e346716ced6118249ac10325b14914826de8cb5e49dd9548ae85be1ee145` |
-
-Pin the image digest for all remaining gates. Preserve its matching archive, manifest, symbols and generated evidence; a later image-input change reopens affected acceptance.
+The native ANR-timer correction requires an updated build, package/import and final clean freeze. Startup acceptance remains blocked by a SystemUI service-start ANR with an unestablished triggering delay. The guard addresses a separate reporting deadlock risk and does not establish the cause or resolution of that ANR. Preserve failed outcomes alongside subsequent evidence.
 
 ## Execution
 
@@ -36,8 +30,8 @@ The IDs are stable checklist references. A documented limitation is distinct fro
 | T01 | Attribute sampled blank transitions and hand-off waits using app/render/consumer/layer evidence; retain coverage limits. | Scoped local attribution complete: an opaque Settings splash covers advancing app buffers; captured waits have BufferQueue backpressure/release progress. General visual quality remains unqualified. |
 | T02 | Assess earlier WebView/Launcher focus ANRs without inventing a common cause. | Historical cause unestablished and accepted as a documented limitation. Final candidate must pass unchanged focus/lifecycle and full responsiveness checks. |
 | T03 | Assess earlier startup pre-watchdogs without attributing a whole interval to a late stack sample. | Historical cause unestablished and accepted as a documented limitation. Checker timing diagnostics exist. Final single/multi-instance startup must pass; Watchdog policy and credential durability remain unchanged. |
-| T04 | Clean Android outputs, pinned AOSP/owned inputs, resolved configuration, successful CI, package/import and verified source/artefact/archive/image provenance. Freeze the candidate. | Complete locally on source `bd02d03`; the frozen candidate requires final runtime/host acceptance. |
-| T05 | Full runtime/security/Binder isolation; ordinary Launcher, Settings/search, DocumentsUI, WebView, storage and media; Docker/Compose, PID1/logs/health and default/required-auth ADB acceptance/rejection. | Pending same-candidate acceptance. |
+| T04 | Clean Android outputs, pinned AOSP/owned inputs, resolved configuration, successful CI, package/import and verified source/artefact/archive/image provenance. Freeze the candidate. | Reopened for the native ANR-timer correction. The replacement build, package/import and provenance remain required. |
+| T05 | Full runtime/security/Binder isolation; ordinary Launcher, Settings/search, DocumentsUI, WebView, storage and media; Docker/Compose, PID1/logs/health and default/required-auth ADB acceptance/rejection. | Blocked by a SystemUI service-start ANR with unestablished triggering delay. Passing later diagnostic workloads do not resolve the failure. |
 | T06 | Native/WebView IPv4 DNS/HTTPS and both certificate-denial controls in both DNS modes; ordinary/control-UID denial, metered/Data Saver and link withdrawal/recovery, with restoration. | Pending same-candidate acceptance. |
 | T07 | Ordinary-UID/API accounting, denied-packet boundaries, native UDP/TCP/segmentation and explicitly flushed recorded history across Docker/framework restarts. Exact identities/buckets and permission denial. | Pending same-candidate acceptance. |
 | T08 | Quota/alert thresholds, exact fit/exhaustion, replacement/removal/cancellation, callbacks, restoration, TCP/GSO/CPU sharing, concurrent alerts and netd/framework ownership/reconnection. | Implemented with scoped local witnesses; pending final-candidate review and affected gates. Continuous restart-window enforcement and unflushed durability are not qualified. |

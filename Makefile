@@ -49,6 +49,7 @@
 .PHONY: android15-oci-network-container-test
 .PHONY: android15-host-clock-container-test
 .PHONY: android15-watchdog-container-test
+.PHONY: android15-anr-timer-container-test
 .PHONY: android15-tcp-diag-container-test
 .PHONY: android15-networkmonitor-wifi-container-test
 .PHONY: android15-netpolicy-wifi-container-test
@@ -670,6 +671,9 @@ android15-host-clock-container-test:
 
 android15-watchdog-container-test:
 	./android/scripts/android15-watchdog-container-test.sh
+
+android15-anr-timer-container-test:
+	./android/scripts/android15-anr-timer-container-test.sh
 
 android15-tcp-diag-container-test:
 	./android/scripts/android15-tcp-diag-container-test.sh

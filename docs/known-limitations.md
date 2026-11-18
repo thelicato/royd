@@ -14,6 +14,8 @@ Earlier development images produced WebView/Launcher focus ANRs and startup Syst
 
 Final-candidate acceptance still rejects every retained ANR, input timeout and pre-watchdog, including failures followed by process recovery. Normal timeout policy, credential durability, permission checks and workload assertions remain unchanged. A new occurrence requires investigation; a successful later repetition does not erase a failure.
 
+Current startup acceptance is blocked by a SystemUI service-start ANR whose triggering delay remains unestablished. A separate guard prevents the native ANR timer from freezing its own reporting process under the container gate. This removes a specific self-deadlock risk; it does not establish the cause or resolution of the SystemUI ANR or earlier pre-watchdogs.
+
 Sampled blank Settings transitions have been attributed to a stock opaque splash above advancing app buffers, and specific hand-off waits to BufferQueue backpressure with later progress. This explains those captures only. Faded/blank video samples and hand-off warnings remain in retained evidence. Successful scrcpy encoding/decoding and discrete screenshots do not guarantee continuous visual quality, bounded launch latency or universal deadlock absence. See [graphics](graphics.md).
 
 ## Networking and storage

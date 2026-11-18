@@ -533,6 +533,8 @@ case "$1" in
           printf '%s\n' 'W InputDispatcher: Window abc example.app/.Main is unresponsive: example.app/.Main is not responding. Waited 5043ms for FocusEvent(hasFocus=true)'
           ;;
         formal) printf '%s\n' 'I am_anr  : [0,101,example.app,0,Input dispatching timed out]' ;;
+        self-freeze) printf '%s\n' 'W AnrTimerService: ROYD: skipping ANR-timer self-freeze' ;;
+        ordinary-freeze) printf '%s\n' 'I AnrTimerService: freeze id=7 pid=101 uid=10001 status=expired name=example.app' ;;
         activity) printf '%s\n' 'E ActivityManager: ANR in example.app (example.app/.Main)' ;;
         unrelated) printf '%s\n' 'I example.app: text mentions ANR in documentation; no input timeout' ;;
       esac
@@ -1577,6 +1579,18 @@ for mode in window native formal activity recovered; do
 done
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=unrelated \
   "$script_dir/assert-runtime.sh" unrelated-anr-text >"$tmp/output" 2>&1
+for phase in early late; do
+  rm -f "$tmp/anr-state"
+  if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=self-freeze MOCK_APP_ANR_PHASE="$phase" \
+      MOCK_ANR_STATE="$tmp/anr-state" "$script_dir/assert-runtime.sh" anr-timer-self-freeze >"$tmp/error" 2>&1; then
+    printf 'error: runtime assertion accepted ANR-timer self-freeze in %s phase\n' "$phase" >&2
+    exit 1
+  fi
+  grep -Fq 'ANR timer tried to freeze its own reporter' "$tmp/error"
+  if [ "$phase" = late ]; then test -f "$tmp/anr-state"; else test ! -f "$tmp/anr-state"; fi
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=ordinary-freeze \
+  "$script_dir/assert-runtime.sh" ordinary-native-freeze >"$tmp/output" 2>&1
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR_LOG_FAILURE=1 \
     "$script_dir/assert-runtime.sh" unreadable-anr-history >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted unreadable responsiveness history' >&2
