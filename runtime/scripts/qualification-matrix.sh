@@ -64,10 +64,16 @@ for version in $versions; do
     expected_profile_policy=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-policy.sh" "$image_profile")
     expected_profile_policy_sha256=$(ROYD_ANDROID_VERSION="$version" "$repo_root/android/scripts/profile-packages.sh" "$image_profile" | sha256sum | awk '{print $1}')
     evidence_dir=${result_file%.env}.evidence
+    image=${ROYD_IMAGE:-$(ROYD_ANDROID_VERSION="$version" ROYD_HAL_PROFILE="$hal_profile" ROYD_GRAPHICS_BACKEND="$graphics_backend" "$script_dir/default-image.sh" "$image_profile" "$arch")}
+    image_id=$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null) || image_id=unavailable
     if [ "$resume" = 1 ] \
-      && [ "$(runtime_result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 4 ] \
+      && [ "$(runtime_result_get "$result_file" RESULT_FORMAT 2>/dev/null || true)" = 5 ] \
       && [ "$(runtime_result_get "$result_file" RESULT_STATUS 2>/dev/null || true)" = pass ] \
       && [ "$(runtime_result_get "$result_file" CONTAINER_EVIDENCE_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$(runtime_result_get "$result_file" POST_HISTORY_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$(runtime_result_get "$result_file" MAIN_CLEANUP_STATUS 2>/dev/null || true)" = pass ] \
+      && [ "$image_id" != unavailable ] \
+      && [ "$(runtime_result_get "$result_file" IMAGE_ID 2>/dev/null || true)" = "$image_id" ] \
       && [ -f "$evidence_dir/container-inspect.json" ] \
       && [ -f "$evidence_dir/container.log" ] \
       && [ -f "$evidence_dir/state.txt" ] \
@@ -76,7 +82,17 @@ for version in $versions; do
       && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE 2>/dev/null || true)" = "$security_profile" ] \
       && [ "$(runtime_result_get "$result_file" SECURITY_PROFILE_SHA256 2>/dev/null || true)" = "$security_profile_sha256" ] \
       && [ "$(runtime_result_get "$result_file" RESOURCE_PROFILE 2>/dev/null || true)" = "$resource_profile" ]; then
-      printf '\n==> Android %s %s: runtime qualification already passed with current profile policy, skipping\n' "$version" "$arch"
+      printf '\n==> Android %s %s: runtime qualification already passed with current image and profile policy, skipping\n' "$version" "$arch"
+      continue
+    fi
+    occupied=0
+    for path in "$result_file" "$log_file" "$evidence_dir"; do
+      if [ -e "$path" ] || [ -L "$path" ]; then occupied=1; fi
+    done
+    if [ "$occupied" = 1 ]; then
+      printf 'error: retained qualification for Android %s %s cannot be reused; select a fresh ROYD_RUNTIME_RESULTS_DIR\n' "$version" "$arch" >&2
+      status=1
+      [ "$continue_on_error" = 1 ] || break 2
       continue
     fi
     printf '\n==> Android %s %s: runtime qualification\n' "$version" "$arch"

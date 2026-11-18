@@ -22,7 +22,7 @@ resource_profile=${ROYD_RESOURCE_PROFILE:-low-memory}
 
 render() {
   printf '%s\n\n' '# royd runtime qualification results'
-  printf '%s\n\n' 'A passing row records successful host, image, boot, Docker health, runtime, security, graphics, container-log, ADB, Binder-isolation, and persisted container-evidence validation for that exact tuple.'
+  printf '%s\n\n' 'A passing row records successful host, image, boot, Docker health, runtime, security, graphics, container-log, ADB, Binder-isolation, and final failure-history checks, persisted diagnostic reports, and verified resource cleanup for that exact tuple.'
   printf 'Image profile: `%s`\n\n' "$image_profile"
   printf 'HAL profile: `%s`\n\n' "$hal_profile"
   printf 'Security mode: `%s`\n\n' "$security_mode"
@@ -49,6 +49,13 @@ render() {
         binder=$(runtime_result_get "$file" BINDER_ISOLATION_STATUS || printf unknown)
         evidence=$(runtime_result_get "$file" CONTAINER_EVIDENCE_STATUS || printf unknown)
         result=$(runtime_result_get "$file" RESULT_STATUS || printf unknown)
+        if [ "$(runtime_result_get "$file" RESULT_FORMAT || true)" != 5 ]; then
+          result=stale
+        elif [ "$result" = pass ]; then
+          for key in POST_HISTORY_STATUS MAIN_CLEANUP_STATUS; do
+            [ "$(runtime_result_get "$file" "$key" || true)" = pass ] || result=fail
+          done
+        fi
       else
         host=not-run; image=not-run; boot=not-run; health=not-run; runtime=not-run
         security=not-run; security_evidence=not-run; graphics=not-run; logs=not-run; adb=not-run; binder=not-run; evidence=not-run; result=not-run

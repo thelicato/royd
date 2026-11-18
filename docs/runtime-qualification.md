@@ -41,8 +41,9 @@ The gate records these stages independently:
 8. container logcat forwarding
 9. SurfaceFlinger service and `dumpsys SurfaceFlinger`
 10. host-side ADB connectivity and `adb logcat`
-11. full timestamped container logs plus Docker inspect and state evidence
-12. two-container Binder isolation
+11. two-container Binder isolation
+12. final Android 15 failure-history and formal ANR checks
+13. full timestamped container logs, Docker inspect/state and available raw ANR/DropBox reports
 
 The Binder isolation stage starts two disposable Android containers and compares the kernel character-device identities returned by the repository-owned `royd-binder-info` helper. Each private binderfs mount must expose different `binder-control`, `binder`, `hwbinder`, and `vndbinder` device identities. Linux binderfs defines devices in separate binderfs instances as independent Binder contexts, so this gives royd a concrete runtime check that each container received a distinct private device set.
 
@@ -62,7 +63,7 @@ Results are stored under:
 
 The result file records the selected image identity and each qualification stage. Security evidence includes the versioned security-profile ID and digest, Docker privilege/capability settings, active AppArmor profile when available, and Android PID 1 capability, `NoNewPrivs`, and seccomp state. The log contains detailed stage output. The companion evidence directory persists `container.log` from full timestamped `docker logs`, `container-inspect.json`, and `state.txt` before the qualification container is removed. This makes boot-watchdog and early-init diagnostics reviewable after a failed run.
 
-When a Binder companion directory already exists, qualification refuses reuse before opening the previous result or log. Select a fresh `ROYD_RUNTIME_RESULT_FILE` (or fresh results directory for a matrix rerun) to retain earlier attempts.
+Qualification refuses existing output paths, container names and volume names before creating resources or opening logs. Select a fresh `ROYD_RUNTIME_RESULT_FILE` (or fresh results directory for a matrix rerun) to retain earlier attempts.
 
 Docker can omit health state for a never-started container or an image without a health check. The collector records `health=none` and still captures logs/inspect; an empty log is valid only when `docker logs` succeeds. Present `starting`/`unhealthy` states and Docker errors remain visible, and unavailable inspect/log commands still fail capture. Evidence capture is not boot or health qualification: a failed start remains failed. `make runtime-container-evidence-test` uses Go to execute the production template with strict missing-key checks, plus mocked collection failures; the collector itself requires only Docker and the shell.
 
@@ -74,7 +75,7 @@ ROYD_QUALIFY_ARCHES="x86_64 arm64" \
 make runtime-qualification-matrix
 ```
 
-Passing tuples are skipped on later runs unless `ROYD_QUALIFY_RESUME=0` is set. The matrix retains failures and returns non-zero if any selected tuple fails.
+Resume skips passing tuples only when the immutable image ID, current result format, policy identities, resource profile and capture/cleanup checks match. Failed or stale attempts require a fresh results directory, including when `ROYD_QUALIFY_RESUME=0`. Earlier evidence is retained. The matrix returns non-zero if any selected tuple fails.
 
 Generate a table for all configured Android versions with:
 
@@ -103,8 +104,10 @@ This does not promote the tuple to supported. The support policy also requires r
 
 ## Disposable state
 
-Qualification containers and `/data` volumes are disposable and removed when the test exits. The runner publishes ADB on an automatically selected loopback port, so it can coexist with other local Android instances without assuming port 5555 is free.
+Qualification labels each new container and data volume with a unique owner and pins the image before inspection and startup. All workloads target the immutable container ID. Final capture runs after workloads, including failures and interruptions. Cleanup requires matching owner, container and image identities plus successful log, inspect and report capture. A failed capture or ownership change leaves resources for inspection. Unavailable report directories are recorded explicitly and do not prove absence of a failure. The runner publishes ADB on an automatically selected loopback port, so it can coexist with other local Android instances without assuming port 5555 is free.
 
 ## Policy provenance
 
-Runtime qualification results use result format 4. They record `PROFILE_POLICY` plus `PROFILE_POLICY_SHA256`, `SECURITY_PROFILE` plus `SECURITY_PROFILE_SHA256`, and the selected `RESOURCE_PROFILE`. Result format 4 also requires successful persisted container-evidence capture for a passing qualification. Resume mode accepts previous evidence only when both policy identities still match the repository and the resource profile matches the requested mode. Package-policy, security-policy, or resource-profile changes therefore invalidate stale runtime qualification automatically.
+Runtime qualification results use format 5. They record the immutable image/container IDs, resource owner, image/security policy identities and digests, resource profile, final failure-history status and main cleanup status. A passing result requires successful final capture and cleanup. Earlier formats cannot satisfy current acceptance.
+
+Stage outputs remain under `stages/` in the evidence directory. A canonical `result.env` is retained there before the public result is atomically published without replacing an existing file. If publication fails, qualification returns failure and retains the canonical result and diagnostics for review.

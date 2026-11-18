@@ -78,7 +78,7 @@ mkdir -p "$tmp/runtime-results/15"
 security_profile=$($repo_root/runtime/scripts/security-profile.sh privileged id)
 security_profile_sha256=$($repo_root/runtime/scripts/security-profile.sh privileged digest)
 cat > "$tmp/runtime-results/15/x86_64-standard-graphical-privileged.env" <<RESULT
-RESULT_FORMAT=4
+RESULT_FORMAT=5
 ANDROID_VERSION=15
 ARCH=x86_64
 IMAGE_PROFILE=standard
@@ -88,6 +88,8 @@ RESOURCE_PROFILE=low-memory
 SECURITY_PROFILE=$security_profile
 SECURITY_PROFILE_SHA256=$security_profile_sha256
 CONTAINER_EVIDENCE_STATUS=pass
+POST_HISTORY_STATUS=pass
+MAIN_CLEANUP_STATUS=pass
 RESULT_STATUS=pass
 RESULT
 ROYD_MATRIX_SOURCE_ROOT="$tmp" ROYD_MATRIX_OUTPUT="$report" "$script_dir/matrix-report.sh" >/dev/null

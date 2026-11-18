@@ -37,10 +37,12 @@ esac
 if [ -n "${ROYD_RUNTIME_RESULT_FILE:-}" ]; then
   mkdir -p "$(dirname -- "$ROYD_RUNTIME_RESULT_FILE")"
   cat > "$ROYD_RUNTIME_RESULT_FILE" <<'RESULT'
-RESULT_FORMAT=4
+RESULT_FORMAT=5
 RESOURCE_PROFILE=low-memory
 RESULT_STATUS=pass
 CONTAINER_EVIDENCE_STATUS=pass
+POST_HISTORY_STATUS=pass
+MAIN_CLEANUP_STATUS=pass
 RESULT
 fi
 if [ -n "${ROYD_RUNTIME_LOG_FILE:-}" ]; then
@@ -98,10 +100,14 @@ grep -Fqx 'RUNTIME_EVIDENCE_STATUS=pass' "$bundle/manifest.env"
 grep -Fqx 'RESOURCE_PROFILE=low-memory' "$bundle/manifest.env"
 "$script_dir/reference-bundle-verify.sh" "$bundle" >/dev/null
 
-for regression in stale-format failed-post-runtime missing-post-log; do
+for regression in failed-runtime-result stale-runtime-format failed-history failed-cleanup stale-format failed-post-runtime missing-post-log; do
   bad_bundle="$work/$regression"
   cp -R "$bundle" "$bad_bundle"
   case "$regression" in
+    failed-runtime-result) sed -i 's/^RESULT_STATUS=.*/RESULT_STATUS=fail/' "$bad_bundle/runtime-result.env" ;;
+    stale-runtime-format) sed -i 's/^RESULT_FORMAT=.*/RESULT_FORMAT=4/' "$bad_bundle/runtime-result.env" ;;
+    failed-history) sed -i 's/^POST_HISTORY_STATUS=.*/POST_HISTORY_STATUS=fail/' "$bad_bundle/runtime-result.env" ;;
+    failed-cleanup) sed -i 's/^MAIN_CLEANUP_STATUS=.*/MAIN_CLEANUP_STATUS=fail/' "$bad_bundle/runtime-result.env" ;;
     stale-format) sed -i 's/^ROYD_SCRCPY_EVIDENCE_FORMAT=.*/ROYD_SCRCPY_EVIDENCE_FORMAT=1/' "$bad_bundle/scrcpy/manifest.env" ;;
     failed-post-runtime) sed -i 's/^POST_RUNTIME_STATUS=.*/POST_RUNTIME_STATUS=fail/' "$bad_bundle/scrcpy/manifest.env" ;;
     missing-post-log) rm "$bad_bundle/scrcpy/post-runtime.log" ;;
@@ -111,10 +117,10 @@ for regression in stale-format failed-post-runtime missing-post-log; do
     find . -type f ! -name SHA256SUMS -print | LC_ALL=C sort | sed 's#^./##' | while IFS= read -r file; do sha256sum "$file"; done > SHA256SUMS
   )
   if "$script_dir/reference-bundle-verify.sh" "$bad_bundle" >"$work/$regression.log" 2>&1; then
-    printf 'error: invalid scrcpy evidence unexpectedly verified: %s\n' "$regression" >&2
+    printf 'error: invalid acceptance evidence unexpectedly verified: %s\n' "$regression" >&2
     exit 1
   fi
-  grep -Fq 'error: scrcpy' "$work/$regression.log"
+  grep -Eq 'error: (scrcpy|runtime)' "$work/$regression.log"
 done
 
 stale_kernel_bundle="$work/stale-kernel-bundle"

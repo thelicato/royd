@@ -66,7 +66,10 @@ expected_kernel_contract_sha=$(sha256sum "$repo_root/runtime/kernel/config-contr
 [ -f "$bundle/runtime-evidence/container-inspect.json" ] || { printf '%s\n' 'error: runtime container inspect evidence is missing' >&2; exit 1; }
 [ -f "$bundle/runtime-evidence/container.log" ] || { printf '%s\n' 'error: runtime container log evidence is missing' >&2; exit 1; }
 [ -f "$bundle/runtime-evidence/state.txt" ] || { printf '%s\n' 'error: runtime container state evidence is missing' >&2; exit 1; }
-[ "$(runtime_result_get "$bundle/runtime-result.env" RESULT_FORMAT || true)" = 4 ] || { printf '%s\n' 'error: runtime result format is stale' >&2; exit 1; }
+[ "$(runtime_result_get "$bundle/runtime-result.env" RESULT_FORMAT || true)" = 5 ] || { printf '%s\n' 'error: runtime result format is stale' >&2; exit 1; }
 [ "$(runtime_result_get "$bundle/runtime-result.env" RESOURCE_PROFILE || true)" = "$resource_profile" ] || { printf '%s\n' 'error: runtime resource profile is stale' >&2; exit 1; }
 [ "$(runtime_result_get "$bundle/runtime-result.env" CONTAINER_EVIDENCE_STATUS || true)" = pass ] || { printf '%s\n' 'error: runtime container evidence did not pass' >&2; exit 1; }
+for key in RESULT_STATUS POST_HISTORY_STATUS MAIN_CLEANUP_STATUS; do
+  [ "$(runtime_result_get "$bundle/runtime-result.env" "$key" || true)" = pass ] || { printf 'error: runtime %s did not pass\n' "$key" >&2; exit 1; }
+done
 printf 'Reference-host evidence bundle verified: %s\n' "$bundle"

@@ -109,11 +109,13 @@ for version in $("$script_dir/version-list.sh"); do
       recorded_container_evidence=$(runtime_result_get "$runtime_file" CONTAINER_EVIDENCE_STATUS || printf unknown)
       recorded_resource_profile=$(runtime_result_get "$runtime_file" RESOURCE_PROFILE || printf unknown)
       runtime_evidence_dir=${runtime_file%.env}.evidence
-      if [ "$runtime_format" != 4 ] \
+      if [ "$runtime_format" != 5 ] \
         || [ "$recorded_security_profile" != "$expected_security_profile" ] \
         || [ "$recorded_security_profile_sha256" != "$expected_security_profile_sha256" ] \
         || [ "$recorded_resource_profile" != "$expected_resource_profile" ] \
         || [ "$recorded_container_evidence" != pass ] \
+        || [ "$(runtime_result_get "$runtime_file" POST_HISTORY_STATUS || true)" != pass ] \
+        || [ "$(runtime_result_get "$runtime_file" MAIN_CLEANUP_STATUS || true)" != pass ] \
         || [ ! -f "$runtime_evidence_dir/container-inspect.json" ] \
         || [ ! -f "$runtime_evidence_dir/container.log" ] \
         || [ ! -f "$runtime_evidence_dir/state.txt" ]; then

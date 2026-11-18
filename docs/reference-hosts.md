@@ -75,7 +75,7 @@ Verify a collected bundle with:
 make runtime-reference-bundle-verify BUNDLE=evidence/15-x86_64-standard
 ```
 
-Verification checks every file listed in `SHA256SUMS`, requires the mandatory kernel/host/image/runtime/reference stages to have passed, requires the scrcpy stage and its versioned non-empty recording for Android 15 graphical bundles, requires kernel evidence format 1 and runtime result format 4 plus successful container-evidence capture, and compares the recorded kernel contract, image-profile policy, and security-policy identities with the current repository. Changing any of those contracts therefore makes old evidence stale instead of silently reusable.
+Verification checks every file listed in `SHA256SUMS`, requires the mandatory kernel/host/image/runtime/reference stages to have passed, requires the scrcpy stage and its versioned non-empty recording for Android 15 graphical bundles, requires kernel evidence format 1 and runtime result format 5 plus successful final failure-history checks, container-evidence capture and owned-resource cleanup, and compares the recorded kernel contract, image-profile policy, and security-policy identities with the current repository. Changing any of those contracts therefore makes old evidence stale instead of silently reusable.
 
 A verified bundle is still evidence for one exact tuple and host. The kernel evidence records what the host exposed and configured, but it does not establish a minimum host configuration until successful boots provide comparative evidence. It is not by itself a support declaration. The support review must also confirm that the Android build evidence corresponds to the same image and that any published workload or hardware claims are represented by the collected evidence.
 

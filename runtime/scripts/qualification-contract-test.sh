@@ -16,7 +16,7 @@ key=$(runtime_result_key 15 x86_64 standard graphical privileged)
 [ "$key" = '15/x86_64-standard-graphical-privileged.env' ]
 file="$tmp/runtime-results/$key"
 runtime_result_write "$file" \
-  'RESULT_FORMAT=4' \
+  'RESULT_FORMAT=5' \
   'ANDROID_VERSION=15' \
   'ARCH=x86_64' \
   'IMAGE_PROFILE=standard' \
@@ -39,6 +39,8 @@ runtime_result_write "$file" \
   'ADB_STATUS=pass' \
   'BINDER_ISOLATION_STATUS=pass' \
   'CONTAINER_EVIDENCE_STATUS=pass' \
+  'POST_HISTORY_STATUS=pass' \
+  'MAIN_CLEANUP_STATUS=pass' \
   'RESULT_STATUS=pass'
 [ "$(runtime_result_get "$file" RESULT_STATUS)" = pass ]
 [ "$(runtime_result_get "$file" RESOURCE_PROFILE)" = low-memory ]
@@ -75,7 +77,7 @@ grep -Fq '/dev/zero=' "$tmp/binder-info.out"
 [ "$(ROYD_HAL_PROFILE=graphical "$script_dir/default-runtime-profile.sh")" = default ]
 [ "$(ROYD_HAL_PROFILE=headless "$script_dir/default-runtime-profile.sh")" = headless ]
 [ "$("$script_dir/resource-profile.sh" performance)" = 'royd.resource_profile=performance' ]
-grep -Fq 'container-evidence.sh' "$script_dir/qualification.sh"
+grep -Fq 'container-evidence.sh' "$script_dir/qualification-owned-lib.sh"
 grep -Fq 'CONTAINER_EVIDENCE_STATUS=' "$script_dir/qualification.sh"
 # PID 1 evidence requires booted Android userspace; capture failures remain fatal.
 awk '
@@ -88,5 +90,7 @@ awk '
   END { if (found != 1) exit 1 }
 ' "$script_dir/qualification.sh"
 grep -Fq 'if [ "$security_status" = pass ] && [ "$boot_status" = pass ]; then' "$script_dir/qualification.sh"
+
+python3 "$repo_root/runtime/tests/qualification/runner_test.py"
 
 printf '%s\n' 'Runtime qualification contract test passed'
