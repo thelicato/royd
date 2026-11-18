@@ -6,7 +6,7 @@ The current priority is acceptance of the Android 15 container baseline. Detaile
 
 | Area | Implemented foundation | Remaining acceptance |
 | --- | --- | --- |
-| Product/build | Independent pinned AOSP products, owned integration/patches, resolved configuration checks, OCI packaging and image metadata. | Final clean build and exact source/archive/image provenance. |
+| Product/build | Independent pinned AOSP products, owned integration/patches, resolved configuration checks, OCI packaging and image metadata. | Clean candidate and provenance checks complete locally; final same-candidate runtime/host and release acceptance remain. |
 | Container lifecycle | Init as PID1, private binderfs, delegated cgroup-v2 memory, memfd, persistent data, health and stdout/stderr logging. | Same-candidate Docker/Compose, Binder isolation, ADB modes and restart acceptance. |
 | Apps and graphics | ANGLE/SwiftShader, memfd allocator/mapper, client composition, software codecs, scoped presentation/vsync/worker corrections and optional-feature Settings handling. | Final ordinary-app/search/storage/media workflows, streaming, focus/lifecycle and single/multi-instance responsiveness. |
 | Networking | OCI-owned IPv4 publication, DNS/TLS, cgroup UID/metered/Data Saver policy, TCX accounting/quotas and real alert callbacks. | Final DNS modes, enforcement/restoration, segmentation, recorded history, concurrency and service recovery. |

@@ -9,7 +9,7 @@ royd runs Android directly in OCI containers on the host Linux kernel, without Q
 royd is an independent AOSP-based project with owned products, runtime helpers and Android patches. See [acknowledgements](docs/acknowledgements.md) for prior art.
 
 > [!IMPORTANT]
-> royd is experimental and has no published image yet. The active baseline is Android 15 x86_64, standard graphical, software rendering and privileged rootful Docker. Local component validation is available; final clean-build and reference-host acceptance remain pending. Read [known limitations](docs/known-limitations.md) and [security](docs/security.md) before use.
+> royd is experimental and has no published image yet. The active baseline is Android 15 x86_64, standard graphical, software rendering and privileged rootful Docker. Local build and component validation do not yet establish support. See the [acceptance checklist](docs/android15-completion.md) for current status. Read [known limitations](docs/known-limitations.md) and [security](docs/security.md) before use.
 
 ## Requirements
 

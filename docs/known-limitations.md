@@ -1,6 +1,6 @@
 # Known limitations
 
-royd is experimental. Local validation of Android 15 does not yet constitute a supported release. Final clean-build, application/network, endurance and reference-host acceptance remain pending. See [the completion checklist](android15-completion.md) and [support policy](support-policy.md).
+royd is experimental. Local validation of Android 15 does not yet constitute a supported release. Final application/network, endurance and reference-host acceptance remain pending. See [the completion checklist](android15-completion.md) and [support policy](support-policy.md).
 
 ## Android 15 scope
 

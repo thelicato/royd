@@ -8,6 +8,18 @@ The candidate is Android 15 x86_64, standard graphical, software rendering, low-
 
 Exact causal attribution of earlier WebView/Launcher focus ANRs and startup pre-watchdogs is accepted as a historical uncertainty. Those failures remain recorded and are not described as fixed. This acceptance does not waive any final-candidate runtime, ANR, input-timeout, pre-watchdog, security, packet/noise or restoration check. A failure on the candidate requires diagnosis and affected requalification.
 
+## Frozen candidate
+
+The clean-output build uses source `bd02d0338d40729c3e45ddc22098312af539627c`, the pinned 1,030-project AOSP manifest and 91 owned patches. Resolved configuration, compilation, packaging, import and source/artefact provenance checks pass. Executable repository inputs match the passing CI snapshot; documentation checks pass independently. This establishes build provenance only, without a runtime or support promotion.
+
+| Identity | Value |
+| --- | --- |
+| Docker image | `sha256:b582a1a60423c0103dfa3df6daee8c6febf2304fa2b158537e4d72e9d915c655` |
+| Root-filesystem archive SHA-256 | `43a3ab716934ffc7097bd6b716fe2ed4704dd3bc7bde82d6072682748a3dcb5d` |
+| Resolved source-manifest SHA-256 | `9608e346716ced6118249ac10325b14914826de8cb5e49dd9548ae85be1ee145` |
+
+Pin the image digest for all remaining gates. Preserve its matching archive, manifest, symbols and generated evidence; a later image-input change reopens affected acceptance.
+
 ## Execution
 
 Complete each outcome with an atomic Conventional Commit. Preserve failed evidence and unrelated state. Use the existing Git identity; do not amend, push or publish. Repository ZIPs and task delivery patches are waived. Required local baseline builds, packaging and import are authorised. Continue independent work until acceptance is complete or an external prerequisite is missing.
@@ -24,7 +36,7 @@ The IDs are stable checklist references. A documented limitation is distinct fro
 | T01 | Attribute sampled blank transitions and hand-off waits using app/render/consumer/layer evidence; retain coverage limits. | Scoped local attribution complete: an opaque Settings splash covers advancing app buffers; captured waits have BufferQueue backpressure/release progress. General visual quality remains unqualified. |
 | T02 | Assess earlier WebView/Launcher focus ANRs without inventing a common cause. | Historical cause unestablished and accepted as a documented limitation. Final candidate must pass unchanged focus/lifecycle and full responsiveness checks. |
 | T03 | Assess earlier startup pre-watchdogs without attributing a whole interval to a late stack sample. | Historical cause unestablished and accepted as a documented limitation. Checker timing diagnostics exist. Final single/multi-instance startup must pass; Watchdog policy and credential durability remain unchanged. |
-| T04 | Clean Android outputs, pinned AOSP/owned inputs, resolved configuration, successful CI, package/import and verified source/artefact/archive/image provenance. Freeze the candidate. | Pending final clean build. |
+| T04 | Clean Android outputs, pinned AOSP/owned inputs, resolved configuration, successful CI, package/import and verified source/artefact/archive/image provenance. Freeze the candidate. | Complete locally on source `bd02d03`; the frozen candidate requires final runtime/host acceptance. |
 | T05 | Full runtime/security/Binder isolation; ordinary Launcher, Settings/search, DocumentsUI, WebView, storage and media; Docker/Compose, PID1/logs/health and default/required-auth ADB acceptance/rejection. | Pending same-candidate acceptance. |
 | T06 | Native/WebView IPv4 DNS/HTTPS and both certificate-denial controls in both DNS modes; ordinary/control-UID denial, metered/Data Saver and link withdrawal/recovery, with restoration. | Pending same-candidate acceptance. |
 | T07 | Ordinary-UID/API accounting, denied-packet boundaries, native UDP/TCP/segmentation and explicitly flushed recorded history across Docker/framework restarts. Exact identities/buckets and permission denial. | Pending same-candidate acceptance. |
