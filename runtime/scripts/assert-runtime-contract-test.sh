@@ -533,6 +533,9 @@ case "$1" in
           printf '%s\n' 'W InputDispatcher: Window abc example.app/.Main is unresponsive: example.app/.Main is not responding. Waited 5043ms for FocusEvent(hasFocus=true)'
           ;;
         formal) printf '%s\n' 'I am_anr  : [0,101,example.app,0,Input dispatching timed out]' ;;
+        property-peer) printf '%s\n' "init: Unable to set property 'ro.cold_boot_done': getpeercon() failed: Protocol not available" ;;
+        property-peer-other) printf '%s\n' "init: Unable to set property 'vendor.royd.display.width': getpeercon() failed: Permission denied" ;;
+        property-peer-marker) printf '%s\n' 'init: ROYD: property peer security context unavailable' ;;
         self-freeze) printf '%s\n' 'W AnrTimerService: ROYD: skipping ANR-timer self-freeze' ;;
         ordinary-freeze) printf '%s\n' 'I AnrTimerService: freeze id=7 pid=101 uid=10001 status=expired name=example.app' ;;
         activity) printf '%s\n' 'E ActivityManager: ANR in example.app (example.app/.Main)' ;;
@@ -1591,6 +1594,20 @@ for phase in early late; do
 done
 PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=ordinary-freeze \
   "$script_dir/assert-runtime.sh" ordinary-native-freeze >"$tmp/output" 2>&1
+for phase in early late; do
+  for mode in property-peer property-peer-other; do
+    rm -f "$tmp/anr-state"
+    if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR="$mode" MOCK_APP_ANR_PHASE="$phase" \
+        MOCK_ANR_STATE="$tmp/anr-state" "$script_dir/assert-runtime.sh" property-peer >"$tmp/error" 2>&1; then
+      printf 'error: runtime assertion accepted %s failure in %s phase\n' "$mode" "$phase" >&2
+      exit 1
+    fi
+    grep -Fq 'property-service peer-context lookup failed' "$tmp/error"
+    if [ "$phase" = late ]; then test -f "$tmp/anr-state"; else test ! -f "$tmp/anr-state"; fi
+  done
+done
+PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR=property-peer-marker \
+  "$script_dir/assert-runtime.sh" property-peer-marker >"$tmp/output" 2>&1
 if PATH="$tmp:$PATH" MOCK_SDK=35 MOCK_APP_ANR_LOG_FAILURE=1 \
     "$script_dir/assert-runtime.sh" unreadable-anr-history >"$tmp/error" 2>&1; then
   printf '%s\n' 'error: runtime assertion accepted unreadable responsiveness history' >&2

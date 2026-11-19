@@ -50,6 +50,7 @@
 .PHONY: android15-host-clock-container-test
 .PHONY: android15-watchdog-container-test
 .PHONY: android15-anr-timer-container-test
+.PHONY: android15-property-peer-context-container-test
 .PHONY: android15-tcp-diag-container-test
 .PHONY: android15-networkmonitor-wifi-container-test
 .PHONY: android15-netpolicy-wifi-container-test
@@ -674,6 +675,9 @@ android15-watchdog-container-test:
 
 android15-anr-timer-container-test:
 	./android/scripts/android15-anr-timer-container-test.sh
+
+android15-property-peer-context-container-test:
+	./android/scripts/android15-property-peer-context-container-test.sh
 
 android15-tcp-diag-container-test:
 	./android/scripts/android15-tcp-diag-container-test.sh

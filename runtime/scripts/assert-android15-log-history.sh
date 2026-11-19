@@ -66,6 +66,11 @@ if grep -Eq \
     "$container" >&2
   exit 1
 fi
+if grep -Eq "Unable to set property '[^']+': getpeercon\(\) failed" <"$history"; then
+  printf 'error: Android 15 property-service peer-context lookup failed in %s\n' \
+    "$container" >&2
+  exit 1
+fi
 if grep -Fq 'No service published for: dropbox' <"$history"; then
   printf 'error: Android 15 recursively reported the unpublished DropBox service in %s\n' \
     "$container" >&2

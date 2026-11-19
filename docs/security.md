@@ -107,6 +107,8 @@ ROYD_SECURITY_SWEEP_OUTPUT=security-sweep.md make runtime-security-sweep
 
 ## Seccomp and LSM policy
 
+Android 15's property service accepts an unavailable peer security context only when `getpeercon()` returns `ENOPROTOOPT`, `ROYD_CONTAINER=1`, `/sys/fs/selinux/enforce` is absent through `ENOENT` and libselinux reports disabled. It passes an empty context through the existing permission path, without fabricating a label. Mandatory socket peer credentials (`SO_PEERCRED`), socket access modes, property names/types, control checks, read-only properties and persistence remain unchanged. This does not provide SELinux MAC enforcement on a host without SELinux. Successful context lookups and every other lookup/probe error retain stock behaviour. The on-demand diagnostic is emitted once per property-service process and is not required on hosts that supply peer contexts.
+
 Under `ROYD_CONTAINER=1`, when `/sys/fs/selinux/enforce` is absent with `ENOENT`, Android 15's native ANR timer skips freezing its own reporting process. Freezing that process would also stop the notification and unfreeze paths. Timer expiry, scheduler extensions, other-process freezing and ANR reporting retain stock behaviour. An attempted self-freeze emits a bounded diagnostic and fails runtime qualification; the guard does not make an expired timeout acceptable. Positive self-freeze validation uses mocks, not a forced timeout on a shared host.
 
 The experimental profile does not currently force seccomp unconfined, AppArmor unconfined, SELinux label changes, or `no-new-privileges`. Those controls are intentionally measured rather than changed speculatively.

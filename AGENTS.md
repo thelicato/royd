@@ -58,6 +58,8 @@ All Android 15 container exceptions require the exact gate specified in their so
 
 ## Runtime integration
 
+- Property-service peer-context fallback requires `getpeercon()` to fail with `ENOPROTOOPT`, exact `ROYD_CONTAINER=1`, `/sys/fs/selinux/enforce` absent through `ENOENT` and libselinux reporting disabled. Use an empty context without inventing a SID. Preserve successful context lookup, all other errors and original error reporting, mandatory `SO_PEERCRED`, socket permissions and stock property/control/type/write-once/persistence checks. The bounded fallback marker is on demand, not a healthy-boot requirement.
+
 - Delegate only `/sys/fs/cgroup/royd` to Android's system UID. Leave Docker's root ownership unchanged and keep the delegated root process-free by moving init into its leaf. Use cgroup-v2 memory and correct namespace-absolute path normalisation. Retry only controller-enable `EBUSY` against the existing ten-second monotonic deadline; never move external processes. Setup errors remain visible.
 - Skip only unavailable legacy `JoinCgroup` actions whose configured `cgroup.procs` interface reports `ENOENT`. A mount-point directory alone is insufficient. Preserve scheduler, timer slack and all other actions; use a mounted legacy controller normally.
 - Select sealed memfd after stock property reset. Preserve the scoped mediaextractor seccomp additions, required-policy failure, non-executable flags/sizing/seals, stock vendor policy, no-new-privileges and all other sandbox restrictions. See [media sandbox](docs/media-sandbox.md).

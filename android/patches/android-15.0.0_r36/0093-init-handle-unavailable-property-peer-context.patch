@@ -1,0 +1,26 @@
+diff --git a/system/core/init/property_service.cpp b/system/core/init/property_service.cpp
+--- a/system/core/init/property_service.cpp
++++ b/system/core/init/property_service.cpp
+@@ -283,6 +283,22 @@
+     bool GetSourceContext(std::string* source_context) const {
+         char* c_source_context = nullptr;
+         if (getpeercon(socket_.get(), &c_source_context) != 0) {
++            const int context_errno = errno;
++            const char* container = getenv("ROYD_CONTAINER");
++            if (context_errno == ENOPROTOOPT && container != nullptr &&
++                strcmp(container, "1") == 0 &&
++                access("/sys/fs/selinux/enforce", F_OK) != 0 && errno == ENOENT &&
++                is_selinux_enabled() == 0) {
++                // No peer label exists on this host. Keep SO_PEERCRED and the stock
++                // permission/type/write-once checks; do not invent a security context.
++                static std::once_flag logged;
++                std::call_once(logged, [] {
++                    LOG(WARNING) << "ROYD: property peer security context unavailable";
++                });
++                source_context->clear();
++                return true;
++            }
++            errno = context_errno;
+             return false;
+         }
+         *source_context = c_source_context;

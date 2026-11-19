@@ -720,6 +720,19 @@ SRC
 
 #include <selinux/selinux.h>
 
+class SocketConnection {
+  public:
+    bool GetSourceContext(std::string* source_context) const {
+        char* c_source_context = nullptr;
+        if (getpeercon(socket_.get(), &c_source_context) != 0) {
+            return false;
+        }
+        *source_context = c_source_context;
+        freecon(c_source_context);
+        return true;
+    }
+};
+
 void PropertyLoadBootDefaults() {
     std::map<std::string, std::string> properties;
 
@@ -3353,6 +3366,12 @@ grep -Fq 'Binder.allowBlocking(this.getNativeServiceManager()));' \
   "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
 grep -Fq 'return mServiceManager.checkService(name);' \
   "$tmp/src/frameworks/base/core/java/android/os/ServiceManagerNative.java"
+grep -Fq 'context_errno == ENOPROTOOPT && container != nullptr' \
+  "$tmp/src/system/core/init/property_service.cpp"
+grep -Fq 'is_selinux_enabled() == 0)' \
+  "$tmp/src/system/core/init/property_service.cpp"
+grep -Fq 'ROYD: property peer security context unavailable' \
+  "$tmp/src/system/core/init/property_service.cpp"
 grep -Fq 'constexpr const char* kRoydResourceProp = "/royd-resource.prop";' \
   "$tmp/src/system/core/init/property_service.cpp"
 grep -Fq 'load_properties_from_file(kRoydResourceProp, nullptr, &properties)' \
