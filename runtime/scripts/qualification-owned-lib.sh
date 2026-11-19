@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Sourced by qualification.sh after its per-run state has been initialised.
+# Sourced after per-run container, volume and evidence state has been initialised.
 qualification_owner() {
-  actual=$(docker inspect --format '{{index .Config.Labels "org.royd.test.owner"}} {{.Id}} {{.Image}}' "$container") || return 1
+  actual=$("${docker_command:-docker}" inspect --format '{{index .Config.Labels "org.royd.test.owner"}} {{.Id}} {{.Image}}' "$container") || return 1
   [ "$actual" = "$owner $container_id $image_id" ]
 }
 
 qualification_volume_owner() {
-  actual=$(docker volume inspect --format '{{index .Labels "org.royd.test.owner"}}' "$volume") || return 1
+  actual=$("${docker_command:-docker}" volume inspect --format '{{index .Labels "org.royd.test.owner"}}' "$volume") || return 1
   [ "$actual" = "$owner" ]
 }
 
@@ -15,7 +15,7 @@ qualification_reports() {
   for diagnostic in anr system/dropbox; do
     kind=${diagnostic##*/}
     case "$kind" in anr) status_key=ANR ;; dropbox) status_key=DROPBOX ;; esac
-    if timeout 5 docker exec "$container_id" sh -c '
+    if timeout 5 "${docker_command:-docker}" exec "$container_id" sh -c '
       if test -d "$1"; then
         printf "%s\n" ROYD_REPORT_DIRECTORY=present
       else
@@ -25,7 +25,7 @@ qualification_reports() {
       reply=$(cat "$evidence_dir/$kind-capture.log")
       case "$reply" in
         ROYD_REPORT_DIRECTORY=present)
-          docker cp "$container_id:/data/$diagnostic" "$evidence_dir/$kind" >>"$evidence_dir/$kind-capture.log" 2>&1 || return 1
+          "${docker_command:-docker}" cp "$container_id:/data/$diagnostic" "$evidence_dir/$kind" >>"$evidence_dir/$kind-capture.log" 2>&1 || return 1
           printf '%s_COPY_STATUS=pass\n' "$status_key" >"$evidence_dir/$kind-status.env"
           ;;
         ROYD_REPORT_DIRECTORY=unavailable)

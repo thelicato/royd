@@ -15,7 +15,7 @@ func productionTemplate(t *testing.T) *template.Template {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, rest, found := strings.Cut(string(source), "docker inspect --format '")
+	_, rest, found := strings.Cut(string(source), "inspect --format '")
 	if !found {
 		t.Fatal("production inspect template not found")
 	}
